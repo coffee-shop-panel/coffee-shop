@@ -260,7 +260,7 @@ async function submitForm(input) {
       // a WireGuard interface must not carry the form's default along with it.
       // The same for psk, which is L2TP's.
       // eslint-disable-next-line no-unused-vars -- taken out of rest, sent by protocol below
-      const { transport, transportPort, ws, psk, l2tpPlain, ikev2Modes, awg, awgLevel, oc, xray, wgAdvanced, ...rest } = input
+      const { transport, transportPort, ws, psk, l2tpPlain, ikev2Modes, awg, awgLevel, awgMode, oc, xray, wgAdvanced, ...rest } = input
       if (xray) {
         // An inbound on a 3x-ui or Pasarguard node, made there as that
         // panel's own form would make it.
