@@ -212,7 +212,21 @@ func (w *trafficWriter) flush(ctx context.Context) {
 		}
 		if err := db.Model(&model.Client{}).Select("id, owner_id, admin_id").
 			Where("id IN ? AND (owner_id <> 0 OR admin_id <> 0)", ids).Scan(&rows).Error; err != nil {
-			w.log.Warn("could not read which operator these customers belong to", "error", err)
+			// Not written anyway with the maps empty: the customers' own
+			// totals would land while their operators' running totals did
+			// not, and the two would never agree again. The batch goes
+			// back whole, as a failed transaction's does, and is written
+			// by the next flush instead.
+			w.restore(usage, devices, liveness)
+			w.mu.Lock()
+			first := !w.failing
+			w.failing = true
+			w.failures++
+			w.mu.Unlock()
+			if first {
+				w.log.Error("could not read which operator these customers belong to; keeping the batch to write on the next try", "error", err)
+			}
+			return
 		}
 		for _, row := range rows {
 			owners[row.ID] = row.OwnerID

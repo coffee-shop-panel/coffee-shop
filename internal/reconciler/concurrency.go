@@ -589,7 +589,7 @@ func (c *concurrency) enforce(client *model.Client, accs []model.Account, now ti
 			allKnown = false
 		}
 		for _, h := range addrs {
-			addrSet[h] = true
+			addrSet[hostOf(h)] = true
 		}
 	}
 	if total <= client.DeviceLimit {
@@ -600,8 +600,13 @@ func (c *concurrency) enforce(client *model.Client, accs []model.Account, now ti
 	// from the same public address. That is one person in one place, not
 	// sharing -- the limit is for connections from more places than the
 	// plan allows. Only when every live credential's address is known and
-	// they all come to one is the customer let be; a credential fighting
-	// between two devices still shows two addresses and is still held.
+	// they all come to one host is the customer let be. The comparison is
+	// by host, without the port: each of a phone's tunnels arrives on a
+	// port of its own, so by the full address one phone would look like
+	// several places and the exception would never hold. The port is
+	// dropped here only -- a credential fighting between two devices is
+	// still counted by its addresses with their ports (connections), and
+	// is still held.
 	// The letting-be lasts only while it looks like a test: once more
 	// credentials than the plan allows have each been running without a
 	// break for longer than sameIPGrace, it is several people behind one
@@ -701,3 +706,4 @@ func (c *concurrency) liveClients(now time.Time) []uint {
 func whereFrom(endpoint string) string {
 	return strings.TrimSpace(endpoint)
 }
+
