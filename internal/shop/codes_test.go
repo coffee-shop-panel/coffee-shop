@@ -293,4 +293,56 @@ func TestQuantityFulfillCreatesEveryUnit(t *testing.T) {
 	if rows := clientsOf(t, f, 111); len(rows) != 3 {
 		t.Errorf("after a second delivery the buyer holds %d customers, want 3 still", len(rows))
 	}
+	if after.UnitsDone != 3 {
+		t.Errorf("the order counts %d units delivered, want all 3", after.UnitsDone)
+	}
+}
+
+// A bulk delivery retried after failing halfway makes only the units
+// still missing: the order counts the units already delivered, and
+// the retry resumes past them instead of making the whole basket
+// again. The count is preset here the way a failed first attempt
+// would have left it -- two of three units standing.
+func TestQuantityRetryCreatesOnlyTheMissingUnits(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	seller := addOperator(t, f.db, "hussain", model.RoleReseller, 0)
+	grant(t, f, seller.ID, f.ifaces[0])
+	sellingShop(t, f, seller, []uint{f.ifaces[0].ID}, nil)
+
+	o := paidOrder(seller.ID, 111, KindNew)
+	o.Quantity = 3
+	o.UnitsDone = 2
+	if err := f.shop.CreateOrder(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+	made, err := f.shop.Fulfill(ctx, o.ID)
+	if err != nil {
+		t.Fatalf("Fulfill: %v", err)
+	}
+	rows := clientsOf(t, f, 111)
+	if len(rows) != 1 {
+		t.Fatalf("the retry made %d customers, want exactly the 1 missing unit", len(rows))
+	}
+	if rows[0].ID != made.ID {
+		t.Errorf("Fulfill handed back customer %d, want the unit it made (%d)", made.ID, rows[0].ID)
+	}
+	if rows[0].Name != "Buyer (3)" {
+		t.Errorf("the unit made is named %q, want the third unit's name", rows[0].Name)
+	}
+	after, err := f.shop.OrderByID(ctx, o.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Status != StatusFulfilled || after.UnitsDone != 3 {
+		t.Errorf("the order is %s with %d units counted, want fulfilled with 3",
+			after.Status, after.UnitsDone)
+	}
+	// And the settled order, delivered again, makes nothing more.
+	if _, err := f.shop.Fulfill(ctx, o.ID); err != nil {
+		t.Fatalf("Fulfill again: %v", err)
+	}
+	if rows := clientsOf(t, f, 111); len(rows) != 1 {
+		t.Errorf("after a second delivery the buyer holds %d customers, want 1 still", len(rows))
+	}
 }

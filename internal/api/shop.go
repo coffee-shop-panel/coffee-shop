@@ -60,7 +60,7 @@ type shopConfigView struct {
 	FaqText      string `json:"faqText"`
 	InterfaceIDs []uint `json:"interfaceIds"`
 	BotUsername  string `json:"botUsername"`
-	BotRunning    bool   `json:"botRunning"`
+	BotRunning   bool   `json:"botRunning"`
 	// The shop's growth settings ride along so the page can show and
 	// save them with the rest of the bot's configuration: the trial it
 	// offers, how its customers are named, the cashback it pays, and

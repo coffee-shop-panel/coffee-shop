@@ -184,6 +184,52 @@ func TestShopConfigSaveKeepsThenReplacesTheToken(t *testing.T) {
 	}
 }
 
+// The shop's teaching words round-trip with the rest of the config:
+// what the page saves as the tutorial and the FAQ is what the config
+// reads back -- and what the bot will offer -- word for word.
+func TestShopConfigTutorialAndFaqRoundTrip(t *testing.T) {
+	f := newShopFixture(t, false)
+
+	rec := shopDo(f.srv, f.srv.handleShopConfigSave,
+		asAdmin(f.seller, http.MethodPut, "/api/shop/config", map[string]any{
+			"enabled":      true,
+			"tutorialText": "اول برنامه را نصب کنید، بعد لینک را وارد کنید.",
+			"faqText":      "چرا وصل نمی‌شود؟ چون حجم تمام شده است.",
+		}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("save: status %d, body %s", rec.Code, rec.Body)
+	}
+	var out shopConfigView
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.TutorialText != "اول برنامه را نصب کنید، بعد لینک را وارد کنید." ||
+		out.FaqText != "چرا وصل نمی‌شود؟ چون حجم تمام شده است." {
+		t.Errorf("the saved config reads tutorial %q, faq %q", out.TutorialText, out.FaqText)
+	}
+
+	cfg, err := f.store.ConfigFor(context.Background(), f.seller.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TutorialText != out.TutorialText || cfg.FaqText != out.FaqText {
+		t.Errorf("the stored config is tutorial %q, faq %q", cfg.TutorialText, cfg.FaqText)
+	}
+
+	rec = shopDo(f.srv, f.srv.handleShopConfig,
+		asAdmin(f.seller, http.MethodGet, "/api/shop/config", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("read: status %d, body %s", rec.Code, rec.Body)
+	}
+	out = shopConfigView{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.TutorialText != cfg.TutorialText || out.FaqText != cfg.FaqText {
+		t.Errorf("a fresh read says tutorial %q, faq %q", out.TutorialText, out.FaqText)
+	}
+}
+
 // The public base is the panel's, not a seller's: a reseller naming a
 // different one is refused and nothing of theirs is saved either, while
 // the owner may set it and then reads it back.
