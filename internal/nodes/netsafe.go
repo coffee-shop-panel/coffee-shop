@@ -98,32 +98,3 @@ func guardedDial(allowPrivate bool, timeout time.Duration) func(context.Context,
 		return nil, fmt.Errorf("no usable address for %s", host)
 	}
 }
-
-// checkPublic resolves a host and refuses it if it lands inside this server's
-// own network. Used where a connection is made without the guarded dialer.
-func checkPublic(ctx context.Context, hostPort string) error {
-	host, _, err := net.SplitHostPort(hostPort)
-	if err != nil {
-		host = hostPort
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		if blocked(ip) {
-			return fmt.Errorf("%w (%s)", ErrPrivateAddress, ip)
-		}
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if err != nil {
-		return err
-	}
-	for _, a := range ips {
-		if !blocked(a.IP) {
-			return nil
-		}
-	}
-	return fmt.Errorf("%w (%s)", ErrPrivateAddress, host)
-}

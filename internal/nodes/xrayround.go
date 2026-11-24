@@ -238,10 +238,13 @@ func (s *Syncer) xrayRound(ctx context.Context, node model.Node, p xrayPanel) er
 	touched = touched || changed
 	failures = append(failures, swept...)
 
+	// Charged before the counters are kept: a crash between the two must
+	// lose the keeping, which the next round reads again from that panel,
+	// rather than the charge, which nothing would ever hand over twice.
+	s.chargeXUI(ctx, node, usage)
 	if err := service.SaveXUICounters(ctx, s.db, usage, links); err != nil {
 		return fmt.Errorf("could not keep its counters: %w", err)
 	}
-	s.chargeXUI(ctx, node, usage)
 	if err := s.saveMarks(ctx, marks); err != nil {
 		failures = append(failures, err.Error())
 	}

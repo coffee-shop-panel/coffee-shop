@@ -157,11 +157,15 @@ func (x *xuiAPI) learn(ctx context.Context) error {
 	default:
 		// probed below
 	}
-	if x.gen != xuiGenNew && x.token && x.version != "" {
+	if x.gen != xuiGenNew && x.token && !x.session && x.version != "" {
 		// A late 2.x panel can already have dropped the legacy client
 		// routes and carry the new clients API under a 2.x number
 		// (2.10.13 is one): the number alone does not say which routes
-		// answer, so ask it before trusting the number.
+		// answer, so ask it before trusting the number. Asked only where
+		// the token alone speaks: with a sign-in kept as well, the probe's
+		// miss on an older panel is answered as a lapsed session and
+		// costs a fresh sign-in, and a sign-in is a thing that panel
+		// reports to its operator -- not to be spent on a question.
 		var probe json.RawMessage
 		if err := x.call(ctx, http.MethodGet, x.base+"clients/list", nil, &probe); err == nil {
 			x.gen = xuiGenNew

@@ -51,9 +51,18 @@ type xuiPanel struct {
 	api  *xuiAPI
 
 	rows []xuiInboundRow
-	// remote is every client there by email, with its settings and its
-	// counters.
+	// remote is every client there by inbound and email (remoteKey), with
+	// its settings and its counters.
 	remote map[string]*remoteXUIClient
+}
+
+// remoteKey is a client there in the round's map: its inbound and its
+// email. One user sits on several inbounds of that panel under the one
+// email -- the way 3x-ui itself has it from 3.1 -- and by email alone the
+// copies would collapse into whichever was read last, the others never
+// switched and their counters read against the wrong one.
+func remoteKey(inbound int, email string) string {
+	return fmt.Sprintf("%d|%s", inbound, email)
 }
 
 func (p *xuiPanel) read(ctx context.Context) ([]service.XUIInboundSeen, map[int]string, error) {
@@ -103,10 +112,10 @@ func (p *xuiPanel) read(ctx context.Context) ([]service.XUIInboundSeen, map[int]
 			if i < len(raw.Clients) {
 				rc.raw = raw.Clients[i]
 			}
-			p.remote[c.Email] = rc
+			p.remote[remoteKey(r.ID, c.Email)] = rc
 		}
 		for _, cs := range r.ClientStats {
-			if rc, ok := p.remote[cs.Email]; ok && rc.inbound == r.ID {
+			if rc, ok := p.remote[remoteKey(r.ID, cs.Email)]; ok {
 				rc.stat, rc.hasStat = cs, true
 			}
 		}
@@ -121,7 +130,17 @@ func (p *xuiPanel) own(ctx context.Context, f xrayFile) xrayResult {
 	res := xrayResult{name: email}
 	in := f.iface.XUI.V
 	desired := xuiClientFor(p.tag, &f.acc, in, f.client, f.on)
-	rc, exists := p.remote[email]
+	rc, exists := p.remote[remoteKey(in.RemoteID, email)]
+	if !exists {
+		// On another inbound there than the one it belongs to here: the
+		// copy is found by its email alone, and put back below.
+		for _, other := range p.remote {
+			if other.cfg.Email == email {
+				rc, exists = other, true
+				break
+			}
+		}
+	}
 	if exists {
 		keepTheirs(&desired, rc.cfg, in.Kind)
 	}
@@ -170,7 +189,17 @@ func (p *xuiPanel) own(ctx context.Context, f xrayFile) xrayResult {
 }
 
 func (p *xuiPanel) adopt(ctx context.Context, f xrayFile, marks map[uint]adoptedMark) xrayResult {
-	changed, u, link, err := p.s.xuiAdopted(ctx, p.api, &f.acc, p.remote[f.acc.Adopted], f.on, f.links, marks)
+	rc := p.remote[remoteKey(f.iface.XUI.V.RemoteID, f.acc.Adopted)]
+	if rc == nil {
+		// Not on the inbound it was brought in on: by its email alone.
+		for _, other := range p.remote {
+			if other.cfg.Email == f.acc.Adopted {
+				rc = other
+				break
+			}
+		}
+	}
+	changed, u, link, err := p.s.xuiAdopted(ctx, p.api, &f.acc, rc, f.on, f.links, marks)
 	return xrayResult{usage: u, link: link, changed: changed, err: err}
 }
 
@@ -179,7 +208,8 @@ func (p *xuiPanel) adopt(ctx context.Context, f xrayFile, marks map[uint]adopted
 func (p *xuiPanel) sweep(ctx context.Context, wanted map[string]bool) (bool, []string) {
 	changed := false
 	var failures []string
-	for email, rc := range p.remote {
+	for _, rc := range p.remote {
+		email := rc.cfg.Email
 		if wanted[email] || !service.XUIOwns(p.tag, email) {
 			continue
 		}
@@ -333,8 +363,8 @@ func xuiClientFor(tag string, acc *model.Account, in model.XUIInbound, c model.C
 
 // lastOf reports whether a client is the only one on its inbound there.
 func lastOf(remote map[string]*remoteXUIClient, inbound int, email string) bool {
-	for e, rc := range remote {
-		if e != email && rc.inbound == inbound {
+	for _, rc := range remote {
+		if rc.cfg.Email != email && rc.inbound == inbound {
 			return false
 		}
 	}

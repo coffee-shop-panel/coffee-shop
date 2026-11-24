@@ -222,28 +222,34 @@ func FetchPin(ctx context.Context, address string, timeout time.Duration, allowP
 		return "", err
 	}
 
-	dialer := &tls.Dialer{
-		NetDialer: &net.Dialer{Timeout: timeout},
-		Config:    &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12, ServerName: serverName},
-	}
-	// The same guard as a real request. Reading a fingerprint is a connection
-	// like any other, and an operator who has typed a private address by
-	// mistake should find out here rather than after storing its certificate.
-	if !allowPrivate {
-		if err := checkPublic(ctx, host); err != nil {
-			return "", err
-		}
-	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	conn, err := dialer.DialContext(ctx, "tcp", host)
+	// The same guard as a real request, and the same dialer: the name is
+	// resolved once and the address that was checked is the one connected
+	// to, so an answer that changes between a check and a dial cannot land
+	// this connection somewhere private after all. Reading a fingerprint
+	// is a connection like any other, and an operator who has typed a
+	// private address by mistake should find out here rather than after
+	// storing its certificate. The name still goes in the handshake, as
+	// the node's own requests will give it.
+	name := serverName
+	if name == "" {
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			name = h
+		}
+	}
+	raw, err := guardedDial(allowPrivate, timeout)(ctx, "tcp", host)
 	if err != nil {
 		return "", fmt.Errorf("could not reach %s: %w", host, err)
 	}
+	conn := tls.Client(raw, &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12, ServerName: name})
 	defer conn.Close()
+	if err := conn.HandshakeContext(ctx); err != nil {
+		return "", fmt.Errorf("could not reach %s: %w", host, err)
+	}
 
-	state := conn.(*tls.Conn).ConnectionState()
+	state := conn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
 		return "", fmt.Errorf("%s answered but presented no certificate", host)
 	}

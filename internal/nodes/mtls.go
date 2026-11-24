@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -64,6 +65,15 @@ type Identity struct {
 	ClientKeyPEM  string
 }
 
+// identityMu is held across the whole of EnsureIdentity: the identity is
+// read and, the first time, minted and stored as four separate settings,
+// and two first calls racing -- the syncer and the prober ask in the same
+// moments -- could interleave them, or each mint its own authority and
+// leave the second's stored. The authority is what operators paste into
+// every node by hand; minting another one silently is not a thing a race
+// gets to do.
+var identityMu sync.Mutex
+
 // EnsureIdentity returns this panel's client identity, minting it the first
 // time it is asked for.
 //
@@ -71,6 +81,8 @@ type Identity struct {
 // one, and generating a key on every install for a feature most never turn on
 // is work nobody asked for.
 func EnsureIdentity(db *gorm.DB) (*Identity, error) {
+	identityMu.Lock()
+	defer identityMu.Unlock()
 	caCert, haveCert, err := database.GetSetting(db, KeyMTLSCACert)
 	if err != nil {
 		return nil, err
