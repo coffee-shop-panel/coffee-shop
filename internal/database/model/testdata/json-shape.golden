@@ -432,6 +432,7 @@ ShopPlan
 	id uint
 	operatorId uint
 	name string
+	section string
 	quotaBytes uint64
 	days int
 	priceToman int64
@@ -447,6 +448,7 @@ ShopOrder
 	buyerName string
 	planId uint
 	planName string
+	section string
 	quotaBytes uint64
 	days int
 	priceToman int64
@@ -461,3 +463,7 @@ ShopOrder
 	publicToken string
 	createdAt time.Time
 	updatedAt time.Time
+ShopReceipt
+	orderId uint
+	contentType string
+	createdAt time.Time

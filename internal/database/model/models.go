@@ -1006,6 +1006,12 @@ type ShopPlan struct {
 	OperatorID uint `gorm:"index;not null" json:"operatorId"`
 
 	Name string `gorm:"size:128;not null" json:"name"`
+	// Section is which half of the shop sells this plan: "wireguard" for
+	// the WireGuard tunnels, "v2ray" for the 3x-ui inbounds. The buyer
+	// picks a section first and is offered only its plans, and delivery
+	// puts them only on that section's tunnels. Plans saved before
+	// sections existed are WireGuard plans, which the default says.
+	Section string `gorm:"size:16;not null;default:wireguard" json:"section"`
 	// QuotaBytes of 0 means unlimited, as on a customer.
 	QuotaBytes  uint64 `gorm:"not null;default:0" json:"quotaBytes"`
 	Days        int    `gorm:"not null;default:0" json:"days"`
@@ -1034,8 +1040,12 @@ type ShopOrder struct {
 	BuyerTGID int64  `gorm:"index;not null" json:"buyerTgId"`
 	BuyerName string `gorm:"size:128" json:"buyerName"`
 
-	PlanID      uint   `gorm:"not null;default:0" json:"planId"`
-	PlanName    string `gorm:"size:128" json:"planName"`
+	PlanID   uint   `gorm:"not null;default:0" json:"planId"`
+	PlanName string `gorm:"size:128" json:"planName"`
+	// Section is the plan's section, copied like the rest of its terms:
+	// what is delivered is the section that was sold, even if the plan
+	// is edited into the other section while the buyer is paying.
+	Section     string `gorm:"size:16;not null;default:wireguard" json:"section"`
 	QuotaBytes  uint64 `gorm:"not null;default:0" json:"quotaBytes"`
 	Days        int    `gorm:"not null;default:0" json:"days"`
 	PriceToman  int64  `gorm:"not null;default:0" json:"priceToman"`
@@ -1076,6 +1086,23 @@ type ShopOrder struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// ShopReceipt is a card buyer's transfer receipt, kept by the panel
+// itself rather than only as a file id on Telegram's servers: the
+// operator reads receipts in the panel to approve them, and a picture
+// that lives only in a chat is a picture that can scroll away, or be
+// gone with the chat. One per order -- a buyer who sends a better
+// picture replaces the first, they do not accumulate.
+//
+// The bytes are never serialised: the panel serves them through the
+// receipt endpoint with their content type, and a JSON answer carrying
+// megabytes of base64 would be a worse way to hand a picture to anyone.
+type ShopReceipt struct {
+	OrderID     uint      `gorm:"primaryKey" json:"orderId"`
+	ContentType string    `gorm:"size:128" json:"contentType"`
+	Data        []byte    `json:"-"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
 // AllModels is the migration set, in dependency order.
 func AllModels() []any {
 	return []any{
@@ -1103,6 +1130,7 @@ func AllModels() []any {
 		&ShopBot{},
 		&ShopPlan{},
 		&ShopOrder{},
+		&ShopReceipt{},
 	}
 }
 

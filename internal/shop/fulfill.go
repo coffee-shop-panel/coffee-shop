@@ -126,6 +126,21 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 		return nil, err
 	}
 
+	// What is delivered is the order's section of the seller's tunnels,
+	// not the whole list: a V2ray sale must not hand the buyer the
+	// WireGuard tunnels too (they did not pay for them, and the seller
+	// may sell those separately), nor a WireGuard sale the inbounds. A
+	// seller with no tunnel of the section at all cannot deliver what
+	// was sold, so the order is left paid and the reason says so.
+	sectionIDs, err := s.SectionInterfaces(ctx, cfg, order.Section)
+	if err != nil {
+		return nil, err
+	}
+	if len(sectionIDs) == 0 {
+		return nil, fmt.Errorf("%w: the seller's shop has no %s tunnel to deliver this order on",
+			fault.ErrInvalid, NormalizeSection(order.Section))
+	}
+
 	existing, err := s.clients.ByTelegramID(opCtx, order.BuyerTGID)
 	if err != nil {
 		return nil, err
@@ -134,6 +149,14 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 	var client *model.Client
 	if len(existing) > 0 {
 		client = &existing[0]
+		// The section's tunnels first, the quota and days after:
+		// attaching is idempotent and renewing is not, so a delivery
+		// that fails between the two and is tried again must find the
+		// attach already done and the renewal still owed -- the other
+		// way round, a retry would sell the same quota twice.
+		if err := s.attachSection(opCtx, client, order, sectionIDs); err != nil {
+			return nil, err
+		}
 		if err := s.renew(opCtx, client, order); err != nil {
 			return nil, err
 		}
@@ -150,7 +173,7 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 		}
 		in := service.CreateInput{
 			Name:         name,
-			InterfaceIDs: cfg.InterfaceIDs,
+			InterfaceIDs: sectionIDs,
 			QuotaBytes:   order.QuotaBytes,
 			DeviceLimit:  order.DeviceLimit,
 			TelegramID:   order.BuyerTGID,
@@ -178,6 +201,28 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 		"order", order.ID, "operator", order.OperatorID,
 		"client", client.ID, "kind", order.Kind)
 	return client, nil
+}
+
+// attachSection puts an existing customer on the tunnels of the section
+// they have just bought and do not already hold: a WireGuard customer
+// buying a V2ray plan gains the inbounds, and the other way round, so
+// the one customer ends up holding both halves of the shop -- under the
+// one link, which is the point of the customer being one row. A failure
+// to attach fails the delivery, leaving the order paid: the buyer paid
+// for that section, and marking the sale delivered without it would be
+// the one outcome nobody can undo from the panel.
+func (s *Shop) attachSection(ctx context.Context, client *model.Client, order *Order, sectionIDs []uint) error {
+	res, err := s.clients.AttachServers(ctx, []uint{client.ID}, sectionIDs)
+	if err != nil {
+		return err
+	}
+	if res != nil {
+		for _, why := range res.Failures {
+			return fmt.Errorf("%w: the %s tunnels could not be added to the customer: %s",
+				fault.ErrInvalid, NormalizeSection(order.Section), why)
+		}
+	}
+	return nil
 }
 
 // renew gives an existing customer what a renewal order sold them, by the

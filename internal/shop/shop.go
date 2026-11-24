@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -59,6 +60,27 @@ const (
 	MethodCard     = "card"
 	MethodZarinpal = "zarinpal"
 )
+
+// The shop's two sections. A buyer chooses one before they see a plan --
+// WireGuard for the tunnels this panel runs itself, V2ray for the 3x-ui
+// inbounds -- because the two are different products to the person
+// holding the phone: different apps, different configs, and a customer
+// who bought one and was handed the other has been sold the wrong thing.
+const (
+	SectionWireGuard = "wireguard"
+	SectionV2ray     = "v2ray"
+)
+
+// NormalizeSection is a stored section read back: the one true spelling
+// of each, and anything that is not V2ray is WireGuard -- plans and
+// orders written before sections existed carry nothing, and what they
+// always sold was WireGuard.
+func NormalizeSection(s string) string {
+	if s == SectionV2ray {
+		return SectionV2ray
+	}
+	return SectionWireGuard
+}
 
 // publicBaseKey is the settings key holding where this panel's
 // subscription links live, panel-wide: the bots are per-operator, but the
@@ -198,6 +220,7 @@ type Plan struct {
 	ID          uint
 	OperatorID  uint
 	Name        string
+	Section     string
 	QuotaBytes  uint64
 	Days        int
 	PriceToman  int64
@@ -208,7 +231,7 @@ type Plan struct {
 
 func planFromRow(r *model.ShopPlan) *Plan {
 	return &Plan{
-		ID: r.ID, OperatorID: r.OperatorID, Name: r.Name,
+		ID: r.ID, OperatorID: r.OperatorID, Name: r.Name, Section: r.Section,
 		QuotaBytes: r.QuotaBytes, Days: r.Days, PriceToman: r.PriceToman,
 		DeviceLimit: r.DeviceLimit, Enabled: r.Enabled, Sort: r.Sort,
 	}
@@ -216,7 +239,7 @@ func planFromRow(r *model.ShopPlan) *Plan {
 
 func (p *Plan) row() *model.ShopPlan {
 	return &model.ShopPlan{
-		ID: p.ID, OperatorID: p.OperatorID, Name: p.Name,
+		ID: p.ID, OperatorID: p.OperatorID, Name: p.Name, Section: p.Section,
 		QuotaBytes: p.QuotaBytes, Days: p.Days, PriceToman: p.PriceToman,
 		DeviceLimit: p.DeviceLimit, Enabled: p.Enabled, Sort: p.Sort,
 	}
@@ -252,6 +275,16 @@ func (s *Shop) SavePlan(ctx context.Context, p *Plan) error {
 	}
 	if strings.TrimSpace(p.Name) == "" {
 		return fault.Field("name", "name is required")
+	}
+	// A section the shop does not have is a plan no buyer can ever be
+	// offered -- the bot shows a section's plans under its own button --
+	// so it is refused here rather than saved to sit unsold forever. An
+	// empty one is the plans saved before sections existed: WireGuard.
+	switch p.Section {
+	case "", SectionWireGuard, SectionV2ray:
+		p.Section = NormalizeSection(p.Section)
+	default:
+		return fault.Field("section", "the section must be wireguard or v2ray")
 	}
 	if p.PriceToman < 0 {
 		return fault.Field("priceToman", "a price cannot be negative")
@@ -315,6 +348,7 @@ type Order struct {
 
 	PlanID      uint
 	PlanName    string
+	Section     string
 	QuotaBytes  uint64
 	Days        int
 	PriceToman  int64
@@ -330,6 +364,13 @@ type Order struct {
 	Authority     string
 	RefID         string
 
+	// HasReceipt says the buyer's receipt picture is kept in the panel
+	// (SaveReceipt), apart from the file id above that names it on
+	// Telegram. It is worked out from the receipts table when an order
+	// is read, never stored on the order: two records of one fact would
+	// disagree the first time a receipt is replaced.
+	HasReceipt bool
+
 	PublicToken string
 
 	CreatedAt time.Time
@@ -340,8 +381,9 @@ func orderFromRow(r *model.ShopOrder) *Order {
 	return &Order{
 		ID: r.ID, OperatorID: r.OperatorID,
 		BuyerTGID: r.BuyerTGID, BuyerName: r.BuyerName,
-		PlanID: r.PlanID, PlanName: r.PlanName, QuotaBytes: r.QuotaBytes,
-		Days: r.Days, PriceToman: r.PriceToman, DeviceLimit: r.DeviceLimit,
+		PlanID: r.PlanID, PlanName: r.PlanName, Section: r.Section,
+		QuotaBytes: r.QuotaBytes,
+		Days:       r.Days, PriceToman: r.PriceToman, DeviceLimit: r.DeviceLimit,
 		Kind: r.Kind, ClientID: r.ClientID,
 		Method: r.Method, Status: r.Status,
 		ReceiptFileID: r.ReceiptFileID, Authority: r.Authority, RefID: r.RefID,
@@ -354,8 +396,9 @@ func (o *Order) row() *model.ShopOrder {
 	return &model.ShopOrder{
 		ID: o.ID, OperatorID: o.OperatorID,
 		BuyerTGID: o.BuyerTGID, BuyerName: o.BuyerName,
-		PlanID: o.PlanID, PlanName: o.PlanName, QuotaBytes: o.QuotaBytes,
-		Days: o.Days, PriceToman: o.PriceToman, DeviceLimit: o.DeviceLimit,
+		PlanID: o.PlanID, PlanName: o.PlanName, Section: o.Section,
+		QuotaBytes: o.QuotaBytes,
+		Days:       o.Days, PriceToman: o.PriceToman, DeviceLimit: o.DeviceLimit,
 		Kind: o.Kind, ClientID: o.ClientID,
 		Method: o.Method, Status: o.Status,
 		ReceiptFileID: o.ReceiptFileID, Authority: o.Authority, RefID: o.RefID,
@@ -405,7 +448,39 @@ func (s *Shop) OrderByID(ctx context.Context, id uint) (*Order, error) {
 		}
 		return nil, fmt.Errorf("shop: read order: %w", err)
 	}
-	return orderFromRow(&row), nil
+	order := orderFromRow(&row)
+	if err := s.markReceipts(ctx, order); err != nil {
+		return nil, err
+	}
+	return order, nil
+}
+
+// markReceipts fills HasReceipt on each order from the receipts table:
+// which of these orders has its buyer's picture kept in the panel is one
+// question about the table, asked once for the whole list rather than
+// once per order on a page of a hundred.
+func (s *Shop) markReceipts(ctx context.Context, orders ...*Order) error {
+	ids := make([]uint, 0, len(orders))
+	for _, o := range orders {
+		o.HasReceipt = false
+		ids = append(ids, o.ID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var kept []uint
+	if err := s.db.WithContext(ctx).Model(&model.ShopReceipt{}).
+		Where("order_id IN ?", ids).Pluck("order_id", &kept).Error; err != nil {
+		return fmt.Errorf("shop: read receipts: %w", err)
+	}
+	has := make(map[uint]bool, len(kept))
+	for _, id := range kept {
+		has[id] = true
+	}
+	for _, o := range orders {
+		o.HasReceipt = has[o.ID]
+	}
+	return nil
 }
 
 // OrderByToken reads the order a public link names -- the payment
@@ -452,8 +527,14 @@ func (s *Shop) OrdersFor(ctx context.Context, operatorID uint, status string, li
 		return nil, fmt.Errorf("shop: read orders: %w", err)
 	}
 	out := make([]Order, 0, len(rows))
+	ptrs := make([]*Order, 0, len(rows))
 	for i := range rows {
-		out = append(out, *orderFromRow(&rows[i]))
+		o := orderFromRow(&rows[i])
+		out = append(out, *o)
+		ptrs = append(ptrs, &out[len(out)-1])
+	}
+	if err := s.markReceipts(ctx, ptrs...); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -544,4 +625,194 @@ func (s *Shop) PublicBase(ctx context.Context) (string, error) {
 // the links are joined against it without.
 func (s *Shop) SetPublicBase(ctx context.Context, base string) error {
 	return database.PutSetting(s.db.WithContext(ctx), publicBaseKey, strings.TrimRight(strings.TrimSpace(base), "/"))
+}
+
+// SectionInterfaces is the tunnels of the operator's list that belong to
+// one section: the WireGuard tunnels for a WireGuard sale, the 3x-ui
+// inbounds for a V2ray one. The config's own order is kept, because the
+// first tunnel is the one a new customer's row is labelled by. A tunnel
+// on the list that has since been deleted is skipped rather than failed
+// over: the list is the operator's to fix on their page, and one stale
+// id should not stop every sale the shop makes.
+func (s *Shop) SectionInterfaces(ctx context.Context, cfg *Config, section string) ([]uint, error) {
+	if cfg == nil || len(cfg.InterfaceIDs) == 0 {
+		return nil, nil
+	}
+	want := model.ProtocolWireGuard
+	if NormalizeSection(section) == SectionV2ray {
+		want = model.ProtocolXray
+	}
+	var rows []model.Interface
+	if err := s.db.WithContext(ctx).Where("id IN ?", cfg.InterfaceIDs).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("shop: read the shop's tunnels: %w", err)
+	}
+	protocol := make(map[uint]model.Protocol, len(rows))
+	for _, r := range rows {
+		protocol[r.ID] = r.Protocol
+	}
+	var out []uint
+	for _, id := range cfg.InterfaceIDs {
+		if p, ok := protocol[id]; ok && p == want {
+			out = append(out, id)
+		}
+	}
+	return out, nil
+}
+
+// ClientSections says which of the shop's sections a customer already
+// holds -- whether any of their accounts sits on a WireGuard tunnel, and
+// whether any sits on a 3x-ui inbound. The bot asks before it offers a
+// renewal, and the answer is read off the accounts the customer was
+// loaded with: a customer handed in without accounts holds nothing.
+func (s *Shop) ClientSections(ctx context.Context, client *model.Client) (wireguard, xray bool, err error) {
+	if client == nil {
+		return false, false, nil
+	}
+	seen := map[uint]bool{}
+	var ids []uint
+	for _, acc := range client.Accounts {
+		if !seen[acc.InterfaceID] {
+			seen[acc.InterfaceID] = true
+			ids = append(ids, acc.InterfaceID)
+		}
+	}
+	if len(ids) == 0 {
+		return false, false, nil
+	}
+	var rows []model.Interface
+	if err := s.db.WithContext(ctx).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return false, false, fmt.Errorf("shop: read the customer's tunnels: %w", err)
+	}
+	for _, r := range rows {
+		switch r.Protocol {
+		case model.ProtocolWireGuard:
+			wireguard = true
+		case model.ProtocolXray:
+			xray = true
+		}
+	}
+	return wireguard, xray, nil
+}
+
+// maxReceiptBytes is the largest receipt the panel keeps: a Telegram
+// photo is a few megabytes at most, and a store that takes anything
+// takes a database of somebody's holiday videos one upload at a time.
+const maxReceiptBytes = 8 << 20
+
+// SaveReceipt keeps a buyer's receipt picture in the panel, replacing
+// the one already kept for the order: a buyer who photographed the
+// transfer badly sends a better picture, and the operator approves
+// against the last one sent, not the first.
+func (s *Shop) SaveReceipt(ctx context.Context, orderID uint, contentType string, data []byte) error {
+	if len(data) > maxReceiptBytes {
+		return fault.Field("receipt", "a receipt may be at most 8 MiB")
+	}
+	row := &model.ShopReceipt{
+		OrderID: orderID, ContentType: contentType, Data: data,
+		CreatedAt: time.Now().UTC(),
+	}
+	// Save on a primary key is the upsert: the row is written when there
+	// is none and replaced when there is.
+	if err := s.db.WithContext(ctx).Save(row).Error; err != nil {
+		return fmt.Errorf("shop: keep the receipt: %w", err)
+	}
+	return nil
+}
+
+// ReceiptFor reads back the receipt kept for an order, for the operator
+// to look at in the panel before they approve. An order with none -- a
+// gateway sale, or a card sale the buyer paid some other way -- is
+// ErrNotFound, not an empty picture.
+func (s *Shop) ReceiptFor(ctx context.Context, orderID uint) (string, []byte, error) {
+	var row model.ShopReceipt
+	if err := s.db.WithContext(ctx).First(&row, "order_id = ?", orderID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", nil, fmt.Errorf("%w: order %d has no receipt kept", fault.ErrNotFound, orderID)
+		}
+		return "", nil, fmt.Errorf("shop: read the receipt: %w", err)
+	}
+	return row.ContentType, row.Data, nil
+}
+
+// Buyer is one person who has bought from an operator, as the panel's
+// buyer list shows them: the customer they are now -- name, standing,
+// what is left of their plan -- with how much business they have done.
+type Buyer struct {
+	ClientID    uint
+	Name        string
+	TelegramID  int64
+	Status      string
+	ExpiresAt   *time.Time
+	UsedBytes   uint64
+	QuotaBytes  uint64
+	Orders      int
+	LastOrderAt time.Time
+}
+
+// BuyersFor lists an operator's buyers, newest business first. A buyer
+// is a Telegram account with a delivered order from this operator; the
+// standing shown is their customer's, read under the operator's own
+// scope, so the list is exactly the customers the sales made. A buyer
+// whose customer has since been deleted is not listed: there is nobody
+// left to show, and a row that opens onto nothing is worse than none.
+func (s *Shop) BuyersFor(ctx context.Context, operatorID uint) ([]Buyer, error) {
+	opCtx, err := s.OperatorCtx(ctx, operatorID)
+	if err != nil {
+		return nil, err
+	}
+	// The business first: how many delivered orders each Telegram
+	// account holds from this operator, and which order was the latest.
+	// The latest is named by its id -- ids grow as orders are placed --
+	// and its placed-at time is then read off the row itself: an
+	// aggregate MAX over the timestamp column comes back as text on
+	// SQLite and a timestamp on PostgreSQL, and a list that only builds
+	// on one database is a list that breaks on the other.
+	type business struct {
+		BuyerTGID int64 `gorm:"column:buyer_tg_id"`
+		Orders    int   `gorm:"column:orders"`
+		LastID    uint  `gorm:"column:last_id"`
+	}
+	var rows []business
+	if err := s.db.WithContext(ctx).Model(&model.ShopOrder{}).
+		Select("buyer_tg_id, COUNT(*) AS orders, MAX(id) AS last_id").
+		Where("operator_id = ? AND status = ?", operatorID, StatusFulfilled).
+		Group("buyer_tg_id").Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("shop: read the buyers: %w", err)
+	}
+	lastIDs := make([]uint, 0, len(rows))
+	for _, r := range rows {
+		lastIDs = append(lastIDs, r.LastID)
+	}
+	placedAt := make(map[uint]time.Time, len(rows))
+	if len(lastIDs) > 0 {
+		var latest []model.ShopOrder
+		if err := s.db.WithContext(ctx).Where("id IN ?", lastIDs).Find(&latest).Error; err != nil {
+			return nil, fmt.Errorf("shop: read the buyers' latest orders: %w", err)
+		}
+		for i := range latest {
+			placedAt[latest[i].ID] = latest[i].CreatedAt
+		}
+	}
+	out := make([]Buyer, 0, len(rows))
+	for _, r := range rows {
+		found, err := s.clients.ByTelegramID(opCtx, r.BuyerTGID)
+		if err != nil {
+			return nil, err
+		}
+		if len(found) == 0 {
+			continue
+		}
+		client := &found[0]
+		out = append(out, Buyer{
+			ClientID: client.ID, Name: client.Name,
+			TelegramID: client.TelegramID, Status: string(client.Status),
+			ExpiresAt: client.ExpiresAt,
+			UsedBytes: client.UsedBytes, QuotaBytes: client.QuotaBytes,
+			Orders: r.Orders, LastOrderAt: placedAt[r.LastID],
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].LastOrderAt.After(out[j].LastOrderAt)
+	})
+	return out, nil
 }
