@@ -6,6 +6,7 @@ import { dateTime } from '../lib/format.js'
 import { useDelayed } from '../lib/live.js'
 import { store, t, tn, notify } from '../lib/store.js'
 import AntIcon from '../components/AntIcon.vue'
+import Icon from '../components/Icon.vue'
 import ErrorState from '../components/ErrorState.vue'
 import PageSpin from '../components/PageSpin.vue'
 
@@ -191,228 +192,202 @@ function when(r) {
 </script>
 
 <template>
-  <div class="antpage sharing">
-    <!-- The summary Card: size="small", three Statistics. -->
-    <div class="acard small summary-card">
-      <div class="acard-body">
-        <div v-if="tab === 'history'" class="arow">
-          <div class="acol">
-            <div class="stat-title">{{ t('sharing.stat.records') }}</div>
-            <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="ClockCircleOutlined" /></span><span>{{ nf(totals.records) }}</span></div>
-          </div>
-          <div class="acol">
-            <div class="stat-title">{{ t('sharing.stat.clients') }}</div>
-            <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="TeamOutlined" /></span><span>{{ nf(totals.clients) }}</span></div>
-          </div>
-          <div class="acol">
-            <div class="stat-title">{{ t('sharing.stat.held') }}</div>
-            <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="StopOutlined" /></span><span>{{ nf(totals.held) }}</span></div>
-          </div>
-        </div>
-        <div v-else class="arow">
-          <div class="acol">
-            <div class="stat-title">{{ t('sharing.stat.devices') }}</div>
-            <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="EyeOutlined" /></span><span>{{ nf(totals.devices) }}</span></div>
-          </div>
-          <div class="acol">
-            <div class="stat-title">{{ t('sharing.stat.clients') }}</div>
-            <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="TeamOutlined" /></span><span>{{ nf(totals.clients) }}</span></div>
-          </div>
-          <div class="acol">
-            <div class="stat-title">{{ t('sharing.stat.addrs') }}</div>
-            <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="GlobalOutlined" /></span><span>{{ nf(totals.addrs) }}</span></div>
-          </div>
-        </div>
+  <div class="cs">
+    <div class="ph">
+      <div>
+        <h2>{{ t('nav.sharing') }}</h2>
+        <p>{{ t('sharing.lede') }}</p>
       </div>
     </div>
 
-    <!-- The list Card: the title is a Space of Refresh and the search. -->
-    <div class="acard">
-      <div class="acard-head">
-        <div class="aspace">
-          <button class="abtn primary" @click="load()">
-            <AntIcon name="ReloadOutlined" /><span>{{ t('common.refresh') }}</span>
-          </button>
-          <label class="ainput">
-            <span class="ainput-prefix"><AntIcon name="SearchOutlined" /></span>
-            <input v-model="search" type="text" :placeholder="t('iface.menu.search')" :aria-label="t('iface.menu.search')" />
-            <button v-if="search" type="button" class="ainput-clear" :aria-label="t('action.cancel')" @click="search = ''"><AntIcon name="CloseCircleFilled" /></button>
-          </label>
+    <!-- The summary, three figures, over whichever tab is showing. -->
+    <div class="grid g3 mb2">
+      <template v-if="tab === 'history'">
+        <div class="card stat">
+          <div class="lbl"><span class="ico-tile"><Icon name="clock" :size="14" /></span>{{ t('sharing.stat.records') }}</div>
+          <div class="val">{{ nf(totals.records) }}</div>
         </div>
+        <div class="card stat">
+          <div class="lbl"><span class="ico-tile"><Icon name="users" :size="14" /></span>{{ t('sharing.stat.clients') }}</div>
+          <div class="val">{{ nf(totals.clients) }}</div>
+        </div>
+        <div class="card stat" :class="{ hot: totals.held > 0 }">
+          <div class="lbl"><span class="ico-tile warn"><Icon name="pause" :size="14" /></span>{{ t('sharing.stat.held') }}</div>
+          <div class="val">{{ nf(totals.held) }}</div>
+        </div>
+      </template>
+      <template v-else>
+        <div class="card stat" :class="{ hot: totals.devices > 0 }">
+          <div class="lbl"><span class="ico-tile warn"><Icon name="eye" :size="14" /></span>{{ t('sharing.stat.devices') }}</div>
+          <div class="val">{{ nf(totals.devices) }}</div>
+        </div>
+        <div class="card stat">
+          <div class="lbl"><span class="ico-tile"><Icon name="users" :size="14" /></span>{{ t('sharing.stat.clients') }}</div>
+          <div class="val">{{ nf(totals.clients) }}</div>
+        </div>
+        <div class="card stat">
+          <div class="lbl"><span class="ico-tile"><Icon name="globe" :size="14" /></span>{{ t('sharing.stat.addrs') }}</div>
+          <div class="val">{{ nf(totals.addrs) }}</div>
+          <div class="foot">{{ t('sharing.stat.window') }}</div>
+        </div>
+      </template>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" :aria-selected="tab === 'now'" :class="{ on: tab === 'now' }" @click="tab = 'now'"><Icon name="eye" :size="14" /><span>{{ t('sharing.tab.now') }}</span></button>
+      <button class="tab" role="tab" :aria-selected="tab === 'history'" :class="{ on: tab === 'history' }" @click="tab = 'history'"><Icon name="clock" :size="14" /><span>{{ t('sharing.tab.history') }}</span></button>
+    </div>
+
+    <!-- Said plainly and up front, because acting on this without reading
+         it means disconnecting paying customers who did nothing wrong. -->
+    <div v-if="tab === 'now'" class="banner info" role="note">
+      <Icon name="info" :size="16" />
+      <div><b>{{ t('sharing.readFirst') }}</b> {{ t('sharing.caveat') }}</div>
+    </div>
+    <template v-else>
+      <div class="banner info" role="note">
+        <Icon name="info" :size="16" />
+        <div>{{ t('sharing.historyHint') }}</div>
+      </div>
+      <div v-if="importNote" class="banner" :class="importNote.tone === 'warning' ? 'warn' : 'info'" role="status">
+        <Icon name="alert" :size="16" />
+        <div>{{ importNote.text }}</div>
+        <button v-if="importNote.retry" class="btn sm spacer" :disabled="importing" @click="readLogAgain">
+          <span v-if="importing" class="spin sm"></span>
+          <span>{{ importing ? t('sharing.import.running') : t('sharing.import.retry') }}</span>
+        </button>
+      </div>
+    </template>
+
+    <section class="card calm">
+      <div class="toolbar">
+        <button class="btn primary" @click="load()">
+          <Icon name="refresh" :size="14" /><span>{{ t('common.refresh') }}</span>
+        </button>
+        <label class="ainput search-in">
+          <span class="ainput-prefix"><AntIcon name="SearchOutlined" /></span>
+          <input v-model="search" type="text" :placeholder="t('iface.menu.search')" :aria-label="t('iface.menu.search')" />
+          <button v-if="search" type="button" class="ainput-clear" :aria-label="t('action.cancel')" @click="search = ''"><AntIcon name="CloseCircleFilled" /></button>
+        </label>
       </div>
 
-      <div class="acard-body">
-        <div class="atabs-nav" role="tablist"><div class="atabs-list">
-          <button class="atab" role="tab" :aria-selected="tab === 'now'" :class="{ active: tab === 'now' }" @click="tab = 'now'"><AntIcon name="EyeOutlined" /><span>{{ t('sharing.tab.now') }}</span></button>
-          <button class="atab" role="tab" :aria-selected="tab === 'history'" :class="{ active: tab === 'history' }" @click="tab = 'history'"><AntIcon name="ClockCircleOutlined" /><span>{{ t('sharing.tab.history') }}</span></button>
-        </div></div>
+      <ErrorState v-if="loadError && !rows.length" :error="loadError" @retry="load()" />
+      <PageSpin v-else-if="showWait" />
+      <div v-else-if="loading" class="empty"></div>
 
-        <!-- Said plainly and up front, because acting on this without reading
-             it means disconnecting paying customers who did nothing wrong. -->
-        <div v-if="tab === 'now'" class="aalert warning with-desc" role="note">
-          <AntIcon name="ExclamationCircleFilled" />
-          <div class="aalert-body">
-            <span class="aalert-title">{{ t('sharing.readFirst') }}</span>
-            <span class="aalert-desc">{{ t('sharing.caveat') }}</span>
-          </div>
-        </div>
-        <template v-else>
-          <div class="aalert info with-desc" role="note">
-            <AntIcon name="InfoCircleFilled" />
-            <div class="aalert-body"><span class="aalert-desc">{{ t('sharing.historyHint') }}</span></div>
-          </div>
-          <div v-if="importNote" class="aalert with-desc import-note" :class="importNote.tone" role="status">
-            <AntIcon :name="importNote.tone === 'warning' ? 'ExclamationCircleFilled' : 'InfoCircleFilled'" />
-            <div class="aalert-body"><span class="aalert-desc">{{ importNote.text }}</span></div>
-            <button v-if="importNote.retry" class="abtn sm" :disabled="importing" @click="readLogAgain">
-              <AntIcon :name="importing ? 'LoadingOutlined' : 'ReloadOutlined'" :class="{ spin: importing }" />
-              <span>{{ importing ? t('sharing.import.running') : t('sharing.import.retry') }}</span>
-            </button>
-          </div>
-        </template>
-
-        <ErrorState v-if="loadError && !rows.length" :error="loadError" @retry="load()" />
-        <PageSpin v-else-if="showWait" />
-        <div v-else-if="loading" class="empty"></div>
-
-        <!-- Now: what is on the list at this moment. -->
-        <div v-else-if="tab === 'now'" class="atable-wrap">
-          <table class="atable small" style="min-width: 760px">
-            <thead>
-              <tr>
-                <th class="w-menu center">{{ t('iface.col.menu') }}</th>
-                <th class="w-client sortable" :class="sortCls('client')" @click="sortBy('client')">
-                  <div class="sorters"><span class="title">{{ t('sharing.client') }}</span><span class="sorter"><AntIcon name="CaretUpFilled" class="up" /><AntIcon name="CaretDownFilled" class="down" /></span></div>
-                </th>
-                <th class="w-device sortable" :class="sortCls('device')" @click="sortBy('device')">
-                  <div class="sorters"><span class="title">{{ t('sharing.device') }}</span><span class="sorter"><AntIcon name="CaretUpFilled" class="up" /><AntIcon name="CaretDownFilled" class="down" /></span></div>
-                </th>
-                <th class="sortable" :class="sortCls('addrs')" @click="sortBy('addrs')">
-                  <div class="sorters"><span class="title">{{ t('sharing.addresses') }}</span><span class="sorter"><AntIcon name="CaretUpFilled" class="up" /><AntIcon name="CaretDownFilled" class="down" /></span></div>
-                </th>
-                <th class="w-since center sortable" :class="sortCls('since')" @click="sortBy('since')">
-                  <div class="sorters"><span class="title">{{ t('sharing.firstSeen') }}</span><span class="sorter"><AntIcon name="CaretUpFilled" class="up" /><AntIcon name="CaretDownFilled" class="down" /></span></div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="!sorted.length" class="empty-row">
-                <td colspan="5">
-                  <div class="card-empty">
-                    <AntIcon name="CheckCircleFilled" :size="32" />
-                    <div>{{ t('sharing.none') }}</div>
-                    <div class="muted">{{ t('sharing.noneHint') }}</div>
-                  </div>
-                </td>
-              </tr>
-              <tr v-for="r in sorted" :key="r.accountId">
-                <td class="center">
-                  <div class="action-buttons">
-                    <button class="abtn text sm" :title="t('sharing.review')" :aria-label="t('sharing.review')" @click="open(r)"><AntIcon name="EyeOutlined" /></button>
-                  </div>
-                </td>
-                <td><RouterLink :to="`/clients/${r.clientId}`" class="cell-link">{{ r.clientName }}</RouterLink></td>
-                <td class="muted">{{ r.deviceName }}</td>
-                <td>
-                  <div class="protocol-tags">
-                    <span v-for="a in addrsOf(r)" :key="a" class="atag blue ltr" style="margin: 0">{{ a }}</span>
-                  </div>
-                </td>
-                <td class="center"><span class="atag ltr" style="margin: 0">{{ since(r.since) }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- History: every time, kept. -->
-        <div v-else class="atable-wrap">
-          <table class="atable small history-table">
-            <thead>
-              <tr>
-                <th class="w-kind sortable" :class="sortCls('kind')" @click="sortBy('kind')">
-                  <div class="sorters"><span class="title">{{ t('sharing.col.kind') }}</span><span class="sorter"><AntIcon name="CaretUpFilled" class="up" /><AntIcon name="CaretDownFilled" class="down" /></span></div>
-                </th>
-                <th class="w-client sortable" :class="sortCls('client')" @click="sortBy('client')">
-                  <div class="sorters"><span class="title">{{ t('sharing.client') }}</span><span class="sorter"><AntIcon name="CaretUpFilled" class="up" /><AntIcon name="CaretDownFilled" class="down" /></span></div>
-                </th>
-                <th class="w-device sortable" :class="sortCls('device')" @click="sortBy('device')">
-                  <div class="sorters"><span class="title">{{ t('sharing.device') }}</span><span class="sorter"><AntIcon name="CaretUpFilled" class="up" /><AntIcon name="CaretDownFilled" class="down" /></span></div>
-                </th>
-                <th class="w-addrs sortable" :class="sortCls('addrs')" @click="sortBy('addrs')">
-                  <div class="sorters"><span class="title">{{ t('sharing.addresses') }}</span><span class="sorter"><AntIcon name="CaretUpFilled" class="up" /><AntIcon name="CaretDownFilled" class="down" /></span></div>
-                </th>
-                <th class="w-detail">{{ t('sharing.col.detail') }}</th>
-                <th class="w-when sortable" :class="sortCls('when')" @click="sortBy('when')">
-                  <div class="sorters"><span class="title">{{ t('sharing.col.when') }}</span><span class="sorter"><AntIcon name="CaretUpFilled" class="up" /><AntIcon name="CaretDownFilled" class="down" /></span></div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="!sorted.length" class="empty-row">
-                <td colspan="6">
-                  <div class="card-empty">
-                    <AntIcon name="CheckCircleFilled" :size="32" />
-                    <div>{{ t('sharing.historyNone') }}</div>
-                  </div>
-                </td>
-              </tr>
-              <tr v-for="r in sorted" :key="r.id">
-                <td>
-                  <span class="atag" :class="r.kind === 'held' ? 'red' : 'orange'" style="margin: 0">{{ t(`sharing.kind.${r.kind}`) }}</span>
-                  <span v-if="r.source === 'log'" class="atag ltr-auto from-log">{{ t('sharing.fromLog') }}</span>
-                </td>
-                <td>
-                  <RouterLink v-if="!r.deleted" :to="`/clients/${r.clientId}`" class="cell-link">{{ r.clientName }}</RouterLink>
-                  <template v-else><span>{{ r.clientName }}</span> <span class="atag deleted">{{ t('sharing.deleted') }}</span></template>
-                </td>
-                <td class="muted">{{ r.deviceName }}</td>
-                <td>
-                  <div class="protocol-tags">
-                    <span v-for="a in addrsOf(r)" :key="a" class="atag blue ltr" style="margin: 0">{{ a }}</span>
-                    <span v-if="!addrsOf(r).length" class="muted">—</span>
-                  </div>
-                </td>
-                <td class="muted">{{ detail(r) }}</td>
-                <td class="when">{{ when(r) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <!-- Now: what is on the list at this moment. -->
+      <div v-else-if="tab === 'now'" class="tw">
+        <table style="min-width: 760px">
+          <thead>
+            <tr>
+              <th class="w0">{{ t('iface.col.menu') }}</th>
+              <th class="sortable" :class="sortCls('client')" @click="sortBy('client')">{{ t('sharing.client') }}</th>
+              <th class="sortable" :class="sortCls('device')" @click="sortBy('device')">{{ t('sharing.device') }}</th>
+              <th class="sortable" :class="sortCls('addrs')" @click="sortBy('addrs')">{{ t('sharing.addresses') }}</th>
+              <th class="sortable" :class="sortCls('since')" @click="sortBy('since')">{{ t('sharing.firstSeen') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!sorted.length">
+              <td colspan="5">
+                <div class="dempty">
+                  <span class="ico-tile ok"><Icon name="check" :size="22" /></span>
+                  <div>{{ t('sharing.none') }}</div>
+                  <div class="faint small">{{ t('sharing.noneHint') }}</div>
+                </div>
+              </td>
+            </tr>
+            <tr v-for="r in sorted" :key="r.accountId">
+              <td class="w0">
+                <button class="act" :title="t('sharing.review')" :aria-label="t('sharing.review')" @click="open(r)"><Icon name="eye" :size="16" /></button>
+              </td>
+              <td><RouterLink :to="`/clients/${r.clientId}`" class="name">{{ r.clientName }}</RouterLink></td>
+              <td class="mono">{{ r.deviceName }}</td>
+              <td>
+                <div class="row tight">
+                  <span v-for="a in addrsOf(r)" :key="a" class="dtag sq" dir="ltr">{{ a }}</span>
+                </div>
+              </td>
+              <td>{{ since(r.since) }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+
+      <!-- History: every time, kept. -->
+      <div v-else class="tw">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th class="sortable" :class="sortCls('kind')" @click="sortBy('kind')">{{ t('sharing.col.kind') }}</th>
+              <th class="sortable" :class="sortCls('client')" @click="sortBy('client')">{{ t('sharing.client') }}</th>
+              <th class="sortable" :class="sortCls('device')" @click="sortBy('device')">{{ t('sharing.device') }}</th>
+              <th class="sortable" :class="sortCls('addrs')" @click="sortBy('addrs')">{{ t('sharing.addresses') }}</th>
+              <th>{{ t('sharing.col.detail') }}</th>
+              <th class="sortable" :class="sortCls('when')" @click="sortBy('when')">{{ t('sharing.col.when') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!sorted.length">
+              <td colspan="6">
+                <div class="dempty">
+                  <span class="ico-tile ok"><Icon name="check" :size="22" /></span>
+                  <div>{{ t('sharing.historyNone') }}</div>
+                </div>
+              </td>
+            </tr>
+            <tr v-for="r in sorted" :key="r.id">
+              <td>
+                <span class="dtag" :class="r.kind === 'held' ? 'bad' : 'warn'">{{ t(`sharing.kind.${r.kind}`) }}</span>
+                <span v-if="r.source === 'log'" class="dtag gray">{{ t('sharing.fromLog') }}</span>
+              </td>
+              <td>
+                <RouterLink v-if="!r.deleted" :to="`/clients/${r.clientId}`" class="name">{{ r.clientName }}</RouterLink>
+                <template v-else><span>{{ r.clientName }}</span> <span class="dtag gray">{{ t('sharing.deleted') }}</span></template>
+              </td>
+              <td class="mono">{{ r.deviceName }}</td>
+              <td>
+                <div class="row tight">
+                  <span v-for="a in addrsOf(r)" :key="a" class="dtag sq" dir="ltr">{{ a }}</span>
+                  <span v-if="!addrsOf(r).length" class="muted">—</span>
+                </div>
+              </td>
+              <td class="muted">{{ detail(r) }}</td>
+              <td class="when">{{ when(r) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- What to do with a flag, in the order the design gives it: the
+         four calm next steps under the Now list. -->
+    <div v-if="tab === 'now'" class="grid g4 mt">
+      <section class="card">
+        <div class="ch"><span class="ico-tile acc"><Icon name="mail" :size="15" /></span><h3>{{ t('sharing.advice.askTitle') }}</h3></div>
+        <div class="cb"><p class="muted small">{{ t('sharing.advice.ask') }}</p></div>
+      </section>
+      <section class="card">
+        <div class="ch"><span class="ico-tile acc"><Icon name="refresh" :size="15" /></span><h3>{{ t('sharing.advice.replaceTitle') }}</h3></div>
+        <div class="cb"><p class="muted small">{{ t('sharing.advice.replace') }}</p></div>
+      </section>
+      <section class="card">
+        <div class="ch"><span class="ico-tile acc"><Icon name="key" :size="15" /></span><h3>{{ t('sharing.advice.keysTitle') }}</h3></div>
+        <div class="cb"><p class="muted small">{{ t('sharing.advice.keys') }}</p></div>
+      </section>
+      <section class="card">
+        <div class="ch"><span class="ico-tile acc"><Icon name="users" :size="15" /></span><h3>{{ t('sharing.advice.lowerTitle') }}</h3></div>
+        <div class="cb"><p class="muted small">{{ t('sharing.advice.lower') }}</p></div>
+      </section>
     </div>
   </div>
 </template>
 
 <style scoped>
-.aalert.with-desc { margin-bottom: 10px; }
-.import-note { align-items: center; }
-.import-note .abtn { margin-inline-start: auto; flex-shrink: 0; }
-.atabs-nav { margin-bottom: 12px; }
-.w-menu { width: 70px; }
-.w-client { width: 200px; }
-.w-device { width: 160px; }
-.w-since { width: 120px; }
-.w-kind { width: 170px; }
-.w-detail { width: 150px; }
-.w-when { width: 230px; }
-.w-addrs { width: 250px; }
-/* Every column has its width; the table is their sum, and scrolls. */
+/* The history table's columns keep their measures; the design's table
+   scrolls what does not fit. */
 .history-table { min-width: 1160px; table-layout: fixed; }
 .history-table td { overflow-wrap: anywhere; }
 .when { font-size: 12px; white-space: nowrap; }
-.from-log, .deleted { margin: 0 0 0 4px; font-size: 11px; color: var(--muted); }
-.atable th.center, .atable td.center { text-align: center; }
-.action-buttons { display: flex; align-items: center; justify-content: center; gap: 4px; }
-.card-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 24px 12px;
-  color: var(--muted);
-}
-.card-empty .anticon { margin-bottom: 8px; color: var(--ok); }
-.cell-link { color: var(--ink); text-decoration: none; }
-.cell-link:hover { color: var(--accent-text); }
-.muted { color: var(--faint); }
+.toolbar .search-in { flex: 1 1 260px; max-width: 380px; }
 </style>

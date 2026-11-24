@@ -11,13 +11,18 @@ const route = useRoute()
 </script>
 
 <template>
-  <section class="card error-state">
-    <span class="error-mark"><Icon name="search" :size="20" /></span>
-    <h2>{{ t('error.noSuchPage') }}</h2>
-    <p class="error-detail ltr">{{ route.fullPath }}</p>
-    <div class="error-actions">
-      <RouterLink to="/" class="btn">{{ t('nav.overview') }}</RouterLink>
-      <RouterLink to="/clients" class="btn ghost">{{ t('nav.clients') }}</RouterLink>
-    </div>
-  </section>
+  <div class="cs">
+    <section class="card">
+      <div class="dempty">
+        <span class="ico-tile acc"><Icon name="search" :size="24" /></span>
+        <div class="hero-num" style="font-size: 64px">404</div>
+        <h2>{{ t('error.noSuchPage') }}</h2>
+        <p class="mono" dir="ltr">{{ route.fullPath }}</p>
+        <div class="row tight" style="justify-content: center">
+          <RouterLink to="/" class="btn primary">{{ t('nav.overview') }}</RouterLink>
+          <RouterLink to="/clients" class="btn">{{ t('nav.clients') }}</RouterLink>
+        </div>
+      </div>
+    </section>
+  </div>
 </template>

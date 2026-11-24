@@ -62,70 +62,79 @@ async function loadMore() {
 // request itself, red the panel failed. Anything else -- a redirect -- is
 // neither, and stays grey.
 function statusTone(status) {
-  if (status >= 200 && status < 300) return 'green'
-  if (status >= 400 && status < 500) return 'orange'
-  if (status >= 500) return 'red'
-  return 'grey'
+  if (status >= 200 && status < 300) return 'ok'
+  if (status >= 400 && status < 500) return 'warn'
+  if (status >= 500) return 'bad'
+  return 'gray'
 }
 </script>
 
 <template>
-  <div class="card">
-    <PageSpin v-if="showSkeleton" />
-    <div v-else-if="loading" class="empty"></div>
-    <ErrorState v-else-if="loadError" :error="loadError" @retry="load" />
-    <template v-else>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="w-md">{{ t('activity.when') }}</th>
-              <th>{{ t('activity.actor') }}</th>
-              <th>{{ t('activity.action') }}</th>
-              <th class="w-md">{{ t('activity.from') }}</th>
-              <th class="w-sm">{{ t('activity.result') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="!items.length" class="empty-row">
-              <td colspan="5">
-                <div class="card-empty">
-                  <div>{{ t('activity.empty') }}</div>
-                </div>
-              </td>
-            </tr>
-            <tr v-for="a in items" :key="a.id">
-              <td class="small muted">{{ dateTime(a.at, store.locale) }}</td>
-              <td>
-                <span>{{ a.actor }}</span>
-                <!-- The role is said beside the name because the same person
-                     can hold more than one, and what they were acting as is
-                     half of what the row is evidence of. -->
-                <span v-if="a.role" class="muted small"> ({{ a.role }})</span>
-              </td>
-              <td>
-                <!-- The request as it was made, method and path, left-to-right
-                     and in the mono face: it is a line out of a log, not prose. -->
-                <span class="mono">{{ a.action }}</span>
-                <!-- The reason sits under the action it belongs to, so a
-                     refusal can be read without hunting across the row. -->
-                <div v-if="a.reason" class="sub muted small">{{ a.reason }}</div>
-              </td>
-              <td class="small muted ltr">{{ a.ip || '—' }}</td>
-              <td>
-                <span class="tag num" :class="statusTone(a.status)">{{ a.status }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+  <div class="cs">
+    <div class="ph">
+      <div>
+        <h2>{{ t('nav.activity') }}</h2>
+        <p>{{ t('activity.lede') }}</p>
       </div>
+    </div>
 
-      <div v-if="hasMore" class="card-toolbar">
-        <button class="btn" :disabled="moreBusy" @click="loadMore">
-          <span v-if="moreBusy" class="spin sm"></span>
-          <span>{{ t('activity.more') }}</span>
-        </button>
-      </div>
-    </template>
+    <section class="card calm">
+      <PageSpin v-if="showSkeleton" />
+      <div v-else-if="loading" class="empty"></div>
+      <ErrorState v-else-if="loadError" :error="loadError" @retry="load" />
+      <template v-else>
+        <div class="tw">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ t('activity.when') }}</th>
+                <th>{{ t('activity.actor') }}</th>
+                <th>{{ t('activity.action') }}</th>
+                <th>{{ t('activity.from') }}</th>
+                <th>{{ t('activity.result') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="!items.length">
+                <td colspan="5">
+                  <div class="dempty">
+                    <div>{{ t('activity.empty') }}</div>
+                  </div>
+                </td>
+              </tr>
+              <tr v-for="a in items" :key="a.id">
+                <td class="mono small">{{ dateTime(a.at, store.locale) }}</td>
+                <td>
+                  <b>{{ a.actor }}</b>
+                  <!-- The role is said beside the name because the same person
+                       can hold more than one, and what they were acting as is
+                       half of what the row is evidence of. -->
+                  <span v-if="a.role" class="dtag gray">{{ a.role }}</span>
+                </td>
+                <td>
+                  <!-- The request as it was made, method and path, left-to-right
+                       and in the mono face: it is a line out of a log, not prose. -->
+                  <span class="mono">{{ a.action }}</span>
+                  <!-- The reason sits under the action it belongs to, so a
+                       refusal can be read without hunting across the row. -->
+                  <div v-if="a.reason" class="note">{{ a.reason }}</div>
+                </td>
+                <td class="mono small muted" dir="ltr">{{ a.ip || '—' }}</td>
+                <td>
+                  <span class="dtag num" :class="statusTone(a.status)">{{ a.status }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-if="hasMore" class="cf">
+          <button class="btn" :disabled="moreBusy" @click="loadMore">
+            <span v-if="moreBusy" class="spin sm"></span>
+            <span>{{ t('activity.more') }}</span>
+          </button>
+        </div>
+      </template>
+    </section>
   </div>
 </template>

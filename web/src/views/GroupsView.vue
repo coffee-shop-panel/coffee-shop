@@ -161,55 +161,58 @@ function viewMembers(g) {
 </script>
 
 <template>
-  <!-- No page title and no lede. the classic panel opens this page straight on the
-       figures, and the one control it has lives inside the table's card,
-       where the thing it acts on is. -->
-
-  <div class="strip card">
-    <div class="strip-item">
-      <span class="strip-label"><Icon name="tag" :size="14" />{{ t('group.total') }}</span>
-      <span class="strip-value num">{{ nf(totals.groups) }}</span>
-    </div>
-    <div class="strip-item">
-      <span class="strip-label"><Icon name="users" :size="14" />{{ t('group.grouped') }}</span>
-      <span class="strip-value num">{{ nf(totals.groupedClients) }}</span>
-    </div>
-    <div class="strip-item">
-      <span class="strip-label"><Icon name="swap" :size="14" />{{ t('group.upDown') }}</span>
-      <span class="strip-value num ltr small">
-        {{ bytes(totals.upBytes, store.locale) }} / {{ bytes(totals.downBytes, store.locale) }}
-      </span>
-    </div>
-    <div class="strip-item">
-      <span class="strip-label"><Icon name="swap" :size="14" />{{ t('client.traffic') }}</span>
-      <span class="strip-value num ltr">{{ bytes(totals.usedBytes, store.locale) }}</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <!-- Their Card title: a toolbar holding the primary button, top-left,
-         above the table it adds to. It was next to the page heading here and
-         again in the middle of the empty state -- two buttons for one action,
-         neither of them where the table is. -->
-    <div class="card-toolbar">
-      <button class="btn primary" @click="dialog = { kind: 'create' }">
-        <Icon name="plus" :size="14" />
-        <span>{{ t('group.add') }}</span>
-      </button>
+  <div class="cs">
+    <div class="ph">
+      <div>
+        <h2>{{ t('nav.groups') }}</h2>
+        <p>{{ t('group.lede') }}</p>
+      </div>
+      <div class="actions">
+        <button class="btn primary" @click="dialog = { kind: 'create' }">
+          <Icon name="plus" :size="14" />
+          <span>{{ t('group.add') }}</span>
+        </button>
+      </div>
     </div>
 
-    <ErrorState v-if="loadError" :error="loadError" @retry="load()" />
+    <!-- The totals across the top, as the design's four figures. -->
+    <div class="grid g4 mb2">
+      <div class="card stat">
+        <div class="lbl"><span class="ico-tile"><Icon name="tag" :size="14" /></span>{{ t('group.total') }}</div>
+        <div class="val">{{ nf(totals.groups) }}</div>
+      </div>
+      <div class="card stat">
+        <div class="lbl"><span class="ico-tile"><Icon name="users" :size="14" /></span>{{ t('group.grouped') }}</div>
+        <div class="val">{{ nf(totals.groupedClients) }}</div>
+        <div class="foot">{{ t('group.groupedFoot') }}</div>
+      </div>
+      <div class="card stat">
+        <div class="lbl"><span class="ico-tile"><Icon name="swap" :size="14" /></span>{{ t('group.upDown') }}</div>
+        <div class="val ltr" style="font-size: 20px">
+          <span class="ok-t">↑ {{ bytes(totals.upBytes, store.locale) }}</span>
+          <span class="sky-t">↓ {{ bytes(totals.downBytes, store.locale) }}</span>
+        </div>
+      </div>
+      <div class="card stat">
+        <div class="lbl"><span class="ico-tile acc"><Icon name="swap" :size="14" /></span>{{ t('client.traffic') }}</div>
+        <div class="val ltr">{{ bytes(totals.usedBytes, store.locale) }}</div>
+      </div>
+    </div>
 
-    <PageSpin v-else-if="showSkeleton" />
-    <div v-else-if="loading" class="empty"></div>
+    <section class="card calm">
+      <ErrorState v-if="loadError" :error="loadError" @retry="load()" />
 
-    <GroupsTable
-      v-else
-      :items="items"
-      @pick="pick"
-      @rename="(g) => (dialog = { kind: 'rename', group: g })"
-      @view="viewMembers"
-    />
+      <PageSpin v-else-if="showSkeleton" />
+      <div v-else-if="loading" class="empty"></div>
+
+      <GroupsTable
+        v-else
+        :items="items"
+        @pick="pick"
+        @rename="(g) => (dialog = { kind: 'rename', group: g })"
+        @view="viewMembers"
+      />
+    </section>
   </div>
 
   <MembersDialog v-if="members" :group="members.group" :mode="members.mode" @close="members = null" @done="done" />

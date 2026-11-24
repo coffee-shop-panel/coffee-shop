@@ -4,6 +4,7 @@ import { api } from '../lib/api.js'
 import { useDelayed } from '../lib/live.js'
 import { store, t, notify } from '../lib/store.js'
 import AntIcon from '../components/AntIcon.vue'
+import Icon from '../components/Icon.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import ErrorState from '../components/ErrorState.vue'
 import HostForm from '../components/HostForm.vue'
@@ -35,7 +36,8 @@ const summary = computed(() => ({
   disabled: groups.value.filter((g) => !g.enabled).length,
 }))
 const ifaceById = computed(() => Object.fromEntries(interfaces.value.map((i) => [i.id, i])))
-const PROTO_COLOR = { wireguard: 'gold', openvpn: 'orange' }
+// The design's tag tones for the two protocol families a host can ride on.
+const PROTO_COLOR = { wireguard: 'gold', openvpn: 'warn' }
 
 async function load(quiet = false) {
   if (!quiet) loading.value = true
@@ -189,116 +191,133 @@ function ifaceLabel(id) {
 </script>
 
 <template>
-  <div class="antpage hosts">
-    <!-- Their summary Card: size="small", three Statistics. -->
-    <div class="acard small summary-card">
-      <div class="acard-body">
-        <div class="arow">
-          <div class="acol">
-            <div class="stat-title">{{ t('hosts.summary.total') }}</div>
-            <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="GlobalOutlined" /></span><span>{{ nf(summary.total) }}</span></div>
-          </div>
-          <div class="acol">
-            <div class="stat-title">{{ t('hosts.summary.enabled') }}</div>
-            <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="CheckCircleOutlined" /></span><span>{{ nf(summary.enabled) }}</span></div>
-          </div>
-          <div class="acol">
-            <div class="stat-title">{{ t('hosts.summary.disabled') }}</div>
-            <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="StopOutlined" /></span><span>{{ nf(summary.disabled) }}</span></div>
-          </div>
-        </div>
+  <div class="cs">
+    <div class="ph">
+      <div>
+        <h2>{{ t('nav.hosts') }}</h2>
+        <p>{{ t('hosts.lede') }}</p>
+      </div>
+      <div class="actions">
+        <button class="btn primary" :disabled="!interfaces.length" @click="formFor = {}"><Icon name="plus" :size="14" /><span v-if="!isMobile">{{ t('hosts.addHost') }}</span></button>
       </div>
     </div>
 
-    <!-- Their list Card: size="small", the title a toolbar. -->
-    <div class="acard small hosts-card">
-      <div class="acard-head">
-        <div class="card-toolbar">
-          <template v-if="!selected.size">
-            <button class="abtn primary" :disabled="!interfaces.length" @click="formFor = {}"><AntIcon name="PlusOutlined" /><span v-if="!isMobile">{{ t('hosts.addHost') }}</span></button>
-          </template>
-          <template v-else>
-            <span class="atag blue closable" style="padding: 4px 8px; font-size: 13px">
-              {{ t('hosts.selectedCount').replace('{count}', nf(selected.size)) }}
-              <button type="button" class="atag-close" :aria-label="t('action.cancel')" @click="selected = new Set()"><AntIcon name="CloseOutlined" /></button>
-            </span>
-            <button class="abtn" @click="bulk('enable')">{{ t('hosts.bulkEnable') }}</button>
-            <button class="abtn" @click="bulk('disable')">{{ t('hosts.bulkDisable') }}</button>
-            <button class="abtn danger" @click="bulk('delete')"><AntIcon name="DeleteOutlined" /><span>{{ t('hosts.bulkDelete') }}</span></button>
-          </template>
-        </div>
+    <!-- The design's three figures: how many, how many on, how many off. -->
+    <div class="grid g3 mb">
+      <div class="card stat">
+        <div class="lbl"><span class="ico-tile"><Icon name="globe" :size="14" /></span>{{ t('hosts.summary.total') }}</div>
+        <div class="val">{{ nf(summary.total) }}</div>
       </div>
-      <div class="acard-body">
-        <ErrorState v-if="loadError && !groups.length" :error="loadError" @retry="load()" />
-        <PageSpin v-else-if="showWait" />
-        <div v-else-if="loading && !groups.length" class="empty"></div>
-        <div v-else class="atable-wrap" style="margin-top: 0">
-          <table class="atable small" style="min-width: 900px">
-            <thead>
-              <tr>
-                <th class="sel"><input type="checkbox" class="acheck" :checked="allSelected" :aria-label="t('action.selectAll')" @change="toggleAll($event.target.checked)" /></th>
-                <th style="width: 168px">{{ t('hosts.fields.actions') }}</th>
-                <th style="width: 90px">{{ t('hosts.fields.enable') }}</th>
-                <th>{{ t('hosts.fields.remark') }}</th>
-                <th>{{ t('hosts.fields.endpoint') }}</th>
-                <th>{{ t('hosts.fields.inbound') }}</th>
-                <th>{{ t('hosts.fields.reachable') }}</th>
-                <th>{{ t('hosts.fields.tags') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="!groups.length">
-                <td colspan="8">
-                  <div class="card-empty">
-                    <AntIcon name="GlobalOutlined" :size="32" />
-                    <div>{{ t('common.nothingYet') }}</div>
-                  </div>
-                </td>
-              </tr>
-              <tr v-for="(g, idx) in groups" :key="g.groupId" :class="{ picked: selected.has(g.groupId) }">
-                <td class="sel"><input type="checkbox" class="acheck" :checked="selected.has(g.groupId)" :aria-label="g.remark" @change="toggleOne(g.groupId, $event.target.checked)" /></td>
-                <td>
-                  <div class="aspace" style="gap: 2px; flex-wrap: nowrap">
-                    <button class="abtn text sm" :title="t('hosts.moveUp')" :aria-label="t('hosts.moveUp')" :disabled="idx === 0" @click="move(g, 'up')"><AntIcon name="ArrowUpOutlined" /></button>
-                    <button class="abtn text sm" :title="t('hosts.moveDown')" :aria-label="t('hosts.moveDown')" :disabled="idx >= groups.length - 1" @click="move(g, 'down')"><AntIcon name="ArrowDownOutlined" /></button>
-                    <button class="abtn text sm" :title="t('hosts.checkNow')" :aria-label="t('hosts.checkNow')" :disabled="checking === g.groupId" @click="check(g)"><AntIcon :name="checking === g.groupId ? 'LoadingOutlined' : 'ThunderboltOutlined'" /></button>
-                    <button class="abtn text sm" :title="t('action.edit')" :aria-label="t('action.edit')" @click="formFor = { group: g }"><AntIcon name="EditOutlined" /></button>
-                    <button class="abtn text sm danger" :title="t('action.delete')" :aria-label="t('action.delete')" @click="remove(g)"><AntIcon name="DeleteOutlined" /></button>
-                  </div>
-                </td>
-                <td><Toggle :model-value="g.enabled" :label="g.remark" small @update:model-value="(v) => setEnabled(g, v)" /></td>
-                <td>
-                  <div class="host-remark-cell">
-                    <span class="host-remark">{{ g.remark }}</span>
-                    <span v-if="g.description" class="host-desc">{{ g.description }}</span>
-                  </div>
-                </td>
-                <td>
-                  <span v-if="!g.hosts.length" class="atag orange">{{ t('hosts.fields.inheritAddress') }}</span>
-                  <template v-else>
-                    <span class="atag ltr host-endpoint">{{ g.hosts[0] }}</span>
-                    <span v-if="g.hosts.length > 1" class="atag default" style="margin: 2px; cursor: pointer" @click="showMore(`h-${g.groupId}`, g.hosts, $event)">+{{ g.hosts.length - 1 }}</span>
-                  </template>
-                </td>
-                <td>
-                  <span v-if="!g.interfaceIds.length" class="host-muted">—</span>
-                  <template v-else>
-                    <span class="atag" :class="PROTO_COLOR[ifaceById[g.interfaceIds[0]]?.protocol] || 'default'" style="margin: 2px" :title="ifaceLabel(g.interfaceIds[0])">{{ ifaceLabel(g.interfaceIds[0]) }}</span>
-                    <span v-if="g.interfaceIds.length > 1" class="atag default" style="margin: 2px; cursor: pointer" @click="showMore(`i-${g.groupId}`, g.interfaceIds.map(ifaceLabel), $event)">+{{ g.interfaceIds.length - 1 }}</span>
-                  </template>
-                </td>
-                <td>
-                  <span class="atag" :class="g.reachable ? 'green' : 'red'" :title="g.lastError || ''">{{ g.reachable ? t('hosts.reachable') : t('hosts.unreachable') }}</span>
-                </td>
-                <td>
-                  <template v-if="g.tags?.length"><span v-for="tag in g.tags" :key="tag" class="atag blue" style="margin: 0 4px 4px 0">{{ tag }}</span></template>
-                  <span v-else class="host-muted">—</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <div class="card stat">
+        <div class="lbl"><span class="ico-tile ok"><Icon name="check" :size="14" /></span>{{ t('hosts.summary.enabled') }}</div>
+        <div class="val">{{ nf(summary.enabled) }}</div>
       </div>
+      <div class="card stat">
+        <div class="lbl"><span class="ico-tile"><Icon name="pause" :size="14" /></span>{{ t('hosts.summary.disabled') }}</div>
+        <div class="val">{{ nf(summary.disabled) }}</div>
+      </div>
+    </div>
+
+    <section class="card calm">
+      <div class="toolbar">
+        <template v-if="!selected.size">
+          <button class="btn primary" :disabled="!interfaces.length" @click="formFor = {}"><Icon name="plus" :size="14" /><span v-if="!isMobile">{{ t('hosts.addHost') }}</span></button>
+        </template>
+        <template v-else>
+          <span class="selbar">
+            {{ t('hosts.selectedCount').replace('{count}', nf(selected.size)) }}
+            <button type="button" :aria-label="t('action.cancel')" @click="selected = new Set()"><Icon name="close" :size="12" /></button>
+          </span>
+          <button class="btn" @click="bulk('enable')">{{ t('hosts.bulkEnable') }}</button>
+          <button class="btn" @click="bulk('disable')">{{ t('hosts.bulkDisable') }}</button>
+          <button class="btn danger" @click="bulk('delete')"><Icon name="trash" :size="14" /><span>{{ t('hosts.bulkDelete') }}</span></button>
+        </template>
+      </div>
+
+      <ErrorState v-if="loadError && !groups.length" :error="loadError" @retry="load()" />
+      <PageSpin v-else-if="showWait" />
+      <div v-else-if="loading && !groups.length" class="empty"></div>
+      <div v-else class="tw">
+        <table style="min-width: 900px">
+          <thead>
+            <tr>
+              <th class="w0"><input type="checkbox" :checked="allSelected" :aria-label="t('action.selectAll')" @change="toggleAll($event.target.checked)" /></th>
+              <th>{{ t('hosts.fields.actions') }}</th>
+              <th>{{ t('hosts.fields.enable') }}</th>
+              <th>{{ t('hosts.fields.remark') }}</th>
+              <th>{{ t('hosts.fields.endpoint') }}</th>
+              <th>{{ t('hosts.fields.inbound') }}</th>
+              <th>{{ t('hosts.fields.reachable') }}</th>
+              <th>{{ t('hosts.fields.tags') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!groups.length">
+              <td colspan="8">
+                <div class="dempty">
+                  <span class="ico-tile"><Icon name="globe" :size="22" /></span>
+                  <div>{{ t('common.nothingYet') }}</div>
+                </div>
+              </td>
+            </tr>
+            <tr v-for="(g, idx) in groups" :key="g.groupId" :class="{ picked: selected.has(g.groupId), off: !g.enabled }">
+              <td class="w0 keep"><input type="checkbox" :checked="selected.has(g.groupId)" :aria-label="g.remark" @change="toggleOne(g.groupId, $event.target.checked)" /></td>
+              <td class="w0 keep">
+                <div class="acts">
+                  <button class="act" :title="t('hosts.moveUp')" :aria-label="t('hosts.moveUp')" :disabled="idx === 0" @click="move(g, 'up')"><AntIcon name="ArrowUpOutlined" /></button>
+                  <button class="act" :title="t('hosts.moveDown')" :aria-label="t('hosts.moveDown')" :disabled="idx >= groups.length - 1" @click="move(g, 'down')"><AntIcon name="ArrowDownOutlined" /></button>
+                  <button class="act" :title="t('hosts.checkNow')" :aria-label="t('hosts.checkNow')" :disabled="checking === g.groupId" @click="check(g)"><AntIcon :name="checking === g.groupId ? 'LoadingOutlined' : 'ThunderboltOutlined'" /></button>
+                  <button class="act" :title="t('action.edit')" :aria-label="t('action.edit')" @click="formFor = { group: g }"><AntIcon name="EditOutlined" /></button>
+                  <button class="act danger" :title="t('action.delete')" :aria-label="t('action.delete')" @click="remove(g)"><AntIcon name="DeleteOutlined" /></button>
+                </div>
+              </td>
+              <td class="keep"><Toggle :model-value="g.enabled" :label="g.remark" small @update:model-value="(v) => setEnabled(g, v)" /></td>
+              <td>
+                <b>{{ g.remark }}</b>
+                <div v-if="g.description" class="note">{{ g.description }}</div>
+              </td>
+              <td>
+                <span v-if="!g.hosts.length" class="faint">{{ t('hosts.fields.inheritAddress') }}</span>
+                <template v-else>
+                  <span class="mono small" dir="ltr">{{ g.hosts[0] }}</span>
+                  <span v-if="g.hosts.length > 1" class="dtag" style="cursor: pointer" @click="showMore(`h-${g.groupId}`, g.hosts, $event)">+{{ g.hosts.length - 1 }}</span>
+                </template>
+              </td>
+              <td>
+                <span v-if="!g.interfaceIds.length" class="faint">—</span>
+                <template v-else>
+                  <span class="dtag sq" :class="PROTO_COLOR[ifaceById[g.interfaceIds[0]]?.protocol] || ''" :title="ifaceLabel(g.interfaceIds[0])">{{ ifaceLabel(g.interfaceIds[0]) }}</span>
+                  <span v-if="g.interfaceIds.length > 1" class="dtag sq" style="cursor: pointer" @click="showMore(`i-${g.groupId}`, g.interfaceIds.map(ifaceLabel), $event)">+{{ g.interfaceIds.length - 1 }}</span>
+                </template>
+              </td>
+              <td>
+                <span class="dtag" :class="g.reachable ? 'ok' : 'bad'" :title="g.lastError || ''"><span v-if="g.reachable" class="d"></span>{{ g.reachable ? t('hosts.reachable') : t('hosts.unreachable') }}</span>
+              </td>
+              <td>
+                <template v-if="g.tags?.length"><span v-for="tag in g.tags" :key="tag" class="dtag sq" style="margin: 0 4px 4px 0">{{ tag }}</span></template>
+                <span v-else class="faint">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- What a host means, per protocol family: the design's three
+         explainer cards under the table. -->
+    <div class="grid g3 mt">
+      <section class="card">
+        <div class="ch"><span class="ico-tile acc"><Icon name="shield" :size="15" /></span><h3>{{ t('hosts.explain.wgTitle') }}</h3></div>
+        <div class="cb"><p class="muted small">{{ t('hosts.explain.wg') }}</p></div>
+      </section>
+      <section class="card">
+        <div class="ch"><span class="ico-tile acc"><Icon name="shield" :size="15" /></span><h3>{{ t('hosts.explain.ovpnTitle') }}</h3></div>
+        <div class="cb"><p class="muted small">{{ t('hosts.explain.ovpn') }}</p></div>
+      </section>
+      <section class="card">
+        <div class="ch"><span class="ico-tile acc"><Icon name="shield" :size="15" /></span><h3>{{ t('hosts.explain.otherTitle') }}</h3></div>
+        <div class="cb"><p class="muted small">{{ t('hosts.explain.other') }}</p></div>
+      </section>
     </div>
 
     <Teleport to="body">
@@ -323,17 +342,7 @@ function ifaceLabel(id) {
 </template>
 
 <style scoped>
-/* the classic panel's HostList.css, as it is. */
-.acard.small .acard-head { min-height: 38px; padding: 0 12px; }
-.acard.small .acard-body { padding: 12px; }
-.card-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; padding: 6px 0; }
-.host-remark-cell { display: flex; flex-direction: column; line-height: 1.3; }
-.host-remark { font-weight: 500; }
-.host-desc { font-size: 0.82em; color: var(--muted); }
-.host-endpoint { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.92em; }
-.host-muted { color: var(--faint); }
-.card-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 12px; text-align: center; color: var(--muted); }
-.card-empty .anticon { margin-bottom: 8px; }
+/* The "+N" popover is teleported out of the page, so it keeps the app's
+   own popover and tag styles; only its stack layout lives here. */
 .chips-stack { display: flex; flex-direction: column; gap: 4px; max-width: 280px; max-height: 280px; overflow-y: auto; }
-.abtn.text.danger { color: var(--bad); }
 </style>

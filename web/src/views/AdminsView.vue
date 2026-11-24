@@ -20,6 +20,7 @@ import { bytes } from '../lib/format.js'
 import { useIsMobile } from '../lib/mobile.js'
 import { SORTS, STATUS_FILTERS, shownRows, summarize } from '../lib/resellers/rows.js'
 import AntIcon from '../components/AntIcon.vue'
+import Icon from '../components/Icon.vue'
 import ErrorState from '../components/ErrorState.vue'
 import PageSpin from '../components/PageSpin.vue'
 import ResellerForm from '../components/ResellerForm.vue'
@@ -41,8 +42,8 @@ const props = defineProps({
 // same for both.
 const L = computed(() =>
   props.kind === 'admin'
-    ? { title: t('nav.admins'), add: t('admins.addAdmin'), none: t('admins.noneAdmins') }
-    : { title: t('nav.resellers'), add: t('admins.add'), none: t('admins.none') },
+    ? { title: t('nav.admins'), lede: t('admins.lede'), add: t('admins.addAdmin'), none: t('admins.noneAdmins') }
+    : { title: t('nav.resellers'), lede: t('admins.ledeReseller'), add: t('admins.add'), none: t('admins.none') },
 )
 
 const isMobile = useIsMobile()
@@ -317,71 +318,70 @@ async function saved() {
 </script>
 
 <template>
-  <div class="antpage resellers">
+  <div class="cs">
+    <div class="ph">
+      <div>
+        <h2>{{ L.title }}</h2>
+        <p>{{ L.lede }}</p>
+      </div>
+      <div class="actions">
+        <button class="btn primary" :disabled="!servers.length" :title="servers.length ? '' : t('interface.noneYet')" @click="formFor = {}">
+          <Icon name="plus" :size="14" /><span>{{ L.add }}</span>
+        </button>
+      </div>
+    </div>
+
     <ErrorState v-if="loadError" :error="loadError" @retry="load" />
     <PageSpin v-else-if="loading" />
 
     <template v-else>
-      <!-- The classic summary card, over resellers rather than customers. -->
-      <div class="acard small summary-card">
-        <div class="acard-body">
-          <div class="arow six">
-            <div class="acol">
-              <div class="stat-title">{{ L.title }}</div>
-              <div class="stat-content ltr"><span class="stat-prefix"><AntIcon :name="kind === 'admin' ? 'SafetyOutlined' : 'ShopOutlined'" /></span><span>{{ nf(summary.total) }}</span></div>
-            </div>
-            <div class="acol">
-              <button type="button" class="stat-button" :class="{ on: statusFilter === 'active' }" :aria-pressed="statusFilter === 'active'" @click="showBucket('active')">
-                <span class="stat-title">{{ t('status.active') }}</span>
-                <span class="stat-content ltr"><span class="stat-prefix"><i class="dot dot-green"></i></span><span>{{ nf(summary.active) }}</span></span>
-              </button>
-            </div>
-            <div class="acol">
-              <button type="button" class="stat-button" :class="{ on: statusFilter === 'soon' }" :aria-pressed="statusFilter === 'soon'" @click="showBucket('soon')">
-                <span class="stat-title">{{ t('admins.endingSoon') }}</span>
-                <span class="stat-content ltr"><span class="stat-prefix"><i class="dot dot-orange"></i></span><span>{{ nf(summary.soon) }}</span></span>
-              </button>
-            </div>
-            <div class="acol">
-              <button type="button" class="stat-button" :class="{ on: statusFilter === 'stopped' }" :aria-pressed="statusFilter === 'stopped'" @click="showBucket('stopped')">
-                <span class="stat-title">{{ t('admins.stopped') }}</span>
-                <span class="stat-content ltr"><span class="stat-prefix"><i class="dot dot-red"></i></span><span>{{ nf(summary.stopped) }}</span></span>
-              </button>
-            </div>
-            <div class="acol">
-              <div class="stat-title">{{ t('admins.theirCustomers') }}</div>
-              <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="TeamOutlined" /></span><span>{{ nf(summary.customers) }}</span></div>
-            </div>
-            <div class="acol">
-              <div class="stat-title">{{ t('admins.trafficUsed') }}</div>
-              <div class="stat-content ltr"><span class="stat-prefix"><AntIcon name="BarChartOutlined" /></span><span>{{ bytes(summary.traffic, store.locale) }}</span></div>
-            </div>
-          </div>
+      <!-- The summary across the top, as the design's six figures; three
+           of them are also the way to their list. -->
+      <div class="grid g6 mb2">
+        <div class="card stat">
+          <div class="lbl"><span class="ico-tile"><Icon :name="kind === 'admin' ? 'shield' : 'tag'" :size="14" /></span>{{ L.title }}</div>
+          <div class="val">{{ nf(summary.total) }}</div>
+        </div>
+        <button type="button" class="card stat" :class="{ on: statusFilter === 'active' }" :aria-pressed="statusFilter === 'active'" @click="showBucket('active')">
+          <span class="lbl"><span class="ico-tile ok"><Icon name="check" :size="14" /></span>{{ t('status.active') }}</span>
+          <span class="val">{{ nf(summary.active) }}</span>
+        </button>
+        <button type="button" class="card stat" :class="{ on: statusFilter === 'soon', hot: summary.soon > 0 && statusFilter !== 'soon' }" :aria-pressed="statusFilter === 'soon'" @click="showBucket('soon')">
+          <span class="lbl"><span class="ico-tile warn"><Icon name="clock" :size="14" /></span>{{ t('admins.endingSoon') }}</span>
+          <span class="val">{{ nf(summary.soon) }}</span>
+        </button>
+        <button type="button" class="card stat" :class="{ on: statusFilter === 'stopped' }" :aria-pressed="statusFilter === 'stopped'" @click="showBucket('stopped')">
+          <span class="lbl"><span class="ico-tile bad"><Icon name="pause" :size="14" /></span>{{ t('admins.stopped') }}</span>
+          <span class="val">{{ nf(summary.stopped) }}</span>
+        </button>
+        <div class="card stat">
+          <div class="lbl"><span class="ico-tile"><Icon name="users" :size="14" /></span>{{ t('admins.theirCustomers') }}</div>
+          <div class="val">{{ nf(summary.customers) }}</div>
+        </div>
+        <div class="card stat">
+          <div class="lbl"><span class="ico-tile acc"><Icon name="swap" :size="14" /></span>{{ t('admins.trafficUsed') }}</div>
+          <div class="val ltr">{{ bytes(summary.traffic, store.locale) }}</div>
         </div>
       </div>
 
-      <div class="acard small">
-        <div class="acard-head">
-          <div class="card-toolbar">
-            <button v-if="!selected.size" class="abtn primary" :disabled="!servers.length" :title="servers.length ? '' : t('interface.noneYet')" @click="formFor = {}">
-              <AntIcon name="PlusOutlined" /><span>{{ L.add }}</span>
+      <section class="card calm">
+        <div class="toolbar">
+          <button v-if="!selected.size" class="btn primary" :disabled="!servers.length" :title="servers.length ? '' : t('interface.noneYet')" @click="formFor = {}">
+            <Icon name="plus" :size="14" /><span>{{ L.add }}</span>
+          </button>
+          <template v-else>
+            <span class="selbar">
+              {{ t('client.menu.selectedCount').replace('{count}', nf(selected.size)) }}
+              <button type="button" :aria-label="t('action.cancel')" @click="selected = new Set()"><Icon name="close" :size="12" /></button>
+            </span>
+            <MoreMenu :items="bulkItems" :compact="isMobile" :disabled="busy" @pick="pickBulk" />
+            <button class="btn danger" style="margin-inline-start: auto" :disabled="busy" @click="askRemove(selectedRows)">
+              <Icon name="trash" :size="14" /><span v-if="!isMobile">{{ t('action.delete') }}</span>
             </button>
-            <template v-else>
-              <span class="atag blue closable" style="padding: 4px 8px; font-size: 13px">
-                {{ t('client.menu.selectedCount').replace('{count}', nf(selected.size)) }}
-                <button type="button" class="atag-close" :aria-label="t('action.cancel')" @click="selected = new Set()"><AntIcon name="CloseOutlined" /></button>
-              </span>
-              <MoreMenu :items="bulkItems" :compact="isMobile" :disabled="busy" @pick="pickBulk" />
-              <button class="abtn danger" style="margin-inline-start: auto" :disabled="busy" @click="askRemove(selectedRows)">
-                <AntIcon name="DeleteOutlined" /><span v-if="!isMobile">{{ t('action.delete') }}</span>
-              </button>
-            </template>
-          </div>
-        </div>
+          </template>
 
-        <div class="acard-body">
-          <div v-if="rows.length" class="filter-bar">
-            <label class="ainput" :class="{ small: isMobile }" :style="isMobile ? 'width: 100%' : 'max-width: 320px; width: 100%'">
+          <template v-if="rows.length && !selected.size">
+            <label class="ainput search-in" :class="{ small: isMobile }">
               <span class="ainput-prefix"><AntIcon name="SearchOutlined" /></span>
               <input v-model="search" type="search" :placeholder="t('admins.searchPlaceholder')" :aria-label="t('action.search')" />
               <button v-if="search" type="button" class="ainput-clear" :aria-label="t('action.clear')" @click="search = ''"><AntIcon name="CloseCircleFilled" /></button>
@@ -411,20 +411,22 @@ async function saved() {
               </select>
               <span class="aselect-suffix"><AntIcon name="SortAscendingOutlined" /></span>
             </div>
-            <button v-if="filtering" type="button" class="abtn" @click="clearFilters">{{ t('client.menu.clearAllFilters') }}</button>
-            <span v-if="filtering" class="filter-count" aria-live="polite">
+            <button v-if="filtering" type="button" class="btn" @click="clearFilters">{{ t('client.menu.clearAllFilters') }}</button>
+            <span v-if="filtering" class="faint small" aria-live="polite">
               {{ t('client.menu.showingCount').replace('{shown}', nf(shown.length)).replace('{total}', nf(rows.length)) }}
             </span>
-          </div>
+          </template>
+        </div>
 
-          <div v-if="!rows.length" class="resellers-empty">
-            <AntIcon :name="kind === 'admin' ? 'SafetyOutlined' : 'ShopOutlined'" :size="32" />
+        <div style="padding: 6px 14px 14px">
+          <div v-if="!rows.length" class="dempty">
+            <span class="ico-tile"><Icon :name="kind === 'admin' ? 'shield' : 'tag'" :size="22" /></span>
             <div>{{ L.none }}</div>
           </div>
-          <div v-else-if="!shown.length" class="resellers-empty">
-            <AntIcon name="SearchOutlined" :size="32" />
+          <div v-else-if="!shown.length" class="dempty">
+            <span class="ico-tile"><Icon name="search" :size="22" /></span>
             <div>{{ t('admins.noMatch') }}</div>
-            <button type="button" class="abtn" style="margin-top: 12px" @click="clearFilters">{{ t('client.menu.clearAllFilters') }}</button>
+            <button type="button" class="btn" @click="clearFilters">{{ t('client.menu.clearAllFilters') }}</button>
           </div>
 
           <ResellerCards
@@ -457,7 +459,7 @@ async function saved() {
             @enable="setEnabled"
           />
         </div>
-      </div>
+      </section>
     </template>
   </div>
 
@@ -490,33 +492,13 @@ async function saved() {
 </template>
 
 <style scoped>
-.arow.six > .acol { flex: 0 0 16.6667%; max-width: 16.6667%; }
-@media (max-width: 991px) { .arow.six > .acol { flex: 0 0 33.3333%; max-width: 33.3333%; } }
-@media (max-width: 575px) { .arow.six > .acol { flex: 0 0 50%; max-width: 50%; } }
-.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-.dot-green { background: var(--ok); }
-.dot-red { background: var(--bad); }
-.dot-orange { background: var(--warn); }
-.summary-card { margin-bottom: 16px; }
-
-.acard.small .acard-head { min-height: 38px; padding: 0 12px; }
-.acard.small .acard-body { padding: 12px; }
-.card-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; padding: 6px 0; }
-
-.resellers-empty { padding: 32px 0; text-align: center; color: var(--muted); }
-
-.filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-.filter-bar .aselect { width: auto; }
-.filter-count { margin-inline-start: auto; color: var(--muted); font-size: 13px; white-space: nowrap; }
+/* The toolbar's controls keep their own measures inside the design's
+   toolbar: the selects are as wide as their words, the search takes the
+   room that is left. */
+.toolbar .aselect { width: auto; }
+.toolbar .search-in { flex: 1 1 220px; max-width: 320px; }
 .sort-select { position: relative; }
 .sort-select .aselect-suffix { position: absolute; inset-inline-end: 11px; top: 50%; transform: translateY(-50%); color: var(--faint); font-size: 12px; pointer-events: none; }
 .sort-select::after { display: none; }
 .sort-select select { padding-inline-end: 28px; }
-
-/* A tile that filters: a button that looks like the tile it is. */
-.stat-button { display: block; width: 100%; padding: 4px 6px; margin: -4px -6px; border: 1px solid transparent; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
-.stat-button:hover { background: var(--surface-2); }
-.stat-button.on { border-color: var(--accent); background: var(--accent-soft); }
-.stat-button .stat-title, .stat-button .stat-content { display: block; }
-.resellers-empty .anticon { display: block; margin: 0 auto 8px; opacity: 0.5; }
 </style>

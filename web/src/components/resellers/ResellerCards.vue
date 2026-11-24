@@ -5,6 +5,11 @@ import { customersTag, standing, termTag, trafficLeftTag } from '../../lib/resel
 import AntIcon from '../AntIcon.vue'
 import Toggle from '../Toggle.vue'
 
+// The row helpers name their colours in the app's tag vocabulary; the
+// design's tags say the same things with other words.
+const TONE = { green: 'ok', orange: 'warn', red: 'bad', blue: 'info', purple: 'purple', geekblue: 'info' }
+const tone = (c) => TONE[c] || 'gray'
+
 defineProps({
   rows: { type: Array, required: true },
   selected: { type: Set, required: true },
@@ -26,17 +31,17 @@ defineEmits(['toggle', 'toggle-all', 'edit', 'reset', 'remove', 'enable'])
         <input type="checkbox" class="acheck" :checked="selected.has(a.id)" :aria-label="a.username" @change="$emit('toggle', a.id, $event.target.checked)" />
         <div class="rcard-name">
           <span class="name">{{ a.username }}</span>
-          <span class="atag" dir="auto" :class="standing(a).color" style="margin: 0">{{ standing(a).label }}</span>
+          <span class="dtag" dir="auto" :class="tone(standing(a).color)">{{ standing(a).label }}</span>
         </div>
         <Toggle :model-value="a.enabled" :label="a.username" small :loading="pending.has(a.id)" @update:model-value="(v) => $emit('enable', a, v)" />
       </div>
       <div v-if="a.note" class="rcard-note">{{ a.note }}</div>
       <dl v-if="a.role === 'reseller'" class="rcard-stats">
-        <div><dt>{{ t('admins.customers') }}</dt><dd><span class="atag ltr" :class="customersTag(a).color" style="margin: 0">{{ customersTag(a).label }}</span></dd></div>
-        <div><dt>{{ t('admins.trafficLeft') }}</dt><dd><span class="atag ltr" :class="trafficLeftTag(a).color" style="margin: 0">{{ trafficLeftTag(a).label }}</span></dd></div>
-        <div><dt>{{ t('admins.timeLeft') }}</dt><dd><span class="atag" dir="auto" :class="termTag(a).color" :title="termTag(a).title" style="margin: 0">{{ termTag(a).label }}</span></dd></div>
+        <div><dt>{{ t('admins.customers') }}</dt><dd><span class="dtag" dir="ltr" :class="tone(customersTag(a).color)">{{ customersTag(a).label }}</span></dd></div>
+        <div><dt>{{ t('admins.trafficLeft') }}</dt><dd><span class="dtag" dir="ltr" :class="tone(trafficLeftTag(a).color)">{{ trafficLeftTag(a).label }}</span></dd></div>
+        <div><dt>{{ t('admins.timeLeft') }}</dt><dd><span class="dtag" dir="auto" :class="tone(termTag(a).color)" :title="termTag(a).title">{{ termTag(a).label }}</span></dd></div>
       </dl>
-      <div v-else class="rcard-note"><span class="atag geekblue" style="margin: 0">{{ t('admins.role.admin') }}</span></div>
+      <div v-else class="rcard-note"><span class="dtag info">{{ t('admins.role.admin') }}</span></div>
       <div class="rcard-actions">
         <button class="abtn text sm" :aria-label="t('action.edit')" @click="$emit('edit', a)"><AntIcon name="EditOutlined" /><span>{{ t('action.edit') }}</span></button>
         <button v-if="a.role === 'reseller' && a.quotaBytes" class="abtn text sm" :disabled="pending.has(a.id)" @click="$emit('reset', a)"><AntIcon name="RetweetOutlined" /><span>{{ t('admins.resetShort') }}</span></button>
@@ -48,7 +53,7 @@ defineEmits(['toggle', 'toggle-all', 'edit', 'reset', 'remove', 'enable'])
 
 <style scoped>
 .rcards { display: flex; flex-direction: column; gap: 10px; }
-.rcard { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.rcard { padding: 14px; border: 1px solid var(--line-soft); border-radius: var(--r); background-color: var(--surface); background-image: var(--card-grad); box-shadow: var(--e1); }
 .rcard.off { opacity: 0.7; }
 .rcard-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .rcard-name { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
@@ -59,8 +64,8 @@ defineEmits(['toggle', 'toggle-all', 'edit', 'reset', 'remove', 'enable'])
 .rcard-stats dd { margin: 0; }
 /* A tag here has a third of a phone to live in; a long one wraps inside it
    rather than pushing out past the card. */
-.rcard-stats dd .atag { max-width: 100%; white-space: normal; line-height: 1.4; }
-.rcard-actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.rcard-stats dd .dtag { max-width: 100%; white-space: normal; line-height: 1.4; height: auto; min-height: 22px; }
+.rcard-actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
 .rcard-actions .abtn span { margin-inline-start: 4px; }
 .rcard.picked { border-color: var(--accent); }
 .rcard-head .acheck { flex: none; }
