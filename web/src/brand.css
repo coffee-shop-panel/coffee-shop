@@ -842,3 +842,125 @@ html[lang='fa'] .cs .tw thead th { text-transform: none; letter-spacing: 0; font
   .cs .tw tr.exp-row .exp { grid-template-columns: 1fr; }
   .cs .map { height: 280px; }
 }
+
+/* ══════════ Wave 3: the remaining pages ══════════
+   The design's tab bar, setting rows, banners, code blocks and the rest
+   of cs.css's furniture, carried the same way as wave 2: scoped under
+   .cs, the mockup's values read through the wave-1 tokens. Where a page
+   is built from the app's own settings markup (the setting-list rows
+   the settings, engine and shop pages share), the design's setting row
+   is written onto that markup instead of onto the mockup's, so a whole
+   family of pages takes the treatment without a markup change each. */
+
+/* ── tab bars ──────────────────────────────────────────────────────── */
+.cs .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line-soft); margin-bottom: 16px; flex-wrap: wrap; }
+.cs .tabs.in { padding: 0 14px; margin-bottom: 0; }
+.cs .tab { display: inline-flex; align-items: center; gap: 7px; padding: 10px 13px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px 8px 0 0; white-space: nowrap; }
+.cs .tab:hover { color: var(--ink); }
+.cs .tab.on { color: var(--accent-text); border-bottom-color: var(--accent); background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 7%, transparent)); }
+.cs .tab .badge { margin-inline-start: 2px; }
+.cs .badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--bad-fill); color: #fff; font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cs .badge.acc { background: var(--accent); color: var(--accent-ink); }
+.cs .badge.gray { background: var(--surface-3); color: var(--muted); }
+/* The settings pages' own tab strip (SecuritySettings and its kin) takes
+   the same underline treatment. */
+.cs .atabs-nav { border-bottom: 1px solid var(--line-soft); margin-bottom: 8px; }
+.cs .atabs-list { display: flex; gap: 4px; flex-wrap: wrap; }
+.cs .atab { display: inline-flex; align-items: center; gap: 7px; padding: 10px 13px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px 8px 0 0; white-space: nowrap; box-shadow: none; }
+.cs .atab:hover { color: var(--ink); background: none; }
+.cs .atab.active { color: var(--accent-text); border-bottom-color: var(--accent); background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 7%, transparent)); }
+
+/* ── setting rows ──────────────────────────────────────────────────── */
+/* The design's setting: title and description on one side, the control
+   on the other, a hairline between rows. */
+.cs .setting { display: flex; gap: 24px; align-items: flex-start; padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
+.cs .setting:last-child { border-bottom: 0; }
+.cs .setting .meta { flex: 1 1 50%; min-width: 0; }
+.cs .setting .meta b { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 650; }
+.cs .setting .meta p { color: var(--faint); font-size: 12.5px; margin-top: 3px; line-height: 1.5; }
+.cs .setting .ctl { flex: 1 1 50%; min-width: 0; display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+/* The app's own spelling of the same row, used by the settings tabs,
+   the engine tabs and the two bot pages: the same geometry laid over
+   its two-column markup. */
+.cs .setting-list-item { padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
+.cs .setting-list-item:last-child { border-bottom: 0; }
+.cs .setting-list-title { font-size: 13.5px; font-weight: 650; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.cs .setting-list-description { color: var(--faint); font-size: 12.5px; margin-top: 3px; line-height: 1.5; }
+.cs .setting-list-item .arow { align-items: center; }
+
+/* ── banners ───────────────────────────────────────────────────────── */
+/* Wave 2 carried the banner colours; here is the design's layout for
+   them: an icon, the text, room to breathe. */
+.cs .banner { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--ink-2); margin-bottom: 16px; }
+.cs .banner svg { margin-top: 2px; flex: none; }
+.cs .banner.warn svg { color: var(--warn); }
+.cs .banner.bad svg { color: var(--bad); }
+.cs .banner.info svg { color: var(--info); }
+.cs .banner b { color: var(--ink); }
+.cs .banner .spacer { margin-inline-start: auto; }
+
+/* ── code, logs ────────────────────────────────────────────────────── */
+.cs pre.code { margin: 0; padding: 14px 16px; border-radius: 10px; background: var(--ground); border: 1px solid var(--line); font-family: var(--mono); font-size: 12px; line-height: 1.65; color: var(--ink-2); overflow: auto; direction: ltr; text-align: left; max-height: 420px; }
+.cs .loglist { list-style: none; margin: 0; padding: 6px 0; font-size: 12.5px; }
+.cs .loglist > li { display: flex; gap: 10px; align-items: baseline; padding: 7px 16px; border-bottom: 1px solid var(--line-soft); }
+.cs .loglist > li:last-child { border-bottom: 0; }
+.cs .loglist .log-time { font-family: var(--mono); color: var(--faint); white-space: nowrap; font-size: 11.5px; }
+.cs .loglist .log-msg { min-width: 0; overflow-wrap: anywhere; }
+
+/* ── segmented controls ────────────────────────────────────────────── */
+.cs .seg { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surface-2); flex-wrap: wrap; }
+.cs .seg .seg-btn, .cs .seg > button { border: 0; padding: 5px 12px; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; box-shadow: none; }
+.cs .seg .seg-btn:hover, .cs .seg > button:hover { color: var(--ink); background: transparent; }
+.cs .seg .seg-btn.on, .cs .seg > button.on { background: var(--primary); color: var(--accent-ink); box-shadow: 0 4px 12px -6px var(--accent-glow); }
+.cs .seg.sm .seg-btn, .cs .seg.sm > button { padding: 3px 9px; font-size: 12px; }
+.cs .segmented { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surface-2); flex-wrap: wrap; }
+.cs .segmented button { border: 0; padding: 5px 12px; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; box-shadow: none; }
+.cs .segmented button:hover { color: var(--ink); background: transparent; }
+.cs .segmented button.on { background: var(--primary); color: var(--accent-ink); box-shadow: 0 4px 12px -6px var(--accent-glow); }
+
+/* ── form grids (the design's .fg/.field, for form bodies) ─────────── */
+.cs .fg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.cs .fg.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cs .fg .full { grid-column: 1 / -1; }
+.cs .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cs .field > label, .cs .field > .lb { font-size: 12.5px; font-weight: 600; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.cs .field .hint { font-size: 12px; color: var(--faint); line-height: 1.45; }
+.cs .field .err { font-size: 12px; color: var(--bad); }
+
+/* ── search input with an icon, for toolbars ───────────────────────── */
+.cs .inp-ico { position: relative; display: inline-flex; align-items: center; }
+.cs .inp-ico svg { position: absolute; inset-inline-start: 11px; color: var(--faint); pointer-events: none; }
+.cs .inp-ico input { padding-inline-start: 34px; }
+
+/* ── the save bar, as the design draws it ──────────────────────────── */
+/* A slim card: a warning tile, the standing hint, and Save at the end.
+   The pages keep their own save state and handler; only the shape is
+   the design's. */
+.cs .save-bar { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.cs .save-bar .hint { color: var(--ink-2); font-size: 13px; min-width: 0; }
+.cs .save-bar .btn { margin-inline-start: auto; flex: none; }
+
+/* ── a stat card that is also a filter ─────────────────────────────── */
+.cs button.stat { cursor: pointer; width: 100%; }
+.cs button.stat.on { border-color: var(--accent-line); box-shadow: inset 0 0 0 1px var(--accent-line), var(--e1); }
+.cs button.stat.on .val { color: var(--accent-text); }
+
+/* ── outbound row numbers ──────────────────────────────────────────── */
+.cs .step { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 7px; background: var(--surface-3); border: 1px solid var(--line); font-family: var(--mono); font-size: 12px; font-weight: 700; }
+.cs .step.first { background: var(--primary); color: var(--accent-ink); border-color: var(--accent); }
+
+/* ── card heads and bodies, in the design's spacing ────────────────── */
+/* Pages built on the app's card-head/card-body (the shop, the bots, the
+   configs) take the design card's head and body measures under .cs. */
+.cs .card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--line-soft); }
+.cs .card-head h2 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+.cs .card-body { padding: 18px; }
+
+/* ── the reseller account (capacity) meters ────────────────────────── */
+.cs .acct-note { margin-top: 10px; }
+
+@media (max-width: 768px) {
+  .cs .fg { grid-template-columns: 1fr; }
+  .cs .setting { flex-direction: column; gap: 10px; }
+  .cs .setting .ctl { justify-content: flex-start; }
+}
