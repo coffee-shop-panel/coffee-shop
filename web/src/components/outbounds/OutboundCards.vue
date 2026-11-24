@@ -37,9 +37,9 @@ const cardMenu = (o, idx, count) => [{ key: 'edit', icon: 'EditOutlined', label:
     <div v-for="(o, idx) in outbounds" :key="o.id" class="outbound-card" :class="{ off: !o.enabled }">
       <div class="card-head">
         <div class="card-identity">
-          <span class="card-num">{{ idx + 1 }}</span>
+          <span class="step" :class="{ first: idx === 0 }">{{ idx + 1 }}</span>
           <span class="tag-name" :title="o.tag">{{ o.tag }}</span>
-          <span class="tag green">{{ kindLabel(o) }}</span>
+          <span class="dtag ok">{{ kindLabel(o) }}</span>
         </div>
         <MoreMenu :items="cardMenu(o, idx, outbounds.length)" compact button-class="act round sm" :label="t('action.more')" @pick="(key) => $emit('pick', o, idx, key)" />
       </div>
@@ -67,8 +67,8 @@ const cardMenu = (o, idx, count) => [{ key: 'edit', icon: 'EditOutlined', label:
         <span class="traffic-sep"></span>
         <span class="traffic-down">↓ {{ bytes(o.rxBytes || 0) }}</span>
         <span class="card-test">
-          <span v-if="o.lastError" class="tag red" :title="o.lastError">{{ t('outbound.failed') }}</span>
-          <span v-else-if="o.latencyMs" class="tag green">{{ o.latencyMs }} ms</span>
+          <span v-if="o.lastError" class="dtag bad" :title="o.lastError">{{ t('outbound.failed') }}</span>
+          <span v-else-if="o.latencyMs" class="dtag ok">{{ o.latencyMs }} ms</span>
           <AntIcon v-else-if="pending.has(o.id)" name="LoadingOutlined" class="anticon-spin" />
           <button
             class="act round sm primary"

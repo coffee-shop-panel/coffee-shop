@@ -259,29 +259,31 @@ const moreItems = computed(() => [
 </script>
 
 <template>
-  <section class="view">
-    <!-- Their page: the Save bar every Xray page has, then a card with a
-         toolbar row -- space-between -- and the table. No heading, no figures. -->
-    <div class="card save-bar">
-      <div class="save-left">
-        <button class="btn primary" :disabled="!dirty || saving" @click="saveAll">
-          <span v-if="saving" class="spin sm"></span>
-          <span>{{ t('action.save') }}</span>
-        </button>
-      </div>
-      <div class="save-right">
-        <div class="alert warning" role="status">
-          <Icon name="alert" :size="14" />
-          <span>{{ t('outbound.saveHint') }}</span>
-        </div>
+  <div class="cs">
+    <div class="ph">
+      <div>
+        <h2>{{ t('nav.outbounds') }}</h2>
+        <p>{{ t('outbound.lede') }}</p>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-toolbar spread wrap">
+    <!-- The design's save bar: the standing hint in a slim card, with
+         Save at its end. A change here is stored the moment it is made;
+         Save pushes it into the kernel now. -->
+    <div class="card save-bar" role="status">
+      <span class="ico-tile warn"><Icon name="alert" :size="15" /></span>
+      <span class="hint">{{ t('outbound.saveHint') }}</span>
+      <button class="btn primary sm" :disabled="!dirty || saving" @click="saveAll">
+        <span v-if="saving" class="spin sm"></span>
+        <span>{{ t('action.save') }}</span>
+      </button>
+    </div>
+
+    <section class="card calm">
+      <div class="toolbar">
         <div class="toolbar-group">
           <button class="btn primary" @click="formFor = {}">
-            <AntIcon name="PlusOutlined" />
+            <Icon name="plus" :size="14" />
             <span v-if="!isMobile">{{ t('nav.outbounds') }}</span>
           </button>
           <button class="btn" @click="dialog = 'subs'">
@@ -290,6 +292,8 @@ const moreItems = computed(() => [
           </button>
           <MoreMenu :items="moreItems" button-class="btn more-btn" @pick="(key) => (dialog = key)" />
         </div>
+
+        <div class="spacer"></div>
 
         <div class="toolbar-group">
           <!-- Their Radio.Group buttonStyle="solid" size="small", with the
@@ -308,14 +312,14 @@ const moreItems = computed(() => [
             </button>
           </div>
 
-          <button class="btn primary" :disabled="checkingAll" @click="checkAll">
+          <button class="btn" :disabled="checkingAll" @click="checkAll">
             <span v-if="checkingAll" class="spin sm"></span>
-            <AntIcon v-else name="PlayCircleOutlined" />
+            <Icon v-else name="play" :size="14" />
             <span v-if="!isMobile">{{ t('outbound.testAll') }}</span>
           </button>
 
-          <button class="btn icon" :aria-label="t('outbound.resetTraffic')" :title="t('outbound.resetTraffic')" @click="resetAllTraffic">
-            <AntIcon name="RetweetOutlined" />
+          <button class="btn" :aria-label="t('outbound.resetTraffic')" :title="t('outbound.resetTraffic')" @click="resetAllTraffic">
+            <Icon name="refresh" :size="14" />
           </button>
         </div>
       </div>
@@ -330,7 +334,7 @@ const moreItems = computed(() => [
       <div v-else-if="loading" class="empty"></div>
       <OutboundCards v-else-if="isMobile" :outbounds="outbounds" :pending="pending" @pick="pick" @check="check" />
       <OutboundsTable v-else :outbounds="outbounds" :pending="pending" :mode="mode" @edit="(o) => (formFor = { outbound: o })" @pick="pick" @check="check" />
-    </div>
+    </section>
 
     <OutboundSubsDialog v-if="dialog === 'subs'" @close="dialog = null" @changed="onDialogChanged" />
     <WarpDialog v-if="dialog === 'warp'" @close="dialog = null" @changed="onDialogChanged" />
@@ -363,5 +367,5 @@ const moreItems = computed(() => [
       @confirm="runConfirmed"
       @cancel="ask = null"
     />
-  </section>
+  </div>
 </template>

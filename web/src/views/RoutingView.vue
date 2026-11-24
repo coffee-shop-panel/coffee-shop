@@ -152,21 +152,25 @@ function showDecidingRule() {
 </script>
 
 <template>
-  <section class="view routing-page">
-    <!-- Their header Card: Save on the left, the warning on the right. -->
-    <div class="card save-bar">
-      <div class="save-left">
+  <section class="view routing-page cs">
+    <div class="ph">
+      <div>
+        <h2>{{ t('nav.routing') }}</h2>
+        <p>{{ t('routing.lede') }}</p>
+      </div>
+      <div class="actions">
         <button class="btn primary" :disabled="!dirty || saving" @click="save">
           <span v-if="saving" class="spin sm"></span>
           <span>{{ t('action.save') }}</span>
         </button>
       </div>
-      <div class="save-right">
-        <div class="alert warning" role="status">
-          <Icon name="alert" :size="14" />
-          <span>{{ t('routing.saveHint') }}</span>
-        </div>
-      </div>
+    </div>
+
+    <!-- The standing warning the save bar used to carry, in the design's
+         warning band under the head. -->
+    <div class="banner warn" role="status">
+      <Icon name="alert" :size="16" />
+      <div>{{ t('routing.saveHint') }}</div>
     </div>
 
     <div v-if="loadError" class="card">
@@ -197,14 +201,16 @@ function showDecidingRule() {
           >
             <Icon :name="x.icon" :size="isMobile ? 18 : 14" />
             <template v-if="!isMobile">{{ t(`routing.tab.${x.key}`) }}</template>
+            <span v-if="x.key === 'rules' && rules.length" class="badge gray">{{ rules.length }}</span>
+            <span v-if="x.key === 'balancers' && balancers.length" class="badge gray">{{ balancers.length }}</span>
           </button>
         </div>
 
         <!-- Said once. Without it an operator can block a domain, see it
              listed, and never learn the kernel here cannot apply any of it. -->
-        <div v-if="inactive" class="alert warning block mb-12">
-          <Icon name="alert" :size="14" />
-          <span>{{ t('routing.inactive') }} — {{ inactive }}</span>
+        <div v-if="inactive" class="banner warn">
+          <Icon name="alert" :size="16" />
+          <div>{{ t('routing.inactive') }} — {{ inactive }}</div>
         </div>
 
         <!-- ── Basic Routing ─────────────────────────────────────────── -->

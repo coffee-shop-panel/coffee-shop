@@ -296,14 +296,14 @@ async function runImport() {
       <div class="rule-flow">
         <div class="flow-side">
           <span class="flow-label">{{ t('nav.interfaces') }}</span>
-          <span v-if="inboundsOf(r).length" class="tag blue flow-tag">{{ inboundsOf(r).join(', ') }}</span>
+          <span v-if="inboundsOf(r).length" class="dtag info flow-tag">{{ inboundsOf(r).join(', ') }}</span>
           <span v-else class="criterion-empty">any</span>
         </div>
         <span class="flow-arrow">→</span>
         <div class="flow-side flow-side-target">
           <span class="flow-label">{{ isBalancer(r.outboundTag) ? t('routing.tab.balancers') : t('nav.outbounds') }}</span>
-          <span v-if="isBalancer(r.outboundTag)" class="tag purple flow-tag"><AntIcon name="ClusterOutlined" /> {{ r.outboundTag }}</span>
-          <span v-else-if="r.outboundTag" class="tag flow-tag" :class="r.outboundTag === 'blocked' ? 'red' : 'green'"><AntIcon name="ExportOutlined" /> {{ r.outboundTag }}</span>
+          <span v-if="isBalancer(r.outboundTag)" class="dtag purple flow-tag"><AntIcon name="ClusterOutlined" /> {{ r.outboundTag }}</span>
+          <span v-else-if="r.outboundTag" class="dtag flow-tag" :class="r.outboundTag === 'blocked' ? 'bad' : 'ok'"><AntIcon name="ExportOutlined" /> {{ r.outboundTag }}</span>
           <span v-else class="criterion-empty">—</span>
         </div>
       </div>
@@ -324,7 +324,7 @@ async function runImport() {
     </div>
   </div>
 
-  <div v-else class="table-wrap">
+  <div v-else class="tw">
     <table>
       <thead>
         <tr>
@@ -343,8 +343,8 @@ async function runImport() {
       <tbody>
         <tr v-if="!rules.length" class="empty-row">
           <td colspan="10">
-            <div class="card-empty">
-              <Icon name="route" :size="32" />
+            <div class="dempty">
+              <span class="ico-tile"><Icon name="route" :size="22" /></span>
               <div>{{ t('common.nothingYet') }}</div>
             </div>
           </td>
@@ -375,7 +375,7 @@ async function runImport() {
           </td>
           <td>
             <div v-if="sourceOf(r).length" class="crit">
-              <span v-for="(c, k) in sourceOf(r)" :key="k" class="tag ltr" :class="c.kind === 'user' || c.kind === 'group' ? 'geekblue' : ''">{{ c.text }}</span>
+              <span v-for="(c, k) in sourceOf(r)" :key="k" class="dtag sq" dir="ltr" :class="c.kind === 'user' || c.kind === 'group' ? 'info' : ''">{{ c.text }}</span>
             </div>
             <span v-else class="muted">—</span>
           </td>
@@ -384,27 +384,27 @@ async function runImport() {
             <div v-if="r.note" class="muted small">{{ r.note }}</div>
           </td>
           <td>
-            <span v-if="r.network" class="tag">{{ r.network }}</span>
+            <span v-if="r.network" class="dtag sq">{{ r.network }}</span>
             <span v-else class="muted">—</span>
           </td>
           <td>
             <div v-if="destOf(r).length" class="crit">
-              <span v-for="(c, k) in destOf(r)" :key="k" class="tag ltr" :class="c.kind === 'domain' ? 'geekblue' : ''">{{ c.text }}</span>
+              <span v-for="(c, k) in destOf(r)" :key="k" class="dtag sq" dir="ltr" :class="c.kind === 'domain' ? 'info' : ''">{{ c.text }}</span>
             </div>
             <span v-else class="muted">—</span>
           </td>
           <td>
             <div v-if="inboundsOf(r).length" class="crit">
-              <span v-for="n in inboundsOf(r)" :key="n" class="tag">{{ n }}</span>
+              <span v-for="n in inboundsOf(r)" :key="n" class="dtag sq">{{ n }}</span>
             </div>
             <span v-else class="muted">—</span>
           </td>
           <td>
-            <span v-if="!isBalancer(r.outboundTag)" class="tag" :class="r.outboundTag === 'blocked' ? 'red' : 'green'">{{ r.outboundTag }}</span>
+            <span v-if="!isBalancer(r.outboundTag)" class="dtag" :class="r.outboundTag === 'blocked' ? 'bad' : 'ok'">{{ r.outboundTag }}</span>
             <span v-else class="muted">—</span>
           </td>
           <td>
-            <span v-if="isBalancer(r.outboundTag)" class="tag purple">{{ r.outboundTag }}</span>
+            <span v-if="isBalancer(r.outboundTag)" class="dtag purple">{{ r.outboundTag }}</span>
             <span v-else class="muted">—</span>
           </td>
         </tr>

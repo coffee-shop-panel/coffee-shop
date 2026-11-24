@@ -1,7 +1,7 @@
 <script setup>
-// The outbounds as a table: their columns, in their order and with their
-// widths -- #, Tag, Address, Egress (with the eye that hides the address),
-// Country, Traffic, Latency, Check.
+// The outbounds as a table: their columns, in their order -- #, Tag,
+// Address, Egress (with the eye that hides the address), Country,
+// Traffic, Latency, Check.
 import { ref } from 'vue'
 import { store, t } from '../../lib/store.js'
 import { bytes } from '../../lib/format.js'
@@ -24,14 +24,14 @@ const kindLabel = (o) => t(`outbound.kind.${o.kind}`)
 </script>
 
 <template>
-  <div class="table-wrap">
+  <div class="tw">
     <table>
       <thead>
         <tr>
-          <th class="w-num center">#</th>
+          <th class="w0">#</th>
           <th>{{ t('outbound.tag') }}</th>
           <th>{{ t('outbound.address') }}</th>
-          <th class="w-egress">
+          <th>
             <span class="egress-header">
               {{ t('outbound.egress') }}
               <button
@@ -45,106 +45,91 @@ const kindLabel = (o) => t(`outbound.kind.${o.kind}`)
               </button>
             </span>
           </th>
-          <th class="w-country">{{ t('outbound.country') }}</th>
-          <th class="w-traffic">{{ t('outbound.traffic') }}</th>
-          <th class="w-latency">{{ t('outbound.latency') }}</th>
-          <th class="w-check center">{{ t('outbound.check') }}</th>
+          <th>{{ t('outbound.country') }}</th>
+          <th>{{ t('outbound.traffic') }}</th>
+          <th>{{ t('outbound.latency') }}</th>
+          <th class="w0">{{ t('outbound.check') }}</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-if="!outbounds.length" class="empty-row">
+        <tr v-if="!outbounds.length">
           <td colspan="8">
-            <div class="card-empty">
-              <Icon name="upload" :size="32" />
+            <div class="dempty">
+              <span class="ico-tile"><Icon name="upload" :size="22" /></span>
               <div>{{ t('common.nothingYet') }}</div>
             </div>
           </td>
         </tr>
         <tr v-for="(o, idx) in outbounds" :key="o.id" :class="{ off: !o.enabled }">
-          <!-- The number with the row's two circles beside it: edit, and
-               the menu with everything else. -->
-          <td class="w-num">
-            <div class="rownum">
-              <span class="num row-index">{{ idx + 1 }}</span>
-              <div class="action-buttons">
-                <button
-                  class="act round sm"
-                  :aria-label="t('action.edit')"
-                  :title="t('action.edit')"
-                  :disabled="pending.has(o.id)"
-                  @click="$emit('edit', o)"
-                >
-                  <AntIcon name="EditOutlined" />
-                </button>
-                <MoreMenu :items="menuFor(o, idx, outbounds.length)" compact button-class="act round sm" :label="t('action.more')" @pick="(key) => $emit('pick', o, idx, key)" />
-              </div>
+          <!-- The design's step chip, lit on the first row, with the row's
+               two circles beside it: edit, and the menu with the rest. -->
+          <td class="w0 keep">
+            <div class="row nowrap tight">
+              <span class="step" :class="{ first: idx === 0 }">{{ idx + 1 }}</span>
+              <button
+                class="act"
+                :aria-label="t('action.edit')"
+                :title="t('action.edit')"
+                :disabled="pending.has(o.id)"
+                @click="$emit('edit', o)"
+              >
+                <Icon name="edit" :size="15" />
+              </button>
+              <MoreMenu :items="menuFor(o, idx, outbounds.length)" compact button-class="act" :label="t('action.more')" @pick="(key) => $emit('pick', o, idx, key)" />
             </div>
           </td>
 
           <td>
-            <div class="identity-cell">
-              <span class="tag-name" :title="o.tag">{{ o.tag }}</span>
-              <div class="protocol-line">
-                <span class="tag green">{{ kindLabel(o) }}</span>
-              </div>
-            </div>
-            <div v-if="o.note" class="muted small">{{ o.note }}</div>
+            <b class="mono" :title="o.tag">{{ o.tag }}</b>
+            <div class="note">{{ kindLabel(o) }}<template v-if="o.note"> · {{ o.note }}</template></div>
           </td>
 
-          <td class="ltr">
-            <div class="address-list">
-              <span v-if="o.address" class="address-pill" :title="o.address">{{ o.address }}</span>
-              <span v-else class="muted">—</span>
-            </div>
+          <td>
+            <span v-if="o.address" class="mono small" dir="ltr" :title="o.address">{{ o.address }}</span>
+            <span v-else class="muted">—</span>
           </td>
 
-          <td class="ltr">
-            <div v-if="o.egressIp" class="egress-stack">
-              <span class="egress-address" :title="o.egressIp">
-                <span class="egress-family">{{ o.egressIp.includes(':') ? 'v6' : 'v4' }}</span>
-                <span class="egress-ip" :class="showEgressIp ? 'address-visible' : 'address-hidden'">{{ o.egressIp }}</span>
-              </span>
-            </div>
+          <td>
+            <span v-if="o.egressIp" class="mono small blur" :class="{ shown: showEgressIp }" dir="ltr" :title="showEgressIp ? o.egressIp : ''">{{ o.egressIp }}</span>
             <span v-else class="muted" :title="t('outbound.egressHint')">—</span>
           </td>
 
           <td>
-            <span v-if="o.egressCountry" class="country-pill" title="Cloudflare trace">
+            <span v-if="o.egressCountry" title="Cloudflare trace">
               <span>{{ countryFlag(o.egressCountry) }}</span>
               <span>{{ countryName(o.egressCountry, store.locale) || o.egressCountry }}</span>
             </span>
             <span v-else class="muted" :title="t('outbound.egressHint')">—</span>
           </td>
 
-          <td class="num ltr">
-            <span class="traffic">
-              <span class="up">↑ {{ bytes(o.txBytes || 0) }}</span>
-              <span class="down">↓ {{ bytes(o.rxBytes || 0) }}</span>
-            </span>
+          <td class="mono xs" dir="ltr">
+            <span class="ok-t">↑ {{ bytes(o.txBytes || 0) }}</span>
+            <span class="sky-t">↓ {{ bytes(o.rxBytes || 0) }}</span>
           </td>
 
-          <td class="num ltr">
+          <td>
             <AntIcon v-if="pending.has(o.id)" name="LoadingOutlined" class="anticon-spin" />
             <template v-else-if="o.lastError">
-              <span class="tag red" :title="o.lastError">{{ t('outbound.failed') }}</span>
+              <span class="dtag bad" :title="o.lastError">{{ t('outbound.failed') }}</span>
             </template>
             <template v-else-if="o.latencyMs">
-              <span class="tag green">{{ o.latencyMs }} ms</span>
-              <div class="muted small">{{ checkedAgo(o) }}</div>
+              <span class="ok-t mono">{{ o.latencyMs }} ms</span>
+              <div class="note">{{ checkedAgo(o) }}</div>
             </template>
-            <span v-else class="muted">—</span>
+            <span v-else class="faint">—</span>
           </td>
 
-          <td class="center">
+          <td class="w0 keep">
             <button
-              class="act round primary check-btn"
+              class="btn xs"
               :aria-label="t('outbound.check')"
               :title="`${t('outbound.check')} (${modeLabel(mode)})`"
               :disabled="pending.has(o.id) || o.kind === 'block'"
               @click="$emit('check', o)"
             >
-              <AntIcon v-if="pending.has(o.id)" name="LoadingOutlined" class="anticon-spin" />
-              <AntIcon v-else name="ThunderboltOutlined" />
+              <span v-if="pending.has(o.id)" class="spin sm"></span>
+              <Icon v-else name="zap" :size="13" />
+              {{ t('outbound.check') }}
             </button>
           </td>
         </tr>
@@ -152,3 +137,12 @@ const kindLabel = (o) => t(`outbound.kind.${o.kind}`)
     </table>
   </div>
 </template>
+
+<style scoped>
+/* The egress header carries its eye inline; the row's first cell keeps
+   the design's nowrap row of chip and circles. */
+.egress-header { display: inline-flex; align-items: center; gap: 6px; }
+.ip-toggle { display: inline-grid; place-items: center; border: 0; background: none; color: var(--faint); cursor: pointer; padding: 2px; }
+.ip-toggle:hover { color: var(--ink); }
+.row.nowrap { display: flex; align-items: center; flex-wrap: nowrap; }
+</style>
