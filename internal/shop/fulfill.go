@@ -108,7 +108,10 @@ func (s *Shop) SubLink(ctx context.Context, client *model.Client) string {
 // bought that many services, and a unit is a service, not a bigger
 // number on the first one. What Fulfill hands back is the first
 // customer either way; the extras stand beside it under the buyer's
-// Telegram id, where the bot lists a buyer's customers from.
+// Telegram id, where the bot lists a buyer's customers from. Each
+// unit is counted on the order (UnitsDone) as it is made, so a
+// delivery retried after failing halfway makes only the units still
+// missing.
 func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error) {
 	order, err := s.OrderByID(ctx, orderID)
 	if err != nil {
@@ -176,50 +179,96 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 	}
 	counter := s.clientCounter(ctx, opCtx)
 
+	// Delivery counts its units as it makes them, on the order itself:
+	// a bulk delivery that fails halfway -- the third tunnel of five
+	// refusing, the process dying -- and is tried again must make only
+	// the units still missing. Without the count, a retry could not
+	// tell "the first unit stands, make the rest" from "make them
+	// all", and the buyer would hold duplicates of the units that
+	// succeeded while the order still read undelivered. The count is
+	// written after each unit, with the first unit's customer named
+	// beside it, so a retry resumes exactly where the failure stopped
+	// it -- and never renews twice, renewal being the one act here
+	// that is not safe to repeat.
 	var client *model.Client
-	if len(existing) > 0 {
-		client = &existing[0]
-		// The section's tunnels first, the quota and days after:
-		// attaching is idempotent and renewing is not, so a delivery
-		// that fails between the two and is tried again must find the
-		// attach already done and the renewal still owed -- the other
-		// way round, a retry would sell the same quota twice.
-		if err := s.attachSection(opCtx, client, order, sectionIDs); err != nil {
+	if order.UnitsDone <= 0 {
+		if len(existing) > 0 {
+			client = &existing[0]
+			// The section's tunnels first, the quota and days after:
+			// attaching is idempotent and renewing is not, so a delivery
+			// that fails between the two and is tried again must find the
+			// attach already done and the renewal still owed -- the other
+			// way round, a retry would sell the same quota twice.
+			if err := s.attachSection(opCtx, client, order, sectionIDs); err != nil {
+				return nil, err
+			}
+			if err := s.renew(opCtx, client, order); err != nil {
+				return nil, err
+			}
+			// Read back what the renewal wrote, so what is returned -- and
+			// linked for the buyer -- is the customer as they now stand.
+			client, err = s.clients.Get(opCtx, client.ID)
+			if err != nil {
+				return nil, fmt.Errorf("shop: reload the renewed customer: %w", err)
+			}
+		} else {
+			client, err = s.createForOrder(opCtx, cfg, order, sectionIDs, &counter, 1)
+			if err != nil {
+				return nil, err
+			}
+		}
+		order.UnitsDone = 1
+		order.ClientID = client.ID
+		if err := s.UpdateOrder(ctx, order); err != nil {
 			return nil, err
 		}
-		if err := s.renew(opCtx, client, order); err != nil {
-			return nil, err
-		}
-		// Read back what the renewal wrote, so what is returned -- and
-		// linked for the buyer -- is the customer as they now stand.
-		client, err = s.clients.Get(opCtx, client.ID)
+	} else if order.ClientID != 0 {
+		// A retry resuming past its first unit: that unit stands, and
+		// the customer it was is read back rather than made or renewed
+		// again.
+		client, err = s.clients.Get(opCtx, order.ClientID)
 		if err != nil {
-			return nil, fmt.Errorf("shop: reload the renewed customer: %w", err)
-		}
-	} else {
-		client, err = s.createForOrder(opCtx, cfg, order, sectionIDs, &counter, 1)
-		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("shop: reload the delivered customer: %w", err)
 		}
 	}
 
 	// The extra units of a bulk order, each its own new customer of
-	// the order's terms. They are made before the order is marked
-	// delivered, like the first unit: a failure here leaves the order
-	// paid and the delivery retriable, rather than delivered and
-	// silently short.
-	for unit := 2; unit <= qty; unit++ {
+	// the order's terms, each counted on the order as it lands. They
+	// are made before the order is marked delivered, like the first
+	// unit: a failure here leaves the order paid and the delivery
+	// retriable, rather than delivered and silently short.
+	for unit := order.UnitsDone + 1; unit <= qty; unit++ {
 		extra, err := s.createForOrder(opCtx, cfg, order, sectionIDs, &counter, unit)
 		if err != nil {
 			return nil, err
+		}
+		order.UnitsDone = unit
+		if err := s.UpdateOrder(ctx, order); err != nil {
+			return nil, err
+		}
+		if client == nil {
+			client = extra
 		}
 		s.log.Info("shop order extra unit delivered",
 			"order", order.ID, "operator", order.OperatorID,
 			"client", extra.ID, "unit", unit)
 	}
+	if client == nil && len(existing) > 0 {
+		// A resumed order that named no customer of its own: the
+		// buyer's first customer is the one its first unit renewed.
+		client = &existing[0]
+	}
+	if client == nil {
+		// The order claims units delivered and names none of them:
+		// there is no customer to hand back or to mark the order with,
+		// and inventing one here would deliver a unit nobody counted.
+		return nil, fmt.Errorf("%w: order %d counts %d units delivered but names no customer",
+			fault.ErrInvalid, order.ID, order.UnitsDone)
+	}
 
 	order.Status = StatusFulfilled
 	order.ClientID = client.ID
+	order.UnitsDone = qty
 	if err := s.UpdateOrder(ctx, order); err != nil {
 		return nil, err
 	}

@@ -123,6 +123,12 @@ type Config struct {
 	Welcome          string
 	InterfaceIDs     []uint
 
+	// The shop's teaching words, offered by the bot when written:
+	// how to connect, and the answers to the questions every buyer
+	// asks. Empty is not offered.
+	TutorialText string
+	FaqText      string
+
 	// The shop's growth settings: the trial it offers, how its
 	// customers are named, and the cashback it pays referrers.
 	TrialEnabled    bool
@@ -144,6 +150,8 @@ func configFromRow(r *model.ShopBot) *Config {
 		CardHolder:       r.CardHolder,
 		ZarinpalMerchant: r.ZarinpalMerchant,
 		Welcome:          r.Welcome,
+		TutorialText:     r.TutorialText,
+		FaqText:          r.FaqText,
 		TrialEnabled:     r.TrialEnabled,
 		TrialBytes:       r.TrialBytes,
 		TrialDays:        r.TrialDays,
@@ -175,6 +183,8 @@ func (c *Config) row() (*model.ShopBot, error) {
 		CardHolder:       c.CardHolder,
 		ZarinpalMerchant: c.ZarinpalMerchant,
 		Welcome:          c.Welcome,
+		TutorialText:     c.TutorialText,
+		FaqText:          c.FaqText,
 		InterfaceIDs:     string(raw),
 		TrialEnabled:     c.TrialEnabled,
 		TrialBytes:       c.TrialBytes,
@@ -391,6 +401,7 @@ type Order struct {
 	// code the buyer named at checkout and DiscountToman what it took
 	// off, both copied onto the order as the plan's terms were.
 	Quantity      int
+	UnitsDone     int
 	Code          string
 	DiscountToman int64
 
@@ -424,7 +435,7 @@ func orderFromRow(r *model.ShopOrder) *Order {
 		PlanID: r.PlanID, PlanName: r.PlanName, Section: r.Section,
 		QuotaBytes: r.QuotaBytes,
 		Days:       r.Days, PriceToman: r.PriceToman, DeviceLimit: r.DeviceLimit,
-		Quantity: r.Quantity, Code: r.Code, DiscountToman: r.DiscountToman,
+		Quantity: r.Quantity, UnitsDone: r.UnitsDone, Code: r.Code, DiscountToman: r.DiscountToman,
 		Kind: r.Kind, ClientID: r.ClientID,
 		Method: r.Method, Status: r.Status,
 		ReceiptFileID: r.ReceiptFileID, Authority: r.Authority, RefID: r.RefID,
@@ -440,7 +451,7 @@ func (o *Order) row() *model.ShopOrder {
 		PlanID: o.PlanID, PlanName: o.PlanName, Section: o.Section,
 		QuotaBytes: o.QuotaBytes,
 		Days:       o.Days, PriceToman: o.PriceToman, DeviceLimit: o.DeviceLimit,
-		Quantity: o.Quantity, Code: o.Code, DiscountToman: o.DiscountToman,
+		Quantity: o.Quantity, UnitsDone: o.UnitsDone, Code: o.Code, DiscountToman: o.DiscountToman,
 		Kind: o.Kind, ClientID: o.ClientID,
 		Method: o.Method, Status: o.Status,
 		ReceiptFileID: o.ReceiptFileID, Authority: o.Authority, RefID: o.RefID,

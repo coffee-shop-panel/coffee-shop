@@ -158,6 +158,21 @@ func (s *Shop) BindReferral(ctx context.Context, operatorID uint, tgID int64, re
 	return nil
 }
 
+// ReferralCount is how many buyers this shop's records say a buyer
+// brought with them: the wallets at this operator naming them as
+// their referrer. It is the number the invitation screen shows --
+// who arrived because of this buyer, whether or not they have bought
+// yet -- so it counts bindings, not sales.
+func (s *Shop) ReferralCount(ctx context.Context, operatorID uint, tgID int64) (int, error) {
+	var n int64
+	if err := s.db.WithContext(ctx).Model(&model.ShopWallet{}).
+		Where("operator_id = ? AND referrer_tg_id = ?", operatorID, tgID).
+		Count(&n).Error; err != nil {
+		return 0, fmt.Errorf("shop: count a buyer's referrals: %w", err)
+	}
+	return int(n), nil
+}
+
 // maxNameRunes is the customer name's ceiling, the panel's own:
 // service.Create refuses a longer name (its column is sized the same),
 // and a formatted name that ran past it would fail the sale it was

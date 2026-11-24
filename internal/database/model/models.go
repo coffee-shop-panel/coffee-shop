@@ -987,6 +987,13 @@ type ShopBot struct {
 	// Welcome is the text the bot opens with. Empty is the built-in one.
 	Welcome string `gorm:"type:text" json:"welcome"`
 
+	// TutorialText and FaqText are the shop's own teaching words, shown
+	// by the bot under its «آموزش اتصال» and «سؤالات متداول» buttons.
+	// Empty is no button: a shop that has written no tutorial does not
+	// offer one.
+	TutorialText string `gorm:"type:text" json:"tutorialText"`
+	FaqText      string `gorm:"type:text" json:"faqText"`
+
 	// InterfaceIDs is the tunnels a sale from this bot places the buyer on,
 	// as a JSON array of ids kept in a text column: a short list, read whole
 	// whenever it is used and never queried inside, so a join table would
@@ -1081,6 +1088,11 @@ type ShopOrder struct {
 	// ordinary sale; more is a bulk purchase, delivered as one renewal
 	// or first customer plus an additional customer per extra unit.
 	Quantity int `gorm:"not null;default:1" json:"quantity"`
+	// UnitsDone is how many of a bulk order's units delivery has
+	// already made, written after each one: a delivery that fails
+	// halfway and is tried again makes only the units still missing,
+	// never a second copy of the ones already standing.
+	UnitsDone int `gorm:"not null;default:0" json:"unitsDone"`
 	// Code is the discount or gift code the buyer named at checkout,
 	// copied onto the order like the plan's terms: a code the operator
 	// edits or deletes afterwards must not rewrite what this sale used.
