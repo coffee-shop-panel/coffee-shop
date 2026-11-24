@@ -74,6 +74,38 @@ const (
 	txtReferCashback   = "\n🎁 از هر خرید دعوت‌شده‌هایتان، %s٪ مبلغ خرید به کیف پول شما برمی‌گردد."
 )
 
+// The wheel of fortune: one turn a day, for a code or for volume.
+const (
+	btnWheel       = "🎡 گردونه شانس"
+	txtWheelNone   = "🎡 این بار شانس با شما نبود!\n\nفردا دوباره گردونه را بچرخانید."
+	txtWheelCode   = "🎡🎉 بردید!\n\n🎟 کد تخفیف %s درصدی شما:\n<code>%s</code>\n\nاین کد یک بار و تا یک هفته قابل استفاده است؛ موقع خرید، در مرحلهٔ پرداخت آن را وارد کنید."
+	txtWheelVolume = "🎡🎉 بردید!\n\n📦 %s حجم به اشتراک فعلی‌تان اضافه شد."
+	txtWheelWait   = "🎡 امروز گردونه را چرخانده‌اید.\n\n⏰ نوبت بعدی: %s دیگر."
+	txtWheelOff    = "گردونهٔ شانس این فروشگاه فعال نیست."
+)
+
+// The reminders the bot sends on its own: a plan about to end, a
+// plan ended, a plan nearly out of volume. Each carries the buy
+// button, so the word and the way back are in the same message.
+const (
+	btnNoticeBuy      = "🛒 خرید و تمدید"
+	txtNoticeExpiring = "⏰ اشتراکتان رو به پایان است!\n\n📅 انقضا: %s (%s)\nبرای اینکه اشتراکتان قطع نشود، همین حالا تمدید کنید:"
+	txtNoticeExpired  = "⌛️ اشتراک شما به پایان رسیده است.\n\nبرای فعال شدن دوباره، از دکمهٔ زیر اشتراک تازه بخرید یا تمدید کنید:"
+	txtNoticeVolume   = "📊 حجم اشتراکتان رو به اتمام است!\n\nمصرف: %s از %s\nبرای اینکه بی‌اشتراک نمانید، اشتراکتان را تمدید کنید:"
+)
+
+// The seller's lottery: the shop's delivered buyers of the last
+// month in a pool, one name drawn, the cheapest plan's price into
+// the winner's wallet.
+const (
+	btnSpLottery     = "🎲 قرعه‌کشی"
+	btnSpLottoDraw   = "🎲 بکش"
+	txtSpLottoEmpty  = "🎲 قرعه‌کشی ممکن نیست: در ۳۰ روز گذشته خریدارِ تحویل‌شده‌ای ندارید، یا پلن فعالی برای جایزه ندارید."
+	txtSpLottoReady  = "🎲 قرعه‌کشی بین خریدارها\n\n👥 شرکت‌کننده‌ها (خریدارهای ۳۰ روز گذشته): %s نفر\n🏆 جایزه: %s اعتبار کیف پول (قیمت ارزان‌ترین پلن)\n\nبرای کشیدن نام برنده، «بکش» را بزنید:"
+	txtSpLottoWinner = "🎲 قرعه‌کشی انجام شد!\n\n🏆 برنده: %s (<code>%d</code>)\n💰 جایزه: %s به کیف پولش اضافه شد."
+	txtLottoWon      = "🎉🏆 تبریک! در قرعه‌کشی فروشگاه برنده شدید!\n\n💰 جایزه: %s به کیف پولتان اضافه شد.\n👛 موجودی فعلی: %s"
+)
+
 // The trial and the bulk delivery.
 const (
 	txtTrialName      = "اکانت تست رایگان"

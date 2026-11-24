@@ -61,6 +61,10 @@ func (m *Manager) Start(ctx context.Context) {
 			m.startBot(cfgs[i])
 		}
 	}
+	// The reminder scan rides the same context as the bots: it
+	// starts with the fleet and stops when the manager's context
+	// ends, which is the only stop the manager has.
+	go m.reminderLoop(ctx)
 }
 
 // Reload brings one operator's bot in line with its stored config after

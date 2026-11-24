@@ -188,6 +188,10 @@ type fakeTG struct {
 	// at filePath: getFile names it, the download serves it.
 	fileBytes []byte
 	filePath  string
+	// blocked is the chats Telegram refuses to deliver to: a
+	// sendMessage to one answers the way the real API answers a
+	// buyer who blocked their bot, and nothing is recorded as sent.
+	blocked map[int64]bool
 }
 
 type fakeMsg struct {
@@ -199,6 +203,7 @@ func newFakeTG(t *testing.T) (*fakeTG, *httptest.Server) {
 	f := &fakeTG{
 		queue: make(chan []json.RawMessage, 16), nextID: 1000,
 		fileBytes: []byte("the-receipt-photo-bytes"), filePath: "photos/file_1.jpg",
+		blocked: map[int64]bool{},
 	}
 	srv := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(srv.Close)
@@ -220,6 +225,11 @@ func (f *fakeTG) serve(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&params)
 
 	chatID, _ := params["chat_id"].(float64)
+	if method == "sendMessage" && f.blocked[int64(chatID)] {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"ok":false,"error_code":403,"description":"Forbidden: bot was blocked by the user"}`)
+		return
+	}
 	flat := ""
 	if text, ok := params["text"].(string); ok {
 		flat += text
@@ -282,6 +292,21 @@ func (f *fakeTG) anySaid(sub string) bool {
 		}
 	}
 	return false
+}
+
+// countTo is how many sent messages to one chat carry sub: the
+// reminder tests count with it, because "exactly once" is the whole
+// of what they assert.
+func (f *fakeTG) countTo(chatID int64, sub string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, m := range f.sent {
+		if m.chatID == chatID && strings.Contains(m.flat, sub) {
+			n++
+		}
+	}
+	return n
 }
 
 func (f *fakeTG) saidTo(chatID int64, sub string) bool {
