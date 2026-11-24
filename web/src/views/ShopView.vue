@@ -44,6 +44,7 @@ const saving = ref(false)
 const stats = ref(null)
 const plans = ref([])
 const orders = ref([])
+const buyers = ref([])
 const interfaces = ref([])
 
 // Orders open on the ones waiting for a decision: that is what the seller
@@ -84,17 +85,19 @@ async function load() {
   try {
     // The config is the page; the rest are summaries around it, and each is
     // allowed to fail without taking the page down with it.
-    const [c, p, s, ifaces] = await Promise.all([
+    const [c, p, s, ifaces, b] = await Promise.all([
       api.shopConfig(),
       api.shopPlans().catch(() => null),
       api.shopStats().catch(() => null),
       api.interfaces().catch(() => []),
+      api.shopBuyers().catch(() => null),
     ])
     cfg.value = c
     fillForm(c)
     plans.value = p?.items || []
     stats.value = s
     interfaces.value = ifaces || []
+    buyers.value = b?.items || []
     loadError.value = null
     await loadOrders()
   } catch (e) {
@@ -200,11 +203,19 @@ const statTiles = computed(() => {
 
 // ── plans ────────────────────────────────────────────────────────────────
 
+// Every plan, and every order taken from one, belongs to one of the two
+// shelves the bot sells from: WireGuard or V2ray. A plan made before the
+// shelves existed carries no section; it is a WireGuard plan, which is
+// what the bot sold then and what the server still calls it.
+const sectionOf = (x) => (x?.section === 'v2ray' ? 'v2ray' : 'wireguard')
+const SECTION_TONES = { wireguard: 'blue', v2ray: 'purple' }
+
 function openPlan(plan) {
   planEdit.value = plan
     ? {
         id: plan.id,
         name: plan.name || '',
+        section: sectionOf(plan),
         quotaGb: bytesToGigabytes(plan.quotaBytes),
         days: plan.days || '',
         priceToman: plan.priceToman ?? '',
@@ -212,7 +223,7 @@ function openPlan(plan) {
         enabled: !!plan.enabled,
         sort: plan.sort ?? '',
       }
-    : { id: 0, name: '', quotaGb: '', days: '', priceToman: '', deviceLimit: '', enabled: true, sort: '' }
+    : { id: 0, name: '', section: 'wireguard', quotaGb: '', days: '', priceToman: '', deviceLimit: '', enabled: true, sort: '' }
 }
 
 const planValid = computed(() => {
@@ -229,6 +240,7 @@ async function savePlan() {
     await api.shopPlanSave({
       id: p.id || 0,
       name: p.name.trim(),
+      section: p.section,
       quotaBytes: gigabytesToBytes(p.quotaGb),
       days: Math.round(Number(p.days)),
       priceToman: Math.round(Number(p.priceToman)),
@@ -315,6 +327,76 @@ async function copyLink() {
     notify(t('action.copied'))
   } catch {
     notify(t('action.copyFailed'), 'error')
+  }
+}
+
+// ── receipts ─────────────────────────────────────────────────────────────
+
+// A card order's receipt photo, open on screen: { order, url }, the url
+// an object address over the fetched bytes. It is revoked when the modal
+// closes -- left alone, every viewing would keep its photo in memory.
+const receiptView = ref(null)
+
+async function viewReceipt(order) {
+  try {
+    const blob = await api.shopReceipt(order.id)
+    receiptView.value = { order, url: URL.createObjectURL(blob) }
+  } catch (e) {
+    notify(e.message, 'error')
+  }
+}
+
+function closeReceipt() {
+  if (receiptView.value) URL.revokeObjectURL(receiptView.value.url)
+  receiptView.value = null
+}
+
+async function approveReceipt() {
+  const order = receiptView.value?.order
+  if (!order) return
+  await approveOrder(order)
+  closeReceipt()
+}
+
+// Rejecting keeps its confirmation: the receipt closes and the usual
+// question takes its place, so there is one reject path, not two.
+function rejectReceipt() {
+  const order = receiptView.value?.order
+  closeReceipt()
+  if (order) orderReject.value = order
+}
+
+// ── buyers & announcements ───────────────────────────────────────────────
+
+// The announcement's audience: 0 is every buyer the bot has made, and
+// anything else is one buyer's Telegram id -- picked in the card below,
+// or set from that buyer's own row, which is the usual way in.
+const announce = ref({ target: 0, text: '' })
+const announceBusy = ref(false)
+// The bot has to be running to carry a word anywhere: with it stopped,
+// sending is not offered and the card says why, rather than the seller
+// learning it from the silence that follows.
+const announceReady = computed(() => !!cfg.value?.botRunning && announce.value.text.trim() !== '')
+
+function openAnnounce(buyer) {
+  announce.value.target = buyer ? buyer.telegramId : 0
+  document.getElementById('shop-announce')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+async function sendAnnounce() {
+  const text = announce.value.text.trim()
+  if (!text || announceBusy.value) return
+  announceBusy.value = true
+  try {
+    const body = { text }
+    if (announce.value.target) body.buyerTgId = announce.value.target
+    const res = await api.shopAnnounce(body)
+    notify(t('shop.announce.sent', { count: res?.sent ?? 0 }))
+    announce.value.text = ''
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    announceBusy.value = false
   }
 }
 </script>
@@ -460,6 +542,7 @@ async function copyLink() {
           <thead>
             <tr>
               <th>{{ t('shop.plans.name') }}</th>
+              <th>{{ t('shop.plans.section') }}</th>
               <th>{{ t('shop.plans.quotaGb') }}</th>
               <th>{{ t('shop.plans.days') }}</th>
               <th>{{ t('shop.plans.price') }}</th>
@@ -470,12 +553,13 @@ async function copyLink() {
           </thead>
           <tbody>
             <tr v-if="!plans.length" class="empty-row">
-              <td colspan="7">
+              <td colspan="8">
                 <div class="card-empty"><div>{{ t('shop.plans.empty') }}</div></div>
               </td>
             </tr>
             <tr v-for="p in plans" :key="p.id">
               <td>{{ p.name }}</td>
+              <td><span class="tag" :class="SECTION_TONES[sectionOf(p)]">{{ t(`shop.section.${sectionOf(p)}`) }}</span></td>
               <td class="num">{{ p.quotaBytes ? bytes(p.quotaBytes, store.locale) : t('shop.plans.unlimited') }}</td>
               <td class="num">{{ nf(p.days) }} {{ t('unit.days') }}</td>
               <td class="num">{{ money(p.priceToman) }}</td>
@@ -544,23 +628,115 @@ async function copyLink() {
                 <span>{{ o.buyerName || '—' }}</span>
                 <div class="sub muted small ltr">{{ o.buyerTgId }}</div>
               </td>
-              <td>{{ o.planName }}</td>
+              <td>
+                <span>{{ o.planName }}</span>
+                <span class="tag" :class="SECTION_TONES[sectionOf(o)]">{{ t(`shop.section.${sectionOf(o)}`) }}</span>
+              </td>
               <td class="num">{{ money(o.priceToman) }}</td>
               <td><span class="tag">{{ t(`shop.orders.method.${o.method}`) }}</span></td>
               <td><span class="tag" :class="STATUS_TONES[o.status] || 'grey'">{{ t(`shop.status.${o.status}`) }}</span></td>
               <td class="small muted">{{ dateTime(o.createdAt, store.locale) }}</td>
               <td>
-                <div v-if="actionable(o)" class="row">
-                  <button class="btn sm primary" :disabled="orderBusy === o.id" @click="approveOrder(o)">
-                    <span v-if="orderBusy === o.id" class="spin sm"></span>
-                    <span>{{ t('shop.orders.approve') }}</span>
+                <div v-if="actionable(o) || (o.method === 'card' && o.hasReceipt)" class="row">
+                  <button v-if="o.method === 'card' && o.hasReceipt" class="btn sm ghost" :disabled="orderBusy === o.id" @click="viewReceipt(o)">
+                    <Icon name="eye" :size="14" /><span>{{ t('shop.orders.receipt') }}</span>
                   </button>
-                  <button class="btn sm danger-ghost" :disabled="orderBusy === o.id" @click="orderReject = o">{{ t('shop.orders.reject') }}</button>
+                  <template v-if="actionable(o)">
+                    <button class="btn sm primary" :disabled="orderBusy === o.id" @click="approveOrder(o)">
+                      <span v-if="orderBusy === o.id" class="spin sm"></span>
+                      <span>{{ t('shop.orders.approve') }}</span>
+                    </button>
+                    <button class="btn sm danger-ghost" :disabled="orderBusy === o.id" @click="orderReject = o">{{ t('shop.orders.reject') }}</button>
+                  </template>
                 </div>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+    <!-- The people the bot turned into customers of this operator.
+         Managing one is the customer page's work, so the row links
+         there; speaking to them is the bot's, and the card below it. -->
+    <div class="card">
+      <div class="card-head">
+        <h2>{{ t('shop.buyers.title') }}</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ t('shop.buyers.name') }}</th>
+              <th>{{ t('shop.buyers.telegramId') }}</th>
+              <th>{{ t('shop.orders.status') }}</th>
+              <th>{{ t('shop.buyers.expires') }}</th>
+              <th>{{ t('shop.buyers.usage') }}</th>
+              <th>{{ t('shop.buyers.orders') }}</th>
+              <th class="w-md"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!buyers.length" class="empty-row">
+              <td colspan="7">
+                <div class="card-empty"><div>{{ t('shop.buyers.empty') }}</div></div>
+              </td>
+            </tr>
+            <tr v-for="b in buyers" :key="b.clientId">
+              <td>{{ b.name || '—' }}</td>
+              <td class="num ltr">{{ b.telegramId }}</td>
+              <td><span class="tag" :class="b.status">{{ t(`status.${b.status}`) }}</span></td>
+              <td class="small muted">{{ b.expiresAt ? dateTime(b.expiresAt, store.locale) : t('shop.plans.unlimited') }}</td>
+              <td class="num">{{ bytes(b.usedBytes, store.locale) }} / {{ b.quotaBytes ? bytes(b.quotaBytes, store.locale) : t('shop.plans.unlimited') }}</td>
+              <td class="num">{{ nf(b.orders) }}</td>
+              <td>
+                <div class="row">
+                  <button class="btn sm ghost" @click="openAnnounce(b)">
+                    <Icon name="send" :size="14" /><span>{{ t('shop.buyers.announce') }}</span>
+                  </button>
+                  <RouterLink class="btn sm ghost" :to="`/clients/${b.clientId}`">{{ t('shop.buyers.manage') }}</RouterLink>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Speaking to the bot's customers, through the bot: one buyer, or
+         everyone it has sold to. -->
+    <div id="shop-announce" class="card">
+      <div class="card-head">
+        <h2>{{ t('shop.announce.title') }}</h2>
+      </div>
+      <div class="card-body shop-form">
+        <div class="setting-list-item"><div class="arow">
+          <div class="acol"><div class="setting-list-meta">
+            <div class="setting-list-title">{{ t('shop.announce.audience') }}</div>
+          </div></div>
+          <div class="acol">
+            <div class="aselect">
+              <select v-model="announce.target" :aria-label="t('shop.announce.audience')">
+                <option :value="0">{{ t('shop.announce.all') }}</option>
+                <option v-for="b in buyers" :key="b.clientId" :value="b.telegramId">{{ b.name }} · {{ b.telegramId }}</option>
+              </select>
+            </div>
+          </div>
+        </div></div>
+
+        <div class="field">
+          <label for="shop-announce-text">{{ t('shop.announce.text') }}</label>
+          <textarea id="shop-announce-text" v-model="announce.text" rows="4"></textarea>
+        </div>
+
+        <p v-if="!cfg?.botRunning" class="muted small">{{ t('shop.announce.botOff') }}</p>
+
+        <div class="shop-save">
+          <button class="btn primary" :disabled="announceBusy || !announceReady" @click="sendAnnounce">
+            <span v-if="announceBusy" class="spin sm"></span>
+            <Icon v-else name="send" :size="14" />
+            <span>{{ t('shop.announce.send') }}</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -579,6 +755,15 @@ async function copyLink() {
         <div class="field">
           <label for="sp-name">{{ t('shop.plans.name') }}</label>
           <input id="sp-name" v-model="planEdit.name" type="text" maxlength="60" autofocus />
+        </div>
+        <div class="field">
+          <label for="sp-section">{{ t('shop.plans.section') }}</label>
+          <div class="aselect">
+            <select id="sp-section" v-model="planEdit.section">
+              <option value="wireguard">{{ t('shop.section.wireguard') }}</option>
+              <option value="v2ray">{{ t('shop.section.v2ray') }}</option>
+            </select>
+          </div>
         </div>
         <div class="shop-grid">
           <div class="field">
@@ -614,6 +799,35 @@ async function copyLink() {
         <button type="submit" form="shop-plan-form" class="btn primary" :disabled="!planValid || planBusy">
           <span v-if="planBusy" class="spin"></span>
           <span v-else>{{ t('action.save') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- A card order's receipt, fetched with the session and read here:
+       the seller looks at the photo and decides without leaving it,
+       which is the whole errand this order is waiting on. -->
+  <div v-if="receiptView" class="modal-backdrop" @click.self="closeReceipt">
+    <div class="modal narrow" role="dialog" aria-modal="true">
+      <div class="card-head">
+        <h2>{{ t('shop.orders.receipt') }}</h2>
+        <button class="btn sm icon ghost spacer" :aria-label="t('action.cancel')" @click="closeReceipt">
+          <Icon name="close" :size="15" />
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="muted small">
+          {{ receiptView.order.buyerName || '—' }} · {{ receiptView.order.planName }} · {{ money(receiptView.order.priceToman) }}
+        </p>
+        <img class="shop-receipt-img" :src="receiptView.url" :alt="t('shop.orders.receipt')" />
+      </div>
+      <div v-if="receiptView.order.status === 'pending_review'" class="modal-foot">
+        <button type="button" class="btn danger-ghost" :disabled="orderBusy === receiptView.order.id" @click="rejectReceipt">
+          {{ t('shop.orders.reject') }}
+        </button>
+        <button type="button" class="btn primary" :disabled="orderBusy === receiptView.order.id" @click="approveReceipt">
+          <span v-if="orderBusy === receiptView.order.id" class="spin"></span>
+          <span v-else>{{ t('shop.orders.approve') }}</span>
         </button>
       </div>
     </div>
@@ -676,5 +890,14 @@ async function copyLink() {
 }
 .shop-delivered {
   margin: 0 16px 12px;
+}
+/* The receipt photo, as large as the modal lets it be without pushing
+   the decision off the screen. */
+.shop-receipt-img {
+  display: block;
+  max-width: 100%;
+  max-height: 55vh;
+  margin: 10px auto 0;
+  border-radius: 8px;
 }
 </style>

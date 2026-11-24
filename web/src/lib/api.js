@@ -246,6 +246,34 @@ export async function saveFile(path, fallbackName) {
   handOver(await res.blob(), named ? named[1] : fallbackName)
 }
 
+// fetchBlob is saveFile without the saving: the bytes come back to the
+// caller instead of going to disk, for the answers that are shown rather
+// than stored -- a receipt photo opened in the page, say. Same session,
+// same errors; an <img> pointed at the address would carry neither.
+async function fetchBlob(path) {
+  const res = await fetch(apiURL(path), {
+    headers: { Authorization: `Bearer ${getToken()}` },
+    credentials: 'same-origin',
+  })
+
+  if (res.status === 401) {
+    setToken(null)
+    window.dispatchEvent(new CustomEvent('wui:unauthorized'))
+    throw new ApiError('', 401, 'session')
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    let message = text
+    try {
+      message = JSON.parse(text)?.error || text
+    } catch {
+      /* not JSON: the body is the message */
+    }
+    throw new ApiError(message || `Request failed (${res.status})`, res.status)
+  }
+  return res.blob()
+}
+
 // saveText hands the browser a file made here, for the exports that are
 // written by the page rather than fetched.
 export function saveText(text, name, type = 'text/plain;charset=utf-8') {
@@ -430,7 +458,14 @@ export const api = {
   // when the bot could not reach the buyer.
   shopOrderApprove: (id) => request('POST', `/api/shop/orders/${id}/approve`),
   shopOrderReject: (id) => request('POST', `/api/shop/orders/${id}/reject`),
+  // A card order's receipt photo, for the seller to read before deciding.
+  shopReceipt: (id) => fetchBlob(`/api/shop/orders/${id}/receipt`),
   shopStats: () => request('GET', '/api/shop/stats'),
+  // The people the bot has made customers of this operator, and the way
+  // to speak to them: an announcement goes out through the bot, to one
+  // buyer (buyerTgId) or, with none named, to all of them.
+  shopBuyers: () => request('GET', '/api/shop/buyers'),
+  shopAnnounce: (body) => request('POST', '/api/shop/announce', body),
 
   interfaces: (opts) => request('GET', '/api/interfaces', undefined, opts),
   createInterface: (input) => request('POST', '/api/interfaces', input),
