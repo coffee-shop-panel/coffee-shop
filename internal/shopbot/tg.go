@@ -92,9 +92,17 @@ type tgUpdate struct {
 // tgButton is one inline button: either a callback the bot hears about,
 // or a link it does not.
 type tgButton struct {
-	Text string `json:"text"`
-	Data string `json:"callback_data,omitempty"`
-	URL  string `json:"url,omitempty"`
+	Text   string    `json:"text"`
+	Data   string    `json:"callback_data,omitempty"`
+	URL    string    `json:"url,omitempty"`
+	WebApp *tgWebApp `json:"web_app,omitempty"`
+}
+
+// tgWebApp is a button that opens a Telegram Mini App at its address:
+// the client opens the page in its own web view and hands it the
+// signed initData the page's calls are checked against.
+type tgWebApp struct {
+	URL string `json:"url"`
 }
 
 // tgKeyboard is an inline keyboard: rows of buttons.

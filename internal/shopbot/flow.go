@@ -403,6 +403,17 @@ func (b *bot) menuKeyboard(ctx context.Context) tgKeyboard {
 		{{Text: btnBuy, Data: "buy"}, {Text: btnMine, Data: "mine"}},
 		{{Text: btnWallet, Data: "wallet"}},
 	}
+	// The shop's storefront page rides along when the panel has a
+	// public address for it to live at: the button opens the mini
+	// app named for this operator, and without the address there is
+	// nowhere for it to open, so the button is not offered — the
+	// same rule the gateway button follows.
+	if base, err := b.mgr.shop.PublicBase(ctx); err == nil && strings.TrimSpace(base) != "" {
+		kb = append(kb, []tgButton{{
+			Text:   btnShopApp,
+			WebApp: &tgWebApp{URL: strings.TrimRight(base, "/") + fmt.Sprintf("/shop/app?op=%d", cfg.OperatorID)},
+		}})
+	}
 	if cfg.TrialEnabled {
 		kb = append(kb, []tgButton{{Text: btnTrial, Data: "trial"}})
 	}

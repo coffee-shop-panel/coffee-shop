@@ -33,6 +33,7 @@ const (
 // shop's teaching words.
 const (
 	btnWallet   = "👛 کیف پول من"
+	btnShopApp  = "🛍 فروشگاه"
 	btnTrial    = "🎁 اکانت تست رایگان"
 	btnTutorial = "📚 آموزش اتصال"
 	btnFaq      = "❓ سؤالات متداول"
