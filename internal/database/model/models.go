@@ -1239,6 +1239,32 @@ type ShopCodeUse struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// ShopNotice is one reminder a shop bot has sent one of its
+// operator's customers: that their plan is about to end, has ended,
+// or is nearly out of volume.
+//
+// The row is the dedupe, not a log for its own sake. A reminder is
+// identified by the operator, the customer, its kind and a stamp --
+// the date the plan ends, or the quota it is running out of -- and
+// the composite unique index over the four is what makes "this
+// reminder, for this ending, once" a fact of the schema: a scan that
+// runs every half hour can ask the table what it has already said
+// instead of remembering, and a renewed plan (a new stamp) earns its
+// own reminders without un-sending the old ones.
+type ShopNotice struct {
+	ID         uint `gorm:"primaryKey" json:"id"`
+	OperatorID uint `gorm:"uniqueIndex:idx_shop_notice_once;not null" json:"operatorId"`
+	ClientID   uint `gorm:"uniqueIndex:idx_shop_notice_once;not null" json:"clientId"`
+	// Kind is which reminder this was: expiry3, expiry1, expired or
+	// volume90 -- the bands the reminder scan works in.
+	Kind string `gorm:"uniqueIndex:idx_shop_notice_once;size:16;not null" json:"kind"`
+	// Stamp is what the reminder was about: the plan's end date
+	// (YYYY-MM-DD) for the expiry kinds, the quota's size for
+	// volume90. A new stamp is a new occasion, and is reminded afresh.
+	Stamp  string    `gorm:"uniqueIndex:idx_shop_notice_once;size:32;not null" json:"stamp"`
+	SentAt time.Time `json:"sentAt"`
+}
+
 // AdminBot is one operator's own management bot: the Telegram bot an
 // owner, an admin or a reseller runs under their own BotFather token to
 // manage their own customers -- list them, add them, cut them off,
@@ -1303,6 +1329,7 @@ func AllModels() []any {
 		&ShopWallet{},
 		&ShopCode{},
 		&ShopCodeUse{},
+		&ShopNotice{},
 		&AdminBot{},
 	}
 }

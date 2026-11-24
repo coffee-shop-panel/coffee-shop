@@ -425,7 +425,16 @@ ShopBot
 	cardHolder string
 	zarinpalMerchant string
 	welcome string
+	tutorialText string
+	faqText string
 	interfaceIds string
+	trialEnabled bool
+	trialBytes uint64
+	trialDays int
+	trialSection string
+	nameFormat string
+	cashbackPercent int
+	wheelEnabled bool
 	createdAt time.Time
 	updatedAt time.Time
 ShopPlan
@@ -453,6 +462,10 @@ ShopOrder
 	days int
 	priceToman int64
 	deviceLimit int
+	quantity int
+	unitsDone int
+	code string
+	discountToman int64
 	kind string
 	clientId uint
 	method string
@@ -467,6 +480,41 @@ ShopReceipt
 	orderId uint
 	contentType string
 	createdAt time.Time
+ShopWallet
+	id uint
+	operatorId uint
+	buyerTgId int64
+	balanceToman int64
+	referrerTgId int64
+	trialUsedAt *time.Time
+	lastSpinAt *time.Time
+	createdAt time.Time
+	updatedAt time.Time
+ShopCode
+	id uint
+	operatorId uint
+	code string
+	kind string
+	value int64
+	maxUses int
+	usedCount int
+	expiresAt *time.Time
+	enabled bool
+	createdAt time.Time
+	updatedAt time.Time
+ShopCodeUse
+	id uint
+	codeId uint
+	buyerTgId int64
+	orderId uint
+	createdAt time.Time
+ShopNotice
+	id uint
+	operatorId uint
+	clientId uint
+	kind string
+	stamp string
+	sentAt time.Time
 AdminBot
 	id uint
 	operatorId uint
