@@ -38,6 +38,18 @@ can still be merged in.
   connection check (plan, devices, nodes, last handshakes); an
   "expiring soon" customer filter; and moving every customer of one
   WireGuard tunnel onto another in one action.
+- **feat(v3.4.0):** per-operator Telegram sales bots. Every operator
+  (owner, admin, reseller) can run their own shop bot under their own
+  BotFather token, set up on a dedicated «بات فروش» page: their plans,
+  their card number and/or ZarinPal merchant, their orders and sales
+  stats. A buyer purchases inside the bot -- card-to-card with a
+  receipt photo the seller approves in Telegram, or ZarinPal with
+  gateway verification and a callback on the subscription listener --
+  and a paid order becomes a customer under the seller's own scope
+  (their assigned tunnels, their client ceiling), or renews the
+  buyer's existing customer. The activity store moved from
+  internal/api into internal/service, where the architecture tests
+  want it.
 - **fix(audit, v3.2.5):** the same-address exemption compares hosts,
   not ports; traffic resets respect the caller's scope; hand-down
   checks the client limit; a node's note survives its list toggle;
