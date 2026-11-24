@@ -157,7 +157,14 @@ v5 rather than a version per feature.
 ### The coffee-shop design port (in progress, unreleased)
 
 The panel is being re-skinned to the coffee-shop design mockups, wave by
-wave, on this branch. Wave 1 (tokens + shell + sign-in) is in:
+wave, on this branch. Waves 1–3 are in: the token layer and shell, then
+every page. Pages opt into the design's components by carrying the `cs`
+class on their root; `brand.css` holds those components scoped under
+`.cs`, their class names prefixed where the app already owns the plain
+name (`.dtag`, `.dmeter`). Presentation only throughout — no API, field,
+flow or permission changed anywhere in the port.
+
+Wave 1 (tokens + shell + sign-in):
 
 - `web/src/brand.css` carries the design's token layer over the app's own
   theme mechanism (no parallel one): design dark is the default `:root`,
@@ -179,9 +186,29 @@ wave, on this branch. Wave 1 (tokens + shell + sign-in) is in:
   Same fields, same flow. The design's feature tiles and PRO chip were
   not carried (their copy has no source in the panel's locales), and the
   wordmark keeps the app's own name.
-- Deferred to later waves: the ⌘K palette and the topbar's status pills,
-  and the page-by-page layout alignment. The subscription page is not
-  part of this port.
+- Deferred: the ⌘K palette and the topbar's status pills. The
+  subscription page is not part of this port.
+
+Wave 2 (the main pages): the Overview becomes the design's bento — the
+greeting head, status strip, the six stat tiles, the vitals row, the
+throughput chart, and the interfaces summary with the owner's recent
+activity. Customers gain the design's stat cards, status chips and
+expandable rows; the customer page its header card, plan ring and
+per-tunnel usage matrix. Interfaces are the design's tunnel cards (the
+two tabs — WireGuard and the Sanaei panel — are unchanged), and Nodes
+the design's fleet map, its dots placed from the flags in node names.
+
+Wave 3 (the remaining pages): Hosts, Groups, Sharing, Admins and
+Resellers, Activity, Outbounds, Routing, the API reference, Configs,
+Engine, Settings (the API tokens with it), and the 404 page all take
+the design's page heads, stat cards, toolbars, tables, tags and meters.
+The reseller's account strip becomes the capacity page's three meter
+cards. Engine and Settings gain the design's section tab bars over the
+states the sidebar already drives. The sales bot and the management bot
+have no mockup pages; they take the design language only — the same
+heads, cards, tables and tags — with no field or flow touched. Where a
+mockup shows a control the app does not have (a search the page never
+had, a figure with no source), the control was not invented.
 
 ## Releasing
 
