@@ -1103,6 +1103,39 @@ type ShopReceipt struct {
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
+// AdminBot is one operator's own management bot: the Telegram bot an
+// owner, an admin or a reseller runs under their own BotFather token to
+// manage their own customers -- list them, add them, cut them off,
+// extend them -- without opening the panel.
+//
+// It is a second bot beside the same operator's ShopBot, and a separate
+// row on purpose: the shop talks to strangers who are buying, this one
+// talks to nobody but its operator, and the two have different tokens,
+// different audiences and different risks. One row per operator
+// (OperatorID is unique), as with the shop: whose token it is decides
+// whose customers the bot may touch.
+type AdminBot struct {
+	ID         uint `gorm:"primaryKey" json:"id"`
+	OperatorID uint `gorm:"uniqueIndex;not null" json:"operatorId"`
+
+	Enabled bool `gorm:"not null;default:false" json:"enabled"`
+
+	// Token is the BotFather token. A secret of the same order as a
+	// password -- whoever holds it is the bot -- so it is never serialised,
+	// like the password hashes and the WireGuard private keys.
+	Token string `gorm:"size:128" json:"-"`
+
+	// AdminChatID is the one chat this bot obeys: the operator's own
+	// Telegram account. Zero is nobody, and the bot then answers no one
+	// -- a management bot that took orders from whoever found it would
+	// hand the operator's customers to a stranger, so until the owner
+	// names themselves the guard refuses everyone.
+	AdminChatID int64 `gorm:"not null;default:0" json:"adminChatId"`
+
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // AllModels is the migration set, in dependency order.
 func AllModels() []any {
 	return []any{
@@ -1131,6 +1164,7 @@ func AllModels() []any {
 		&ShopPlan{},
 		&ShopOrder{},
 		&ShopReceipt{},
+		&AdminBot{},
 	}
 }
 

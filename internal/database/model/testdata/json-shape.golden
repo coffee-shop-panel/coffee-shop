@@ -467,3 +467,10 @@ ShopReceipt
 	orderId uint
 	contentType string
 	createdAt time.Time
+AdminBot
+	id uint
+	operatorId uint
+	enabled bool
+	adminChatId int64
+	createdAt time.Time
+	updatedAt time.Time
