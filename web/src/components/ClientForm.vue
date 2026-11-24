@@ -202,9 +202,9 @@ const subEnabled = ref(false)
 async function loadSub() {
   if (!editing.value) return
   try {
-    const s = await api.get('/api/subscription', { background: true })
-    subEnabled.value = !!s?.enabled
-    if (s?.enabled) sub.value = await api.get(`/api/clients/${props.client.id}/subscription`, { background: true })
+    const s = await api.get('/api/subscription', { background: true }).catch(() => null)
+    subEnabled.value = s?.enabled !== false
+    if (subEnabled.value) sub.value = await api.get(`/api/clients/${props.client.id}/subscription`, { background: true }).catch(() => null)
   } catch {
     sub.value = null
   }

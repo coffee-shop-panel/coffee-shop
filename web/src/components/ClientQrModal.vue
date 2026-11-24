@@ -46,7 +46,7 @@ onMounted(async () => {
       props.interfaces.length ? Promise.resolve(props.interfaces) : api.interfaces({ background: true }).catch(() => []),
     ])
     const byId = Object.fromEntries((ifaces || []).map((i) => [i.id, i]))
-    if (sub?.enabled) {
+    if (sub?.enabled !== false) {
       try {
         const link = await api.get(`/api/clients/${props.client.id}/subscription`, { background: true })
         if (link?.link) {

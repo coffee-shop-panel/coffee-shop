@@ -60,7 +60,7 @@ async function load() {
       api.get('/api/subscription', { background: true }).catch(() => null),
     ])
     c.value = fresh
-    if (subs?.enabled) {
+    if (subs?.enabled !== false) {
       sub.value = await api.get(`/api/clients/${props.client.id}/subscription`, { background: true }).catch(() => null)
     }
     const out = []
