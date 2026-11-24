@@ -1,0 +1,584 @@
+/* coffee-shop — the design system carried over from the HTML prototype
+   (coffee-shop-html/assets/cs.css), laid over the panel's own tokens.
+
+   This file is the theme layer only: the prototype's variables, its ground
+   treatment, and a short list of grouped overrides where a component's
+   geometry or surface is hard-coded in style.css / ant.css / sidebar.css.
+   Page layouts are untouched; they inherit the palette through the tokens
+   they already read.
+
+   ── Theme mapping ────────────────────────────────────────────────────────
+   The prototype hangs its three themes off data-theme on the root:
+   dark (the default), [data-theme='ultra'], [data-theme='light'].
+   The panel's mechanism (lib/theme.js) is older and says the same things
+   differently: a `dark` / `light` class on <html> and <body>, and
+   data-theme='ultra-dark' for the pure-black variant. The design is
+   written onto the panel's hooks, one block per mode, so there is exactly
+   one mapping and it is this:
+
+     design dark   →  :root                        (the panel's default)
+     design ultra  →  :root[data-theme='ultra-dark']
+     design light  →  :root.light, body.light
+
+   The accent moves from the old red to the design's amber, and every
+   app-only token the prototype never named (the tag families, the auth
+   scenery, the switch) is derived from the design's own triples —
+   soft fill, line, ink — so nothing is left wearing the old palette. */
+
+/* ── design dark ────────────────────────────────────────────────────────── */
+:root {
+  --ground: #07070a;
+  --surface: #0f0f12;
+  --surface-2: #16161a;
+  --surface-3: #1f1f24;
+  --surface-elev: #141418;
+  --sider: #0a0a0d;
+  --sider-sub: #07070a;
+  --line: #2a2a31;
+  --line-soft: #1c1c22;
+
+  --ink: #f4f4f5;
+  --ink-2: #d4d4d8;
+  --muted: #a1a1aa;
+  --faint: #8b8b95;
+
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-ink: #1a1205;
+  --accent-text: #fbbf24;
+  --accent-soft: #241a07;
+  --accent-line: #5a400e;
+  --accent-glow: rgba(245, 158, 11, 0.5);
+  --accent-ring: rgba(245, 158, 11, 0.18);
+
+  --ok: #34d399;
+  --ok-soft: #0a2419;
+  --ok-line: #14532d;
+  --warn: #fb923c;
+  --warn-soft: #2a1709;
+  --warn-line: #6b3410;
+  --bad: #f87171;
+  --bad-fill: #dc2626;
+  --bad-soft: #2a1113;
+  --bad-line: #6b1d1d;
+
+  /* Tags, from the design's status and hue triples. */
+  --tag-green-bg: #0a2419;
+  --tag-green-line: #14532d;
+  --tag-green-ink: #34d399;
+  --tag-red-bg: #2a1113;
+  --tag-red-line: #6b1d1d;
+  --tag-red-ink: #f87171;
+  --tag-orange-bg: #2a1709;
+  --tag-orange-line: #6b3410;
+  --tag-orange-ink: #fb923c;
+  --tag-gold-ink: #fbbf24;
+  --tag-purple-bg: #1c1330;
+  --tag-purple-line: #3f2a6b;
+  --tag-purple-ink: #c084fc;
+  --tag-cyan-bg: #0a2226;
+  --tag-cyan-line: #155e63;
+  --tag-cyan-ink: #22d3ee;
+  --tag-blue-bg: #0b1b2e;
+  --tag-blue-line: #1e3a5f;
+  --tag-blue-ink: #60a5fa;
+  --tag-geek-bg: #0b1e2b;
+  --tag-geek-line: #1e3a5f;
+  --tag-geek-ink: #38bdf8;
+  --switch-off: rgba(255, 255, 255, 0.25);
+
+  --fill-tertiary: rgba(255, 255, 255, 0.05);
+  --fill-quaternary: rgba(255, 255, 255, 0.025);
+
+  --scrim: rgba(3, 3, 5, 0.72);
+  --modal-scrim: rgba(3, 3, 5, 0.72);
+  --rail-shadow: rgba(0, 0, 0, 0.5);
+
+  /* The sign-in scenery, in the design's warm register. */
+  --auth-wash: #171106;
+  --auth-blob-1: rgba(245, 158, 11, 0.5);
+  --auth-blob-2: rgba(217, 119, 6, 0.45);
+  --auth-blob-3: rgba(251, 191, 36, 0.28);
+  --auth-blob-4: rgba(180, 83, 9, 0.5);
+  --auth-blob-5: rgba(245, 158, 11, 0.22);
+  --auth-grid: rgba(255, 255, 255, 0.045);
+  --auth-card: rgba(15, 15, 18, 0.72);
+  --auth-glow: rgba(245, 158, 11, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px -12px rgba(0, 0, 0, 0.8);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.45), var(--edge);
+  --elev-2: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px -12px rgba(0, 0, 0, 0.8), var(--edge);
+  --elev-3: 0 2px 8px rgba(0, 0, 0, 0.55), 0 32px 72px -24px rgba(0, 0, 0, 0.9), var(--edge);
+
+  /* The design's geometry: 14px cards, 9px controls. */
+  --radius: 14px;
+  --radius-sm: 9px;
+
+  /* The design's stacks, as written. Inter and JetBrains Mono are not
+     bundled; where they are absent the stack falls through to the system
+     face and to the bundled IBM Plex Mono, which is the prototype's own
+     behaviour opened from a local file. */
+  --font: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* The design's own names, for the shell below and the page waves that
+     follow. --e1..3 are the prototype's spelling of the elevation set. */
+  --accent-hi: #fbbf24;
+  --sky: #38bdf8;
+  --sky-soft: #0b1e2b;
+  --info: #60a5fa;
+  --info-soft: #0b1b2e;
+  --info-line: #1e3a5f;
+  --purple: #c084fc;
+  --purple-soft: #1c1330;
+  --purple-line: #3f2a6b;
+  --gold: #fbbf24;
+  --gold-soft: #241a07;
+  --gold-line: #5a400e;
+  --cyan: #22d3ee;
+  --cyan-soft: #0a2226;
+  --cyan-line: #155e63;
+  --fill: rgba(255, 255, 255, 0.05);
+  --fill-2: rgba(255, 255, 255, 0.025);
+  --e1: var(--elev-1);
+  --e2: var(--elev-2);
+  --e3: var(--elev-3);
+  --primary: linear-gradient(180deg, #fbbf24, #f59e0b 55%, #e38a06);
+  --topbar: rgba(7, 7, 10, 0.72);
+  --card-grad: linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0) 42%);
+  --border-glow: linear-gradient(
+    135deg,
+    rgba(245, 158, 11, 0.55),
+    rgba(245, 158, 11, 0) 38%,
+    rgba(56, 189, 248, 0) 70%,
+    rgba(56, 189, 248, 0.25)
+  );
+  --glow-a: radial-gradient(1200px 520px at 0% -10%, rgba(245, 158, 11, 0.1), transparent 60%);
+  --glow-b: radial-gradient(900px 600px at 100% 0%, rgba(56, 189, 248, 0.05), transparent 60%);
+  --dots: radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  --r: 14px;
+  --r-sm: 9px;
+}
+
+/* ── design ultra, on the panel's ultra-dark hook ───────────────────────── */
+/* The prototype changes only the surfaces for pure black; the accent and
+   the status hues keep their dark weight. */
+:root[data-theme='ultra-dark'] {
+  --ground: #000000;
+  --surface: #08080a;
+  --surface-2: #0f0f12;
+  --surface-3: #17171b;
+  --surface-elev: #0c0c0f;
+  --sider: #030304;
+  --sider-sub: #000000;
+  --line: #222228;
+  --line-soft: #141418;
+  --topbar: rgba(0, 0, 0, 0.75);
+  --dots: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  --glow-a: radial-gradient(1200px 520px at 0% -10%, rgba(245, 158, 11, 0.07), transparent 60%);
+  --auth-wash: #000000;
+  --auth-card: rgba(8, 8, 10, 0.72);
+}
+
+/* ── design light ───────────────────────────────────────────────────────── */
+:root.light,
+body.light {
+  color-scheme: light;
+
+  --ground: #f5f5f4;
+  --surface: #ffffff;
+  --surface-2: #f7f7f6;
+  --surface-3: #eeeeec;
+  --surface-elev: #ffffff;
+  --sider: #ffffff;
+  --sider-sub: #f7f7f6;
+  --line: #e2e2df;
+  --line-soft: #ececea;
+
+  --ink: #18181b;
+  --ink-2: #3f3f46;
+  --muted: #62626b;
+  --faint: #6f6f78;
+
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --accent-ink: #ffffff;
+  --accent-text: #a14a07;
+  --accent-soft: #fef3e2;
+  --accent-line: #f6d39a;
+  --accent-glow: rgba(180, 83, 9, 0.28);
+  --accent-ring: rgba(180, 83, 9, 0.18);
+
+  --ok: #15803d;
+  --ok-soft: #e7f6ec;
+  --ok-line: #b7e2c4;
+  --warn: #c2410c;
+  --warn-soft: #fff1e6;
+  --warn-line: #fbd0ad;
+  --bad: #b91c1c;
+  --bad-fill: #b91c1c;
+  --bad-soft: #fdecec;
+  --bad-line: #f5c2c2;
+
+  --tag-green-bg: #e7f6ec;
+  --tag-green-line: #b7e2c4;
+  --tag-green-ink: #15803d;
+  --tag-red-bg: #fdecec;
+  --tag-red-line: #f5c2c2;
+  --tag-red-ink: #b91c1c;
+  --tag-orange-bg: #fff1e6;
+  --tag-orange-line: #fbd0ad;
+  --tag-orange-ink: #c2410c;
+  --tag-gold-ink: #8a5a04;
+  --tag-purple-bg: #f4edfd;
+  --tag-purple-line: #dcc8f7;
+  --tag-purple-ink: #7e22ce;
+  --tag-cyan-bg: #e6f8fb;
+  --tag-cyan-line: #a5e3ec;
+  --tag-cyan-ink: #0e7490;
+  --tag-blue-bg: #e9f2fd;
+  --tag-blue-line: #bcd7f7;
+  --tag-blue-ink: #1d4ed8;
+  --tag-geek-bg: #e6f3fb;
+  --tag-geek-line: #bcd7f7;
+  --tag-geek-ink: #0369a1;
+  --switch-off: rgba(0, 0, 0, 0.25);
+
+  --fill-tertiary: rgba(24, 24, 27, 0.05);
+  --fill-quaternary: rgba(24, 24, 27, 0.025);
+
+  --scrim: rgba(24, 24, 27, 0.45);
+  --modal-scrim: rgba(24, 24, 27, 0.45);
+  --rail-shadow: rgba(24, 24, 27, 0.18);
+
+  --auth-wash: #fef3e2;
+  --auth-blob-1: rgba(180, 83, 9, 0.16);
+  --auth-blob-2: rgba(217, 119, 6, 0.12);
+  --auth-blob-3: rgba(251, 191, 36, 0.1);
+  --auth-blob-4: rgba(146, 64, 14, 0.1);
+  --auth-blob-5: rgba(180, 83, 9, 0.08);
+  --auth-grid: rgba(24, 24, 27, 0.05);
+  --auth-card: rgba(255, 255, 255, 0.86);
+  --auth-glow: rgba(180, 83, 9, 0.14);
+
+  --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.05);
+  --shadow: 0 1px 2px rgba(24, 24, 27, 0.06), 0 12px 28px -12px rgba(24, 24, 27, 0.16);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --elev-1: 0 1px 2px rgba(24, 24, 27, 0.05), 0 1px 1px rgba(24, 24, 27, 0.03);
+  --elev-2: 0 1px 2px rgba(24, 24, 27, 0.06), 0 12px 28px -12px rgba(24, 24, 27, 0.16);
+  --elev-3: 0 2px 6px rgba(24, 24, 27, 0.07), 0 28px 64px -28px rgba(24, 24, 27, 0.24);
+
+  --accent-hi: #92400e;
+  --sky: #0369a1;
+  --sky-soft: #e6f3fb;
+  --info: #1d4ed8;
+  --info-soft: #e9f2fd;
+  --info-line: #bcd7f7;
+  --purple: #7e22ce;
+  --purple-soft: #f4edfd;
+  --purple-line: #dcc8f7;
+  --gold: #8a5a04;
+  --gold-soft: #fef3e2;
+  --gold-line: #f6d39a;
+  --cyan: #0e7490;
+  --cyan-soft: #e6f8fb;
+  --cyan-line: #a5e3ec;
+  --fill: rgba(24, 24, 27, 0.05);
+  --fill-2: rgba(24, 24, 27, 0.025);
+  --primary: linear-gradient(180deg, #c2620d, #b45309 55%, #9a4708);
+  --topbar: rgba(245, 245, 244, 0.8);
+  --card-grad: none;
+  --border-glow: linear-gradient(
+    135deg,
+    rgba(180, 83, 9, 0.45),
+    rgba(180, 83, 9, 0) 40%,
+    rgba(3, 105, 161, 0) 70%,
+    rgba(3, 105, 161, 0.18)
+  );
+  --glow-a: radial-gradient(1200px 520px at 0% -10%, rgba(180, 83, 9, 0.08), transparent 60%);
+  --glow-b: radial-gradient(900px 600px at 100% 0%, rgba(3, 105, 161, 0.05), transparent 60%);
+  --dots: radial-gradient(rgba(24, 24, 27, 0.06) 1px, transparent 1px);
+}
+
+/* The prototype sets Persian in Vazirmatn first; the panel bundles it, so
+   the design's stack resolves to a real face rather than a fallback. */
+html[lang='fa'] {
+  --font: Vazirmatn, Tahoma, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ── the ground ─────────────────────────────────────────────────────────── */
+/* Two soft glows and a dot texture over the page ground, fixed while the
+   page scrolls — the prototype's body treatment, verbatim. Surfaces paint
+   over it; what is left bare is the ground itself. */
+body {
+  background-color: var(--ground);
+  background-image: var(--glow-a), var(--glow-b), var(--dots);
+  background-size:
+    100% 100%,
+    100% 100%,
+    22px 22px;
+  background-attachment: fixed;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border: 3px solid transparent;
+  border-radius: 99px;
+  background-clip: padding-box;
+}
+
+/* ── component overrides ────────────────────────────────────────────────── */
+/* Where ant.css and style.css hard-code what the tokens cannot reach:
+   the primary action's gradient, the card and control radii, and the
+   floating surfaces (menus, dialogs) on the design's elevated ground. */
+.btn.primary,
+.abtn.primary {
+  background: var(--primary);
+  border-color: color-mix(in srgb, var(--accent) 80%, #000);
+  color: var(--accent-ink);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 6px 18px -6px var(--accent-glow);
+}
+.btn.primary:hover:not(:disabled),
+.abtn.primary:hover:not(:disabled) {
+  background: var(--primary);
+  border-color: color-mix(in srgb, var(--accent) 80%, #000);
+  color: var(--accent-ink);
+  filter: brightness(1.07);
+}
+
+.acard {
+  border-radius: var(--r);
+}
+.card,
+.acard {
+  background-image: var(--card-grad);
+}
+
+.ainput,
+.aselect {
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.ainput:focus-within,
+.aselect:focus-within {
+  background: var(--surface);
+}
+
+.amenu {
+  background: color-mix(in srgb, var(--surface-elev) 94%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--elev-3);
+  backdrop-filter: blur(14px);
+}
+
+.amodal-backdrop {
+  background: var(--modal-scrim);
+}
+.amodal {
+  background-color: var(--surface);
+  background-image: var(--card-grad);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--elev-3);
+}
+
+/* ── the shell ──────────────────────────────────────────────────────────── */
+/* The prototype's sidebar: the sider ground with a wash of accent fading
+   down from the brand, a hairline at its edge, and the selected item lit
+   with a gradient of the accent and a ring, rather than a flat wash. */
+.sidebar {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 220px),
+    var(--sider);
+  border-inline-end: 1px solid var(--line-soft);
+}
+.shell:not(.rail-pinned) .sidebar.expanded {
+  box-shadow: var(--elev-3);
+}
+
+.sider-brand {
+  height: 64px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.amenu-inline .amenu-item,
+.amenu-inline .amenu-submenu-title {
+  height: 38px;
+  margin-block: 2px;
+  margin-inline: 10px;
+  width: calc(100% - 20px);
+  padding-inline-start: 12px;
+  border-radius: 10px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.amenu-inline .amenu-item:hover:not(.selected),
+.amenu-inline .amenu-submenu-title:hover:not(.selected) {
+  background-color: var(--fill);
+  color: var(--ink);
+}
+.amenu-inline .amenu-item.selected {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 22%, transparent),
+    color-mix(in srgb, var(--accent) 6%, transparent)
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 8px 22px -12px var(--accent-glow);
+  color: var(--accent-text);
+  font-weight: 650;
+}
+[dir='rtl'] .amenu-inline .amenu-item.selected {
+  background: linear-gradient(
+    270deg,
+    color-mix(in srgb, var(--accent) 22%, transparent),
+    color-mix(in srgb, var(--accent) 6%, transparent)
+  );
+}
+.amenu-inline .amenu-item.selected .anticon {
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+/* A submenu's children hang off a guide line, as the prototype draws it. */
+.amenu-sub {
+  position: relative;
+}
+.amenu-sub::before {
+  content: '';
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: 29px;
+  width: 1px;
+  background: var(--line-soft);
+}
+
+/* The sign-out row sits in a card of its own at the foot of the rail —
+   the prototype's account block, carrying the one action the panel keeps
+   there. */
+.sider-utility {
+  margin: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.sider-utility .amenu-item {
+  margin-inline: 4px;
+  width: calc(100% - 8px);
+}
+.sidebar:not(.expanded) .sider-utility {
+  margin: 10px 12px;
+}
+
+.sider-version {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* A collapsed group's children, beside the rail: the design's menu. */
+.amenu-popup {
+  padding: 5px;
+  background: color-mix(in srgb, var(--surface-elev) 94%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--elev-3);
+  backdrop-filter: blur(14px);
+}
+.amenu-popup .amenu-item {
+  height: 38px;
+  margin-block: 2px;
+  margin-inline: 0;
+  border-radius: 8px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.amenu-popup .amenu-item:hover:not(.selected) {
+  background-color: var(--accent-soft);
+  color: var(--accent-text);
+}
+.amenu-popup .amenu-item.selected {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 22%, transparent),
+    color-mix(in srgb, var(--accent) 6%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent-text);
+  font-weight: 650;
+}
+
+/* The drawer and its handle take the design's surfaces too. */
+.drawer-scrim {
+  background: var(--scrim);
+}
+.drawer-handle {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  box-shadow: var(--elev-1);
+}
+
+/* ── the topbar ─────────────────────────────────────────────────────────── */
+/* The prototype's sticky bar over the content: the page's name as a
+   crumb, on a translucent blur of the ground. It bleeds to the edges of
+   the content column by the measure of the column's own padding. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  margin: -24px -24px 22px;
+  padding: 12px 24px;
+  background: var(--topbar);
+  border-bottom: 1px solid var(--line-soft);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+}
+.topbar-crumb {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.topbar .drawer-handle {
+  position: static;
+  flex: none;
+  box-shadow: none;
+}
+
+@media (max-width: 768px) {
+  .topbar {
+    min-height: 56px;
+    margin: -8px -8px 16px;
+    padding: 10px 12px;
+  }
+}

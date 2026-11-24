@@ -9,7 +9,9 @@
 
 :root {
   --sider-rail: 72px;
-  --sider-open: 220px;
+  /* 248px open, the coffee-shop design's measure (brand.css); the rail
+     keeps Ant's 72px, which the design shares. */
+  --sider-open: 248px;
   --sider-ease: cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 

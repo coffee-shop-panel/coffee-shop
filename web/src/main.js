@@ -21,6 +21,9 @@ import '@fontsource/vazirmatn/700.css'
 import './style.css'
 import './ant.css'
 import './sidebar.css'
+// The coffee-shop design layer, last: its tokens and shell treatments are
+// written over the three sheets above, never instead of them.
+import './brand.css'
 
 import LoginView from './views/LoginView.vue'
 
