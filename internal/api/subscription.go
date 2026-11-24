@@ -226,6 +226,12 @@ func (s *Server) handleRotateSubscription(w http.ResponseWriter, r *http.Request
 // either door, so a second door gives a stranger nothing.
 func (s *Server) SubscriptionRouter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The shops' Telegram Mini App: its page is a read, but its API
+		// is a POST of signed calls, so it is recognised before the
+		// read-only gate below (shopapp.go).
+		if s.serveShopApp(w, r) {
+			return
+		}
 		// Only GET and HEAD. A subscription is a read, and answering a POST
 		// here would give a cross-site form somewhere a way to reach it. The
 		// one POST is the page's copy button asking for a withheld sign-in,

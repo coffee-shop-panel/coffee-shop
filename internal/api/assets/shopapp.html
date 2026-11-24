@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>فروشگاه</title>
+<style>
+:root{
+  --bg:var(--tg-theme-bg-color,#ffffff);
+  --fg:var(--tg-theme-text-color,#1c1c1e);
+  --hint:var(--tg-theme-hint-color,#8e8e93);
+  --card:var(--tg-theme-secondary-bg-color,#f2f2f7);
+  --btn:var(--tg-theme-button-color,#2481cc);
+  --btnfg:var(--tg-theme-button-text-color,#ffffff);
+  --link:var(--tg-theme-link-color,#2481cc);
+}
+*{box-sizing:border-box}
+body{font-family:Tahoma,Vazirmatn,sans-serif;background:var(--bg);color:var(--fg);margin:0;padding:14px;line-height:1.9;font-size:15px}
+h1{font-size:19px;margin:4px 0 2px}
+h2{font-size:16px;margin:22px 0 8px}
+.muted{color:var(--hint);font-size:13px}
+.card{background:var(--card);border-radius:14px;padding:14px;margin:10px 0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bar{height:8px;border-radius:4px;background:rgba(127,127,127,.25);overflow:hidden;margin:8px 0 4px}
+.bar>i{display:block;height:100%;background:var(--btn);border-radius:4px}
+button{font:inherit;border:0;border-radius:10px;padding:9px 14px;background:var(--btn);color:var(--btnfg);cursor:pointer}
+button.ghost{background:transparent;color:var(--link);border:1px solid var(--hint)}
+button.small{padding:5px 10px;font-size:13px}
+button:disabled{opacity:.5}
+input[type=text],input[type=number]{font:inherit;width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--hint);background:var(--bg);color:var(--fg)}
+.tabs{display:flex;gap:8px;margin:10px 0}
+.tabs button{background:var(--card);color:var(--fg)}
+.tabs button.on{background:var(--btn);color:var(--btnfg)}
+.qty{display:flex;align-items:center;gap:12px}
+.qty button{width:38px;height:38px;padding:0;font-size:18px}
+.err{background:#e5484d;color:#fff;border-radius:10px;padding:10px 12px;margin:10px 0;display:none}
+.ok{background:#30a46c;color:#fff;border-radius:10px;padding:10px 12px;margin:10px 0;display:none}
+code{direction:ltr;display:inline-block;background:rgba(127,127,127,.18);border-radius:6px;padding:1px 7px;font-size:14px;word-break:break-all}
+a{color:var(--link)}
+details{margin:10px 0}
+summary{cursor:pointer;font-weight:bold}
+pre{white-space:pre-wrap;font:inherit;margin:6px 0}
+.center{text-align:center;padding:40px 10px}
+</style>
+</head>
+<body>
+<div id="notice" class="center" style="display:none">
+  <p>🛍 این صفحه فروشگاه تلگرامی است.</p>
+  <p class="muted">برای استفاده، آن را از داخل تلگرام و از دکمهٔ «فروشگاه» در بات فروشنده باز کنید.</p>
+</div>
+<div id="app" style="display:none">
+  <h1 id="hello">فروشگاه</h1>
+  <div class="muted" id="balanceLine"></div>
+  <div class="err" id="err"></div>
+  <div class="ok" id="ok"></div>
+
+  <h2>📊 اشتراک‌های من</h2>
+  <div id="subs"><p class="muted">در حال بارگذاری…</p></div>
+
+  <h2>🛒 خرید اشتراک</h2>
+  <div class="tabs" id="secTabs"></div>
+  <div id="plans"></div>
+  <div class="card" id="checkout" style="display:none">
+    <div class="row"><b id="ckName"></b><b id="ckPrice"></b></div>
+    <div class="row" style="margin-top:8px">
+      <span>تعداد</span>
+      <span class="qty"><button id="qMinus" type="button">−</button><b id="qVal">۱</b><button id="qPlus" type="button">+</button></span>
+    </div>
+    <div style="margin-top:10px"><input type="text" id="ckCode" placeholder="کد تخفیف (اختیاری)"></div>
+    <div class="row" style="margin-top:12px;flex-wrap:wrap;justify-content:flex-start" id="payBtns"></div>
+    <div id="cardInfo" style="display:none;margin-top:10px"></div>
+  </div>
+
+  <h2>👛 کیف پول</h2>
+  <div class="card">
+    <div class="row"><span>موجودی</span><b id="wBalance"></b></div>
+    <div class="row" style="margin-top:10px;flex-wrap:wrap;justify-content:flex-start" id="topAmounts"></div>
+    <div style="margin-top:10px"><input type="number" id="topCustom" placeholder="مبلغ دلخواه به تومان"></div>
+    <div class="row" style="margin-top:10px;flex-wrap:wrap;justify-content:flex-start" id="topBtns"></div>
+    <div id="topCardInfo" style="display:none;margin-top:10px"></div>
+    <div style="margin-top:14px"><input type="text" id="giftCode" placeholder="کد هدیه"></div>
+    <div style="margin-top:8px"><button id="giftBtn" type="button">🎁 ثبت کد هدیه</button></div>
+  </div>
+
+  <div id="extras" style="display:none">
+    <h2>🎁 هدیه‌ها</h2>
+    <div class="row" style="flex-wrap:wrap;justify-content:flex-start" id="extraBtns"></div>
+    <div id="extraOut" style="margin-top:8px"></div>
+  </div>
+
+  <div id="docs"></div>
+</div>
+<script>
+"use strict";
+var tg = (window.Telegram && window.Telegram.WebApp) || null;
+var initData = tg ? (tg.initData || "") : "";
+var op = parseInt(new URLSearchParams(location.search).get("op") || "0", 10);
+var S = null;            // the last state the shop sent
+var sel = null;          // the plan being bought: {plan, section}
+var qty = 1;
+var topAmount = 0;
+
+function $(id){ return document.getElementById(id); }
+function faNum(n){ return String(n).replace(/[0-9]/g, function(d){ return "۰۱۲۳۴۵۶۷۸۹"[d]; }); }
+function money(n){ return faNum(String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "٬")) + " تومان"; }
+function bytes(b){
+  if (!b) return "نامحدود";
+  var u = ["بایت","کیلوبایت","مگابایت","گیگابایت","ترابایت"], i = 0, v = b;
+  while (v >= 1024 && i < u.length - 1){ v /= 1024; i++; }
+  return faNum((Math.round(v * 10) / 10).toString()) + " " + u[i];
+}
+function dateFa(iso){
+  if (!iso) return "بدون انقضا";
+  var d = new Date(iso);
+  return faNum(d.toLocaleDateString("fa-IR"));
+}
+function showErr(msg){ var e = $("err"); e.textContent = msg || ""; e.style.display = msg ? "block" : "none"; if (msg) window.scrollTo(0, 0); }
+function showOk(msg){ var e = $("ok"); e.textContent = msg || ""; e.style.display = msg ? "block" : "none"; }
+function el(tag, cls, text){
+  var n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = text;
+  return n;
+}
+function api(action, extra){
+  var body = { op: op, initData: initData, action: action };
+  if (extra) for (var k in extra) body[k] = extra[k];
+  return fetch("/shop/app/api", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  }).then(function(r){
+    return r.json().then(function(j){
+      if (!r.ok) throw new Error(j.error || "مشکلی پیش آمد.");
+      return j;
+    });
+  });
+}
+function copyText(t, btn){
+  function done(){ if (btn){ var old = btn.textContent; btn.textContent = "کپی شد ✅"; setTimeout(function(){ btn.textContent = old; }, 1500); } }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, done);
+  else {
+    var ta = document.createElement("textarea");
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta); done();
+  }
+}
+
+function renderSubs(subs){
+  var box = $("subs"); box.innerHTML = "";
+  if (!subs || !subs.length){
+    box.appendChild(el("p", "muted", "هنوز اشتراکی ندارید؛ از بخش خرید، اولین اشتراکتان را بگیرید."));
+    return;
+  }
+  subs.forEach(function(s){
+    var c = el("div", "card");
+    var head = el("div", "row");
+    head.appendChild(el("b", null, s.name));
+    head.appendChild(el("span", "muted", s.status === "active" ? "فعال" : s.status));
+    c.appendChild(head);
+    if (s.quotaBytes > 0){
+      var bar = el("div", "bar"), fill = document.createElement("i");
+      fill.style.width = Math.min(100, Math.round(s.usedBytes * 100 / s.quotaBytes)) + "%";
+      bar.appendChild(fill); c.appendChild(bar);
+      c.appendChild(el("div", "muted", "مصرف: " + bytes(s.usedBytes) + " از " + bytes(s.quotaBytes)));
+    } else {
+      c.appendChild(el("div", "muted", "مصرف: " + bytes(s.usedBytes) + " — حجم نامحدود"));
+    }
+    c.appendChild(el("div", "muted", "انقضا: " + dateFa(s.expiresAt)));
+    if (s.link){
+      var row = el("div", "row"); row.style.marginTop = "8px";
+      var b1 = el("button", "small", "📋 کپی لینک اشتراک");
+      b1.onclick = function(){ copyText(s.link, b1); };
+      row.appendChild(b1);
+      if (s.v2rayLink){
+        var b2 = el("button", "small ghost", "کپی لینک V2ray");
+        b2.onclick = function(){ copyText(s.v2rayLink, b2); };
+        row.appendChild(b2);
+      }
+      c.appendChild(row);
+    }
+    box.appendChild(c);
+  });
+}
+
+function planPrice(p){ return p.priceToman * qty; }
+function renderPlans(){
+  var tabs = $("secTabs"); tabs.innerHTML = "";
+  var box = $("plans"); box.innerHTML = "";
+  if (!S.sections || !S.sections.length){
+    box.appendChild(el("p", "muted", "در حال حاضر پلنی برای فروش فعال نیست."));
+    return;
+  }
+  S.sections.forEach(function(sec){
+    var b = el("button", null, sec.section === "v2ray" ? "🚀 V2ray" : "🛡 وایرگارد");
+    if (sel && sel.section === sec.section) b.className = "on";
+    b.onclick = function(){ sel = { section: sec.section, plan: null }; qty = 1; renderPlans(); renderCheckout(); };
+    tabs.appendChild(b);
+  });
+  if (!sel) sel = { section: S.sections[0].section, plan: null };
+  var cur = null;
+  S.sections.forEach(function(sec){ if (sec.section === sel.section) cur = sec; });
+  if (!cur){ sel = { section: S.sections[0].section, plan: null }; cur = S.sections[0]; }
+  cur.plans.forEach(function(p){
+    var c = el("div", "card");
+    var row = el("div", "row");
+    row.appendChild(el("b", null, p.name));
+    row.appendChild(el("b", null, money(p.priceToman)));
+    c.appendChild(row);
+    c.appendChild(el("div", "muted", "حجم: " + bytes(p.quotaBytes) + " — مدت: " + faNum(p.days) + " روز"));
+    var btn = el("button", "small", sel.plan && sel.plan.id === p.id ? "انتخاب شده ✓" : "انتخاب");
+    btn.onclick = function(){ sel.plan = p; qty = 1; renderPlans(); renderCheckout(); };
+    var brow = el("div"); brow.style.marginTop = "8px"; brow.appendChild(btn);
+    c.appendChild(brow);
+    box.appendChild(c);
+  });
+}
+function renderCheckout(){
+  var ck = $("checkout");
+  if (!sel || !sel.plan){ ck.style.display = "none"; return; }
+  ck.style.display = "block";
+  $("ckName").textContent = sel.plan.name;
+  $("qVal").textContent = faNum(qty);
+  $("ckPrice").textContent = money(planPrice(sel.plan));
+  var pb = $("payBtns"); pb.innerHTML = "";
+  if (S.cardEnabled){
+    var bc = el("button", null, "💳 کارت‌به‌کارت");
+    bc.onclick = function(){ pay("card"); };
+    pb.appendChild(bc);
+  }
+  if (S.zarinpalEnabled){
+    var bz = el("button", null, "🌐 پرداخت آنلاین");
+    bz.onclick = function(){ pay("zarinpal"); };
+    pb.appendChild(bz);
+  }
+  var bw = el("button", null, "👛 از کیف پول (" + money(S.balance) + ")");
+  bw.disabled = S.balance < planPrice(sel.plan);
+  bw.onclick = function(){ pay("wallet"); };
+  pb.appendChild(bw);
+}
+function cardInfoHTML(box, j){
+  box.style.display = "block"; box.innerHTML = "";
+  box.appendChild(el("p", null, "مبلغ " + money(j.amount) + " را به این کارت واریز کنید:"));
+  var num = el("p"); var cd = document.createElement("code"); cd.textContent = j.cardNumber; num.appendChild(cd); box.appendChild(num);
+  if (j.cardHolder) box.appendChild(el("p", "muted", "به نام: " + j.cardHolder));
+  box.appendChild(el("p", "muted", "بعد از واریز، عکس رسید را در بات فروشگاه برای فروشنده بفرستید تا اشتراکتان تحویل شود."));
+}
+function pay(method){
+  showErr(""); showOk("");
+  var extra = { planId: sel.plan.id, qty: qty, method: method };
+  var code = $("ckCode").value.trim();
+  if (code) extra.code = code;
+  api("buy", extra).then(function(j){
+    if (method === "card"){ cardInfoHTML($("cardInfo"), j); showOk("سفارش ثبت شد؛ بعد از واریز و ارسال رسید، اشتراک تحویل می‌شود."); }
+    else if (method === "zarinpal"){ if (tg && tg.openLink) tg.openLink(j.payURL); else location.href = j.payURL; }
+    else { showOk("خرید انجام و اشتراک تحویل شد 🎉"); if (j.subscriptions) renderSubs(j.subscriptions); load(); }
+  }).catch(function(e){ showErr(e.message); });
+}
+function renderTopup(){
+  $("wBalance").textContent = money(S.balance);
+  var ta = $("topAmounts"); ta.innerHTML = "";
+  [50000, 100000, 200000].forEach(function(a){
+    var b = el("button", topAmount === a ? "small" : "small ghost", money(a));
+    b.onclick = function(){ topAmount = a; $("topCustom").value = ""; renderTopup(); };
+    ta.appendChild(b);
+  });
+  var tb = $("topBtns"); tb.innerHTML = "";
+  if (S.cardEnabled){
+    var bc = el("button", null, "💳 کارت‌به‌کارت");
+    bc.onclick = function(){ topup("card"); };
+    tb.appendChild(bc);
+  }
+  if (S.zarinpalEnabled){
+    var bz = el("button", null, "🌐 پرداخت آنلاین");
+    bz.onclick = function(){ topup("zarinpal"); };
+    tb.appendChild(bz);
+  }
+}
+function topup(method){
+  showErr(""); showOk("");
+  var amount = topAmount || parseInt($("topCustom").value || "0", 10);
+  if (!amount || amount <= 0){ showErr("مبلغ شارژ را انتخاب یا وارد کنید."); return; }
+  api("topup", { amount: amount, method: method }).then(function(j){
+    if (method === "card"){ cardInfoHTML($("topCardInfo"), j); showOk("سفارش شارژ ثبت شد؛ بعد از واریز و ارسال رسید، کیف پولتان شارژ می‌شود."); }
+    else { if (tg && tg.openLink) tg.openLink(j.payURL); else location.href = j.payURL; }
+  }).catch(function(e){ showErr(e.message); });
+}
+function renderExtras(){
+  var has = S.trialAvailable || S.wheelEnabled;
+  $("extras").style.display = has ? "block" : "none";
+  var eb = $("extraBtns"); eb.innerHTML = "";
+  if (S.trialAvailable){
+    var bt = el("button", null, "🎁 اکانت تست رایگان");
+    bt.onclick = function(){
+      showErr("");
+      api("trial", {}).then(function(j){
+        var out = $("extraOut"); out.innerHTML = "";
+        out.appendChild(el("p", null, "اکانت تست شما آماده است 🎉"));
+        if (j.link){ var c = document.createElement("code"); c.textContent = j.link; out.appendChild(c); }
+        load();
+      }).catch(function(e){ showErr(e.message); });
+    };
+    eb.appendChild(bt);
+  }
+  if (S.wheelEnabled){
+    var bw = el("button", null, "🎡 گردونه شانس");
+    bw.onclick = function(){
+      showErr("");
+      api("spin", {}).then(function(j){
+        var out = $("extraOut"); out.innerHTML = "";
+        if (j.kind === "code") out.appendChild(el("p", null, "🎉 بردید! کد تخفیف " + faNum(j.percent) + " درصدی شما: " + j.code));
+        else if (j.kind === "volume") out.appendChild(el("p", null, "🎉 بردید! " + bytes(j.bytes) + " حجم به اشتراکتان اضافه شد."));
+        else out.appendChild(el("p", null, "این بار شانس با شما نبود؛ فردا دوباره بچرخانید."));
+        load();
+      }).catch(function(e){ showErr(e.message); });
+    };
+    eb.appendChild(bw);
+  }
+}
+function renderDocs(){
+  var d = $("docs"); d.innerHTML = "";
+  [["📚 آموزش اتصال", S.tutorial], ["❓ سؤالات متداول", S.faq]].forEach(function(pair){
+    if (!pair[1] || !pair[1].trim()) return;
+    var det = document.createElement("details");
+    var sum = document.createElement("summary"); sum.textContent = pair[0];
+    var pre = document.createElement("pre"); pre.textContent = pair[1];
+    det.appendChild(sum); det.appendChild(pre); d.appendChild(det);
+  });
+}
+function applyState(j, keepSel){
+  S = j;
+  $("hello").textContent = "سلام" + (j.name ? " " + j.name : "") + " 👋";
+  $("balanceLine").textContent = "👛 موجودی کیف پول: " + money(j.balance);
+  renderSubs(j.subscriptions);
+  if (!keepSel) sel = null;
+  renderPlans(); renderCheckout(); renderTopup(); renderExtras(); renderDocs();
+}
+function load(){
+  api("state", {}).then(function(j){ applyState(j, false); }).catch(function(e){ showErr(e.message); });
+}
+$("qMinus").onclick = function(){ if (qty > 1){ qty--; renderPlans(); renderCheckout(); } };
+$("qPlus").onclick = function(){ if (qty < 5){ qty++; renderPlans(); renderCheckout(); } };
+$("topCustom").oninput = function(){ if (this.value) topAmount = 0; };
+$("giftBtn").onclick = function(){
+  showErr(""); showOk("");
+  var code = $("giftCode").value.trim();
+  if (!code){ showErr("کد هدیه را بنویسید."); return; }
+  api("gift", { code: code }).then(function(j){
+    showOk("🎁 " + money(j.credited) + " به کیف پولتان اضافه شد. موجودی: " + money(j.balance));
+    $("giftCode").value = "";
+    load();
+  }).catch(function(e){ showErr(e.message); });
+};
+
+if (!initData || !op){
+  $("notice").style.display = "block";
+} else {
+  if (tg){ try { tg.ready(); tg.expand(); } catch (e) {} }
+  $("app").style.display = "block";
+  load();
+}
+</script>
+</body>
+</html>
