@@ -826,7 +826,8 @@ function viewConfigs() {
     h += '<button class="mini g" data-act="node-dl" data-i="' + idx + '">' + ic('dl') + esc(t('dl')) + '</button>';
     h += '<button class="mini" data-act="node-copy" data-i="' + idx + '">' + ic('copy') + esc(t('copy')) + '</button>';
     h += '<button class="mini" data-act="node-qr" data-i="' + idx + '">' + ic('qr') + esc(t('qr')) + '</button>';
-    h += '<button class="mini" data-act="node-v2" data-i="' + idx + '">' + ic('zap') + esc(t('v2box')) + '</button></div></div>';
+    if (n.amnezia) h += '<button class="mini" data-act="node-dl" data-i="' + idx + '">' + ic('dl') + esc(t('dl')) + '</button></div></div>';
+    else h += '<button class="mini" data-act="node-v2" data-i="' + idx + '">' + ic('zap') + esc(t('v2box')) + '</button></div></div>';
   });
   if (S.nodes.length > showN) h += '<button class="btn light full" data-act="more-nodes">' + esc(t('moreBtn')) + ' (' + nf(Math.min(showN, S.nodes.length), 0) + ' / ' + nf(S.nodes.length, 0) + ')</button>';
   h += '</section>';
@@ -923,7 +924,8 @@ function openV2(uri) {
 }
 function nodeUri(txt, n, i) { return toWgUri(txt, (S.info && S.info.label ? S.info.label + ' ' : '') + (n.name || ('#' + (i + 1)))); }
 function recNode() {
-  var idx = 0; S.nodes.forEach(function (n, i) { if (n.recommended && !idx) idx = i; });
+  var idx = -1; S.nodes.forEach(function (n, i) { if (n.recommended && idx < 0) idx = i; });
+  if (idx < 0) idx = 0;
   return { n: S.nodes[idx], i: idx };
 }
 function onClick(e) {
@@ -950,8 +952,8 @@ function onClick(e) {
     case 'node-copy': withNode(b, function (txt) { doCopy(txt); }); break;
     case 'node-qr': withNode(b, function (txt, n) { showQr(n.name || t('qr'), txt, t('qrCfg')); }); break;
     case 'node-v2': withNode(b, function (txt, n, i) { var u = nodeUri(txt, n, i); if (u) openV2(u); else toast(t('cfgErr')); }); break;
-    case 'v2-rec': { var r = recNode(); if (r.n) { toast(t('fetching')); getConfig(r.n, 'n' + r.i).then(function (txt) { var u = nodeUri(txt, r.n, r.i); if (u) openV2(u); else toast(t('cfgErr')); }).catch(function () { toast(t('cfgErr')); }); } break; }
-    case 'copy-all': toast(t('fetching')); Promise.all(S.nodes.map(function (n, i) { return getConfig(n, 'n' + i).then(function (txt) { return nodeUri(txt, n, i); }); }))
+    case 'v2-rec': { var r = recNode(); if (r.n) { toast(t('fetching')); getConfig(r.n, 'n' + r.i).then(function (txt) { if (r.n.amnezia) { var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = cfgFileName(r.n, r.i); document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); toast(t('dled')); return; } var u = nodeUri(txt, r.n, r.i); if (u) openV2(u); else toast(t('cfgErr')); }).catch(function () { toast(t('cfgErr')); }); } break; }
+    case 'copy-all': toast(t('fetching')); Promise.all(S.nodes.map(function (n, i) { return getConfig(n, 'n' + i).then(function (txt) { return n.amnezia ? txt : nodeUri(txt, n, i); }); }))
       .then(function (list) { doCopy(list.filter(Boolean).join('\n'), t('v2boxTip')); }).catch(function () { toast(t('cfgErr')); }); break;
     case 'v2-sub-add': { var s = v2boxSubLink(); if (s) { var nm = (S.info && S.info.label) || CFG.brand; var u = 'v2box://install-sub?url=' + encodeURIComponent(s) + '&name=' + encodeURIComponent(nm); doCopy(s, t('v2boxTip')).then(function () { location.href = u; }); } break; }
     case 'v2-sub-copy': { var s2 = v2boxSubLink(); if (s2) doCopy(s2); break; }

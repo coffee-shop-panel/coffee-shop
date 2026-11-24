@@ -139,6 +139,7 @@ func coffeeNodes(cfg service.SubSettings, page *service.SubPage, token string) [
 			"name":        name,
 			"online":      true,
 			"recommended": false,
+			"amnezia":     d.AmneziaKey != "",
 			"config_path": base + "?device=" + uitoa(d.ID) + "&host=" + uitoa(d.HostID),
 		})
 	}
@@ -211,15 +212,15 @@ func coffeeInfo(cfg service.SubSettings, page *service.SubPage, nodes []map[stri
 // the page offers for download, value for value.
 func (s *Server) serveCoffeeHiddify(w http.ResponseWriter, r *http.Request, page *service.SubPage, token string) {
 	type peer struct {
-		Address   string   `json:"address"`
-		Port      int      `json:"port"`
-		PublicKey string   `json:"public_key"`
-		Preshared string   `json:"pre_shared_key,omitempty"`
+		Address   string `json:"address"`
+		Port      int    `json:"port"`
+		PublicKey string `json:"public_key"`
+		Preshared string `json:"pre_shared_key,omitempty"`
 		// The same key under the spelling Hiddify's own docs print; their
 		// fork reads one, upstream sing-box the other, so both ride along.
-		PresharedAlt string `json:"preshared_key,omitempty"`
-		Allowed   []string `json:"allowed_ips"`
-		Keepalive int      `json:"persistent_keepalive_interval,omitempty"`
+		PresharedAlt string   `json:"preshared_key,omitempty"`
+		Allowed      []string `json:"allowed_ips"`
+		Keepalive    int      `json:"persistent_keepalive_interval,omitempty"`
 	}
 	type endpoint struct {
 		Type  string         `json:"type"`
@@ -283,8 +284,16 @@ func (s *Server) serveCoffeeHiddify(w http.ResponseWriter, r *http.Request, page
 				awg[k] = v
 			}
 		}
-		if raw, err := base64.StdEncoding.DecodeString(vals["interface.headerprotectionkey"]); err == nil && len(raw) > 0 {
-			awg["header_protection_key"] = hex.EncodeToString(raw)
+		if hpk := vals["interface.headerprotectionkey"]; hpk != "" {
+			if raw, err := base64.StdEncoding.DecodeString(hpk); err == nil && len(raw) > 0 {
+				awg["header_protection_key"] = hex.EncodeToString(raw)
+			} else {
+				// The file carries a header protection key this build
+				// cannot decode; the endpoint goes out without it and
+				// its AWG3 handshakes will fail, so the gap is logged
+				// rather than silent. The value cannot be invented.
+				s.log.Warn("coffee hiddify: header protection key not base64, omitted", "node", name)
+			}
 		}
 		e := endpoint{
 			Type: "awg",
@@ -292,13 +301,13 @@ func (s *Server) serveCoffeeHiddify(w http.ResponseWriter, r *http.Request, page
 			Key:  priv,
 			Addr: splitCSV(vals["interface.address"]),
 			Peers: []peer{{
-				Address:   host,
-				Port:      port,
-				PublicKey: pub,
+				Address:      host,
+				Port:         port,
+				PublicKey:    pub,
 				Preshared:    vals["peer.presharedkey"],
 				PresharedAlt: vals["peer.presharedkey"],
-				Allowed:   splitCSV(vals["peer.allowedips"]),
-				Keepalive: atoiOr(vals["peer.persistentkeepalive"], 0),
+				Allowed:      splitCSV(vals["peer.allowedips"]),
+				Keepalive:    atoiOr(vals["peer.persistentkeepalive"], 0),
 			}},
 		}
 		if mtu, err := strconv.Atoi(vals["interface.mtu"]); err == nil && mtu > 0 {
