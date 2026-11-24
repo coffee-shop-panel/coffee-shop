@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -98,6 +99,16 @@ func (s *Shop) SubLink(ctx context.Context, client *model.Client) string {
 // double sale. A delivery that fails leaves the order paid, where the
 // operator can see it and it can be tried again; nothing is marked failed
 // by a machine that cannot know whether the money was real.
+//
+// Two kinds of order deliver something other than the one customer. A
+// top-up delivers money into the buyer's wallet and no customer at all.
+// A bulk order (a quantity above one) delivers its first unit the way
+// any order does -- a renewal, or a first customer -- and each extra
+// unit as an additional new customer of the same terms: the buyer
+// bought that many services, and a unit is a service, not a bigger
+// number on the first one. What Fulfill hands back is the first
+// customer either way; the extras stand beside it under the buyer's
+// Telegram id, where the bot lists a buyer's customers from.
 func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error) {
 	order, err := s.OrderByID(ctx, orderID)
 	if err != nil {
@@ -110,6 +121,11 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 	}
 
 	if order.Status == StatusFulfilled {
+		if order.Kind == KindTopup {
+			// A top-up delivered is money in a wallet; there is no
+			// customer to hand back, and nothing to do again.
+			return nil, nil
+		}
 		client, err := s.clients.Get(opCtx, order.ClientID)
 		if err != nil {
 			return nil, fmt.Errorf("shop: reload the delivered customer: %w", err)
@@ -119,6 +135,10 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 	if order.Status != StatusPaid && order.Status != StatusPendingReview {
 		return nil, fmt.Errorf("%w: order %d is %s; only a paid order can be delivered",
 			fault.ErrInvalid, order.ID, order.Status)
+	}
+
+	if order.Kind == KindTopup {
+		return s.fulfillTopup(ctx, order)
 	}
 
 	cfg, err := s.ConfigFor(ctx, order.OperatorID)
@@ -146,6 +166,16 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 		return nil, err
 	}
 
+	// How many units this order delivers, and where the next customer
+	// made stands in the operator's book (the name format's {n}): both
+	// are read once, at the start, so every unit of the one order is
+	// numbered from the same moment.
+	qty := order.Quantity
+	if qty < 1 {
+		qty = 1
+	}
+	counter := s.clientCounter(ctx, opCtx)
+
 	var client *model.Client
 	if len(existing) > 0 {
 		client = &existing[0]
@@ -167,29 +197,25 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 			return nil, fmt.Errorf("shop: reload the renewed customer: %w", err)
 		}
 	} else {
-		name := order.BuyerName
-		if name == "" {
-			name = fmt.Sprintf("TG-%d", order.BuyerTGID)
-		}
-		in := service.CreateInput{
-			Name:         name,
-			InterfaceIDs: sectionIDs,
-			QuotaBytes:   order.QuotaBytes,
-			DeviceLimit:  order.DeviceLimit,
-			TelegramID:   order.BuyerTGID,
-		}
-		// The shop starts the clock at purchase: the date is written
-		// outright rather than left to first connection, so a plan bought
-		// today ends on its day whether or not it is used tonight. A plan
-		// of no days has no date at all, as in the panel.
-		if order.Days > 0 {
-			expires := time.Now().UTC().Add(time.Duration(order.Days) * 24 * time.Hour)
-			in.ExpiresAt = &expires
-		}
-		client, err = s.clients.Create(opCtx, in)
+		client, err = s.createForOrder(opCtx, cfg, order, sectionIDs, &counter, 1)
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	// The extra units of a bulk order, each its own new customer of
+	// the order's terms. They are made before the order is marked
+	// delivered, like the first unit: a failure here leaves the order
+	// paid and the delivery retriable, rather than delivered and
+	// silently short.
+	for unit := 2; unit <= qty; unit++ {
+		extra, err := s.createForOrder(opCtx, cfg, order, sectionIDs, &counter, unit)
+		if err != nil {
+			return nil, err
+		}
+		s.log.Info("shop order extra unit delivered",
+			"order", order.ID, "operator", order.OperatorID,
+			"client", extra.ID, "unit", unit)
 	}
 
 	order.Status = StatusFulfilled
@@ -197,10 +223,100 @@ func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error)
 	if err := s.UpdateOrder(ctx, order); err != nil {
 		return nil, err
 	}
+	s.settle(ctx, cfg, order)
 	s.log.Info("shop order delivered",
 		"order", order.ID, "operator", order.OperatorID,
 		"client", client.ID, "kind", order.Kind)
 	return client, nil
+}
+
+// createForOrder makes one customer of an order's terms: the unit-th
+// unit of the order, named by the shop's name rule. With a format set,
+// the name is the format worked on the buyer, and the counter moves
+// with every customer made, so an order's units stand apart in {n}
+// and {rand} both. Without one, the name is the buyer's, and the
+// units after the first are numbered after it -- "Buyer (2)" -- so a
+// bulk buyer can tell their own services apart in a list.
+func (s *Shop) createForOrder(ctx context.Context, cfg *Config, order *Order, sectionIDs []uint, counter *int, unit int) (*model.Client, error) {
+	name := formatClientName(cfg, order.BuyerName, order.BuyerTGID, *counter)
+	(*counter)++
+	if strings.TrimSpace(cfg.NameFormat) == "" && unit > 1 {
+		name = capClientName(fmt.Sprintf("%s (%d)", name, unit))
+	}
+	in := service.CreateInput{
+		Name:         name,
+		InterfaceIDs: sectionIDs,
+		QuotaBytes:   order.QuotaBytes,
+		DeviceLimit:  order.DeviceLimit,
+		TelegramID:   order.BuyerTGID,
+	}
+	// The shop starts the clock at purchase: the date is written
+	// outright rather than left to first connection, so a plan bought
+	// today ends on its day whether or not it is used tonight. A plan
+	// of no days has no date at all, as in the panel.
+	if order.Days > 0 {
+		expires := time.Now().UTC().Add(time.Duration(order.Days) * 24 * time.Hour)
+		in.ExpiresAt = &expires
+	}
+	return s.clients.Create(ctx, in)
+}
+
+// fulfillTopup delivers a top-up: the order's price lands in the
+// buyer's wallet, and there is no customer to hand back.
+//
+// The order is marked delivered first and the money second, in the
+// one call that performs the flip -- a second call finds the order
+// fulfilled and credits nothing. The order of the two acts is the
+// same choice as the rest of Fulfill's: a failure between them leaves
+// a record an operator can see and put right (a delivered top-up
+// whose credit is in the log as failed), never money conjured twice
+// by a retry.
+func (s *Shop) fulfillTopup(ctx context.Context, order *Order) (*model.Client, error) {
+	if order.PriceToman <= 0 {
+		return nil, fmt.Errorf("%w: a top-up of %d Toman delivers nothing",
+			fault.ErrInvalid, order.PriceToman)
+	}
+	order.Status = StatusFulfilled
+	order.ClientID = 0
+	if err := s.UpdateOrder(ctx, order); err != nil {
+		return nil, err
+	}
+	if err := s.CreditWallet(ctx, order.OperatorID, order.BuyerTGID, order.PriceToman); err != nil {
+		s.log.Error("shop top-up delivered but its credit failed",
+			"order", order.ID, "operator", order.OperatorID,
+			"buyer", order.BuyerTGID, "amount", order.PriceToman, "error", err)
+		return nil, err
+	}
+	s.log.Info("shop top-up delivered",
+		"order", order.ID, "operator", order.OperatorID,
+		"buyer", order.BuyerTGID, "amount", order.PriceToman)
+	return nil, nil
+}
+
+// settle is a delivered order's bookkeeping, run by the one Fulfill
+// call that turned the order fulfilled -- and only that call, which
+// is what makes each of its acts happen once: the code the buyer
+// named is written down as used, and the referrer's cashback lands.
+// Both trail a delivery that has already happened, so a failure in
+// either is logged rather than allowed to un-deliver a customer.
+func (s *Shop) settle(ctx context.Context, cfg *Config, order *Order) {
+	if order.Code != "" {
+		code, err := s.CodeFor(ctx, order.OperatorID, order.Code)
+		switch {
+		case err != nil:
+			// A code deleted since checkout has nothing left to
+			// record against; the sale it discounted stands either
+			// way, and the trail of it is the order's own copy.
+			s.log.Warn("shop: the order's code is gone at delivery",
+				"order", order.ID, "code", order.Code, "error", err)
+		default:
+			if err := s.RecordCodeUse(ctx, code.ID, order.BuyerTGID, order.ID); err != nil {
+				s.log.Warn("shop: record the order's code use",
+					"order", order.ID, "error", err)
+			}
+		}
+	}
+	s.payCashback(ctx, cfg, order)
 }
 
 // attachSection puts an existing customer on the tunnels of the section
