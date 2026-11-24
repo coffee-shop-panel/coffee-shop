@@ -31,6 +31,8 @@ import (
 	"github.com/abolfazl/w-ui/internal/routing"
 	"github.com/abolfazl/w-ui/internal/service"
 	"github.com/abolfazl/w-ui/internal/shaper"
+	"github.com/abolfazl/w-ui/internal/shop"
+	"github.com/abolfazl/w-ui/internal/shopbot"
 	"github.com/abolfazl/w-ui/internal/sysinfo"
 )
 
@@ -76,7 +78,7 @@ type Server struct {
 	balancers *egress.Balancers
 	providers *egress.Providers
 	audit     *oversight.Audit
-	activity  *activityStore
+	activity  *service.Activity
 	admins    *operators.Admins
 	pool      *backend.Pool
 	nodeSync  *fleet.NodeSync
@@ -91,6 +93,12 @@ type Server struct {
 	restart  func()
 	engine   *service.Engine
 	template *service.Template
+	// shop is the sales bots' store and delivery hand, and shopBot the
+	// manager running the bots themselves. Both are nil on a panel built
+	// without them, and every shop endpoint answers as if the feature
+	// were not there rather than failing.
+	shop    *shop.Shop
+	shopBot *shopbot.Manager
 }
 
 // Options configures a Server.
@@ -135,6 +143,13 @@ type Options struct {
 	Engine   *service.Engine
 	Template *service.Template
 
+	// Shop and ShopBot carry the per-operator sales bots: the store the
+	// «بات فروش» page reads and writes, and the manager that runs the
+	// bots and answers for their state. Either may be nil, which turns
+	// the shop endpoints off rather than breaking the panel.
+	Shop    *shop.Shop
+	ShopBot *shopbot.Manager
+
 	// Changes is what the rest of the panel says when something a customer
 	// sees changed; the open subscription pages listen to it.
 	Changes *service.Changes
@@ -157,7 +172,7 @@ func New(o Options) *Server {
 		enforcer:  o.Enforcer,
 		settings:  o.Settings,
 		nodes:     fleet.NewNodes(o.DB, o.Logger),
-		activity:  newActivityStore(o.DB),
+		activity:  service.NewActivity(o.DB, o.Logger),
 		admins:    operators.NewAdmins(o.DB, o.Logger),
 		prober:    o.Prober,
 		throttle:  newThrottle(),
@@ -193,6 +208,8 @@ func New(o Options) *Server {
 		restart:     o.Restart,
 		engine:      o.Engine,
 		template:    o.Template,
+		shop:        o.Shop,
+		shopBot:     o.ShopBot,
 		basePath:    o.BasePath,
 		tlsCert:     o.TLSCert,
 		tlsKey:      o.TLSKey,

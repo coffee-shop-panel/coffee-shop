@@ -62,6 +62,18 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		"GET /api/devices/{id}/profiles",
 		"DELETE /api/devices/{id}",
 
+		// Their own sales bot: its settings, plans and orders, each
+		// narrowed to the caller in the handler.
+		"GET /api/shop/config",
+		"PUT /api/shop/config",
+		"GET /api/shop/plans",
+		"POST /api/shop/plans",
+		"DELETE /api/shop/plans/{id}",
+		"GET /api/shop/orders",
+		"POST /api/shop/orders/{id}/approve",
+		"POST /api/shop/orders/{id}/reject",
+		"GET /api/shop/stats",
+
 		// The few under an owner's heading they cannot work without.
 		"GET /api/interfaces",
 		"GET /api/l2tp/devices",

@@ -50,6 +50,8 @@ import (
 	"github.com/abolfazl/w-ui/internal/routing"
 	"github.com/abolfazl/w-ui/internal/service"
 	"github.com/abolfazl/w-ui/internal/shaper"
+	"github.com/abolfazl/w-ui/internal/shop"
+	"github.com/abolfazl/w-ui/internal/shopbot"
 	"github.com/abolfazl/w-ui/internal/single"
 	"github.com/abolfazl/w-ui/internal/sysinfo"
 	"github.com/abolfazl/w-ui/internal/update"
@@ -316,6 +318,14 @@ func run() error {
 
 	startBackupSchedule(ctx, backups, settings, notifier)
 
+	// The sales bots: one per operator who has set theirs up, each
+	// polling Telegram under its own token. The «بات فروش» page is where
+	// each operator configures theirs; the manager is handed to the API
+	// so a saved configuration restarts that one bot at once.
+	shopSvc := shop.New(db, clientsSvc, log)
+	shopBots := shopbot.New(shopSvc, clientsSvc, log)
+	shopBots.Start(ctx)
+
 	notifier.Send(notify.Event{
 		Kind:  notify.KindPanel,
 		Title: "Panel started",
@@ -327,7 +337,7 @@ func run() error {
 		clientsSvc, ifaceSvc, changes,
 		// Restart is a tidy stop: the service manager is set to bring the
 		// panel back, and this run's history is saved on the way out.
-		func() { stop() }, engine, balancers)
+		func() { stop() }, engine, balancers, shopSvc, shopBots)
 	if err != nil {
 		return err
 	}
@@ -401,6 +411,8 @@ func buildServer(
 	restart func(),
 	engine *service.Engine,
 	balancers *egress.Balancers,
+	shopSvc *shop.Shop,
+	shopBots *shopbot.Manager,
 ) (*http.Server, http.Handler, error) {
 	// Who may speak for somebody else. Done before anything serves, so no
 	// request is ever handled with the wrong idea of where it came from.
@@ -416,6 +428,8 @@ func buildServer(
 		Template:       service.NewTemplate(db, ifaceSvc, outbounds, routes, balancers, engine, log),
 		DB:             db,
 		Clients:        clientsSvc,
+		Shop:           shopSvc,
+		ShopBot:        shopBots,
 		Interfaces:     ifaceSvc,
 		Catalog:        catalog,
 		Enforcer:       enforcer,

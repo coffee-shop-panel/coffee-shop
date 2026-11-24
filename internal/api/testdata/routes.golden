@@ -131,6 +131,15 @@ POST   /api/subscription/preview                      Subscriptions  auth=true  
 GET    /api/clients/{id}/subscription                 Subscriptions  auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 POST   /api/clients/{id}/subscription/rotate          Subscriptions  auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 GET    /api/activity                                  Activity       auth=true  operator=false | none=401 token=403 reseller=403 admin=403 owner=yes
+GET    /api/shop/config                               Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+PUT    /api/shop/config                               Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+GET    /api/shop/plans                                Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+POST   /api/shop/plans                                Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+DELETE /api/shop/plans/{id}                           Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+GET    /api/shop/orders                               Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+POST   /api/shop/orders/{id}/approve                  Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+POST   /api/shop/orders/{id}/reject                   Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+GET    /api/shop/stats                                Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 GET    /api/nodes                                     Nodes          auth=true  operator=false | none=401 token=yes reseller=403 admin=403 owner=yes
 POST   /api/nodes                                     Nodes          auth=true  operator=true  | none=401 token=403 reseller=403 admin=403 owner=yes
 PATCH  /api/nodes/{id}                                Nodes          auth=true  operator=true  | none=401 token=403 reseller=403 admin=403 owner=yes

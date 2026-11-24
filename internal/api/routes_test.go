@@ -121,6 +121,8 @@ func TestRoutesThatTakeABodyShowOne(t *testing.T) {
 		"POST /api/engine/reset":                     true, // the defaults are the whole request
 		"POST /api/admins/{id}/reset-usage":          true, // the operator is the whole request
 		"POST /api/sharing/history/import":           true, // reads this server's log; nothing to send
+		"POST /api/shop/orders/{id}/approve":         true, // the order is the whole request
+		"POST /api/shop/orders/{id}/reject":          true, // the order is the whole request
 	}
 	for _, r := range newRouteServer().routes() {
 		if r.Method != http.MethodPost && r.Method != http.MethodPatch && r.Method != http.MethodPut {

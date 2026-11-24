@@ -607,6 +607,45 @@ func (s *Server) routes() []Route {
 				"reseller, so unlike the customer list it is not narrowed by scope.",
 			handler: s.handleActivity},
 
+		// ── Shop ──
+		// Every operator's own sales bot. The handlers narrow everything
+		// to the caller -- their bot, their plans, their orders -- which
+		// is why the whole heading is open to anyone signed in (see
+		// operatorGroups below).
+		{Method: "GET", Path: "/api/shop/config", Group: "Shop", Auth: true,
+			Summary: "The signed-in operator's own sales bot: its settings, " +
+				"with the token itself never shown.",
+			handler: s.handleShopConfig},
+		{Method: "PUT", Path: "/api/shop/config", Group: "Shop", Auth: true,
+			Summary: "Save the operator's sales-bot settings. An empty token " +
+				"keeps the one already stored.",
+			Body:    `{"enabled":true,"token":"…","adminChatId":123456789,"cardNumber":"…","interfaceIds":[1,2]}`,
+			handler: s.handleShopConfigSave},
+		{Method: "GET", Path: "/api/shop/plans", Group: "Shop", Auth: true,
+			Summary: "The plans this operator's bot sells.",
+			handler: s.handleShopPlans},
+		{Method: "POST", Path: "/api/shop/plans", Group: "Shop", Auth: true,
+			Summary: "Add a plan to the bot, or change one of its own.",
+			Body:    `{"name":"…","quotaBytes":53687091200,"days":30,"priceToman":120000,"deviceLimit":2,"enabled":true}`,
+			handler: s.handleShopPlanSave},
+		{Method: "DELETE", Path: "/api/shop/plans/{id}", Group: "Shop", Auth: true,
+			Summary: "Take one of the operator's own plans off sale.",
+			handler: s.handleShopPlanDelete},
+		{Method: "GET", Path: "/api/shop/orders", Group: "Shop", Auth: true,
+			Summary: "The operator's bot orders, newest first.",
+			handler: s.handleShopOrders},
+		{Method: "POST", Path: "/api/shop/orders/{id}/approve", Group: "Shop", Auth: true,
+			Summary: "Approve one of the operator's orders and deliver the " +
+				"subscription it bought.",
+			handler: s.handleShopOrderApprove},
+		{Method: "POST", Path: "/api/shop/orders/{id}/reject", Group: "Shop", Auth: true,
+			Summary: "Turn one of the operator's orders away.",
+			handler: s.handleShopOrderReject},
+		{Method: "GET", Path: "/api/shop/stats", Group: "Shop", Auth: true,
+			Summary: "The operator's bot sales: today, in total, and what " +
+				"is still waiting on them.",
+			handler: s.handleShopStats},
+
 		// ── Nodes ──
 		{Method: "GET", Path: "/api/nodes", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "Every server this panel watches, with what the last probe found.",
@@ -908,6 +947,10 @@ var (
 		"Clients":        true,
 		"Devices":        true,
 		"Groups":         true,
+		// The sales bot is the operator's own shop -- their token, their
+		// plans, their orders -- and every handler narrows to the caller,
+		// so the heading is as safe to open as the customer list.
+		"Shop": true,
 	}
 
 	// operatorRoutes are the few endpoints under an owner's heading that a

@@ -241,6 +241,11 @@ func (s *Server) SubscriptionRouter(next http.Handler) http.Handler {
 		if s.serveCoffeeAPI(w, r) {
 			return
 		}
+		// The sales bots' payment callback: the gateway sends the buyer
+		// back here once they have paid (shop.go).
+		if s.serveShopCallback(w, r) {
+			return
+		}
 		// Never shadow the panel's own routes, whatever the path is set to.
 		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/assets/") {
 			next.ServeHTTP(w, r)
