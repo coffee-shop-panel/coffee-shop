@@ -272,12 +272,23 @@ func (s *Shop) RedeemGift(ctx context.Context, operatorID uint, tgID int64, code
 		return 0, err
 	}
 	if err := s.CreditWallet(ctx, operatorID, tgID, c.Value); err != nil {
-		_ = s.db.WithContext(ctx).
+		// The credit's error is the one the caller is answered with;
+		// the unwinding below is best-effort beside it. A step of it
+		// failing leaves the code spent on money that never arrived,
+		// which an operator can only put right if it is said somewhere
+		// -- so it is logged, with the code and the buyer named.
+		if derr := s.db.WithContext(ctx).
 			Where("code_id = ? AND buyer_tg_id = ?", c.ID, tgID).
-			Delete(&model.ShopCodeUse{}).Error
-		_ = s.db.WithContext(ctx).Model(&model.ShopCode{}).
+			Delete(&model.ShopCodeUse{}).Error; derr != nil {
+			s.log.Error("shop: unwrite a gift code's use",
+				"code", c.ID, "buyer", tgID, "error", derr)
+		}
+		if derr := s.db.WithContext(ctx).Model(&model.ShopCode{}).
 			Where("id = ? AND used_count > 0", c.ID).
-			UpdateColumn("used_count", gorm.Expr("used_count - 1")).Error
+			UpdateColumn("used_count", gorm.Expr("used_count - 1")).Error; derr != nil {
+			s.log.Error("shop: uncount a gift code's use",
+				"code", c.ID, "buyer", tgID, "error", derr)
+		}
 		return 0, err
 	}
 	return c.Value, nil

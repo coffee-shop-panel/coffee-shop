@@ -98,10 +98,16 @@ func (s *Shop) SpinWheel(ctx context.Context, operatorID uint, tgID int64) (*Pri
 	if claim.RowsAffected == 0 {
 		return nil, ErrWheelTooSoon
 	}
+	// unclaim hands the spin back when its prize could not be drawn.
+	// Its own failure leaves the buyer waiting out the day on a spin
+	// that won nothing, so it is logged rather than swallowed -- the
+	// draw error the caller already holds stays the answer.
 	unclaim := func() {
-		_ = s.db.WithContext(ctx).Model(&model.ShopWallet{}).
+		if err := s.db.WithContext(ctx).Model(&model.ShopWallet{}).
 			Where("id = ?", w.ID).
-			UpdateColumn("last_spin_at", w.LastSpinAt).Error
+			UpdateColumn("last_spin_at", w.LastSpinAt).Error; err != nil {
+			s.log.Error("shop: unclaim a spin", "wallet", w.ID, "error", err)
+		}
 	}
 
 	prize, err := s.drawPrize(ctx, cfg, operatorID, tgID, now)

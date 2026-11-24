@@ -365,10 +365,17 @@ func (s *Shop) ClaimTrial(ctx context.Context, operatorID uint, tgID int64, buye
 	if claim.RowsAffected == 0 {
 		return nil, fmt.Errorf("%w: this buyer has already had this shop's trial", fault.ErrInvalid)
 	}
+	// unclaim hands the trial back when the customer it was claimed
+	// for could not be made. Its own failure leaves the buyer marked
+	// as trialled without a trial to show for it, so it is logged
+	// rather than swallowed -- the creation error the caller already
+	// holds stays the answer.
 	unclaim := func() {
-		_ = s.db.WithContext(ctx).Model(&model.ShopWallet{}).
+		if err := s.db.WithContext(ctx).Model(&model.ShopWallet{}).
 			Where("id = ?", w.ID).
-			UpdateColumn("trial_used_at", nil).Error
+			UpdateColumn("trial_used_at", nil).Error; err != nil {
+			s.log.Error("shop: unclaim a trial", "wallet", w.ID, "error", err)
+		}
 	}
 
 	in := service.CreateInput{
