@@ -459,6 +459,42 @@ func TestTheOwnerCannotBeRemovedOrSwitchedOff(t *testing.T) {
 	}
 }
 
+// Deleting an admin hands their resellers to the owner, rather than
+// leaving them pointing at a parent that no longer exists — resellers no
+// live operator could ever manage again.
+func TestDeletingAnAdminHandsTheirResellersToTheOwner(t *testing.T) {
+	db, clients, admins := resellerDB(t)
+	owner := &model.Admin{Username: "owner", Role: model.RoleOwner, PasswordHash: "x"}
+	if err := db.Create(owner).Error; err != nil {
+		t.Fatal(err)
+	}
+	enabled := true
+	admin, err := admins.Create(context.Background(), operators.AdminInput{
+		Username: "amina", Password: "correct-horse", Role: model.RoleAdmin,
+		Enabled: &enabled, InterfaceIDs: []uint{1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reseller, err := admins.Create(operators.WithCaller(context.Background(), admin), operators.AdminInput{
+		Username: "reza", Password: "correct-horse", Role: model.RoleReseller,
+		Enabled: &enabled, InterfaceIDs: []uint{1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := admins.Delete(context.Background(), admin.ID, operators.DeleteKeepClients, clients); err != nil {
+		t.Fatal(err)
+	}
+	var got model.Admin
+	if err := db.First(&got, reseller.ID).Error; err != nil {
+		t.Fatalf("the reseller is gone: %v", err)
+	}
+	if got.ParentAdminID != owner.ID {
+		t.Errorf("the reseller's parent is %d, want the owner %d", got.ParentAdminID, owner.ID)
+	}
+}
+
 func TestDeletingAResellerNeedsAnAnswerAboutTheirCustomers(t *testing.T) {
 	db, clients, admins := resellerDB(t)
 	reza := newReseller(t, admins, "reza", 0)

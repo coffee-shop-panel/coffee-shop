@@ -1567,7 +1567,7 @@ func (s *Clients) revives(client *model.Client, in UpdateInput) bool {
 	if in.Status != nil {
 		return false // an explicit status wins
 	}
-	if client.Status == model.StatusExhausted && in.QuotaBytes != nil && *in.QuotaBytes > client.UsedBytes {
+	if client.Status == model.StatusExhausted && in.QuotaBytes != nil && (*in.QuotaBytes == 0 || *in.QuotaBytes > client.UsedBytes) {
 		return true
 	}
 	if client.Status == model.StatusExpired && in.ExpiresAt.Set {

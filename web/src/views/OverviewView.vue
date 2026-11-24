@@ -265,8 +265,8 @@ function activityTone(a) {
           <AntIcon name="CloudUploadOutlined" />
           <span>{{ t('update.cta') }} <bdi class="ltr">v{{ update.latest }}</bdi></span>
         </button>
-        <span class="pill" :class="panel.enforcementActive ? 'ok' : 'warn'">
-          <span class="d"></span>{{ panel.enforcementActive ? t('enforcement.active') : t('enforcement.unavailable') }}
+        <span class="pill" :class="panel?.enforcementActive ? 'ok' : 'warn'">
+          <span class="d"></span>{{ panel?.enforcementActive ? t('enforcement.active') : t('enforcement.unavailable') }}
         </span>
         <div class="row tight spacer">
           <button class="btn sm" :title="t('overview.restartAllHint')"
@@ -302,7 +302,7 @@ function activityTone(a) {
       </div>
     </div>
 
-    <div v-if="!panel.enforcementActive" class="ov-health">
+    <div v-if="panel && !panel.enforcementActive" class="ov-health">
       <Icon name="alert" :size="16" />
       <span>{{ panel.enforcementMessage }}</span>
     </div>

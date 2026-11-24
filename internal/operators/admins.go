@@ -9,6 +9,7 @@ package operators
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -619,6 +620,19 @@ func (s *Admins) Delete(ctx context.Context, id uint, mode DeleteMode, clients C
 			admin.Username, held)
 	}
 
+	// Read before the transaction hands them over: HandOver reassigns the
+	// kept customers to the owner, so after it there is nothing left to
+	// list under this operator — but the deletion itself runs after the
+	// transaction, so a failure there cannot lose customers while the
+	// operator stays.
+	var ids []uint
+	if held > 0 && mode == DeleteWithClients {
+		if err := s.db.WithContext(ctx).Model(&model.Client{}).
+			Where("owner_id = ?", admin.ID).Pluck("id", &ids).Error; err != nil {
+			return fmt.Errorf("service: list the operator's customers: %w", err)
+		}
+	}
+
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Anything left is kept, and the owner administers it; the
 		// operator's own groups go, and their customers leave the label.
@@ -633,14 +647,17 @@ func (s *Admins) Delete(ctx context.Context, id uint, mode DeleteMode, clients C
 		// Resellers of the deleted operator are kept too, under the owner:
 		// left pointing at a deleted parent, no live operator could ever
 		// manage them again, and their new customers would be stamped
-		// with an admin id that no longer exists.
+		// with an admin id that no longer exists. A panel without an owner
+		// row has nobody to hand them to, so there they stay.
 		var owner model.Admin
-		if err := tx.Where("role = ?", model.RoleOwner).First(&owner).Error; err != nil {
-			return fmt.Errorf("find the panel's owner: %w", err)
+		if oerr := tx.Where("role = ?", model.RoleOwner).First(&owner).Error; oerr != nil && !errors.Is(oerr, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("find the panel's owner: %w", oerr)
 		}
-		if err := tx.Model(&model.Admin{}).Where("parent_admin_id = ?", admin.ID).
-			Update("parent_admin_id", owner.ID).Error; err != nil {
-			return fmt.Errorf("hand the operator's resellers to the owner: %w", err)
+		if owner.ID != 0 {
+			if err := tx.Model(&model.Admin{}).Where("parent_admin_id = ?", admin.ID).
+				Update("parent_admin_id", owner.ID).Error; err != nil {
+				return fmt.Errorf("hand the operator's resellers to the owner: %w", err)
+			}
 		}
 		if err := tx.Where("admin_id = ?", admin.ID).Delete(&model.AdminInterface{}).Error; err != nil {
 			return fmt.Errorf("clear the operator's tunnels: %w", err)
@@ -663,15 +680,9 @@ func (s *Admins) Delete(ctx context.Context, id uint, mode DeleteMode, clients C
 	// The customers go last, once the operator is gone. The other way
 	// round, a failure in the transaction above would leave the operator
 	// in place with their customers already deleted — the one loss here
-	// that cannot be undone.
-	if held > 0 && mode == DeleteWithClients {
-		// Through the customer service rather than a DELETE, so addresses
-		// go back to their pools and the tunnels are told.
-		var ids []uint
-		if err := s.db.WithContext(ctx).Model(&model.Client{}).
-			Where("owner_id = ?", admin.ID).Pluck("id", &ids).Error; err != nil {
-			return fmt.Errorf("service: list the operator's customers: %w", err)
-		}
+	// that cannot be undone. Through the customer service rather than a
+	// DELETE, so addresses go back to their pools and the tunnels are told.
+	if len(ids) > 0 {
 		if err := clients.DeleteCustomers(ctx, ids); err != nil {
 			return err
 		}
