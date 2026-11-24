@@ -109,6 +109,16 @@ const (
 	txtSellerLinkNote      = "ℹ️ خریدار «%s» اشتراک خرید، اما لینک عمومی پنل تنظیم نیست و فقط کد اشتراک برایش رفت:\n<code>%s</code>\nلینک کامل را دستی برایش بفرستید."
 )
 
+// The seller's own chat. The bot used to answer nothing there but a
+// relayed support reply, which read as a dead bot to the one person who
+// had to trust it; now anything the seller says there is answered with
+// this home: proof the shop is alive, the two numbers the seller
+// checks, and where approvals land.
+const (
+	txtSellerHome      = "👋 سلام! این بات فروش شماست و فعال است.\n\n📊 فروش امروز: %d\n⏳ سفارش‌های در انتظار: %d\n\n🧾 رسیدهای خرید همین‌جا برایتان می‌آید تا تأیید یا رد کنید.\n🛒 برای تستِ خرید، با یک اکانت دیگر وارد بات شوید؛ این چت فقط چتِ فروشنده است."
+	txtSellerHomePlain = "👋 سلام! این بات فروش شماست و فعال است.\n\n🧾 رسیدهای خرید همین‌جا برایتان می‌آید تا تأیید یا رد کنید.\n🛒 برای تستِ خرید، با یک اکانت دیگر وارد بات شوید؛ این چت فقط چتِ فروشنده است."
+)
+
 // What a delivery says beyond the link depends on the section, because
 // the two are opened in different apps: a WireGuard buyer is pointed at
 // the apps that speak it, and a V2ray buyer is handed the bundle link

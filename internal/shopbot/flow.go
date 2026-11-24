@@ -64,18 +64,22 @@ func (b *bot) handleMessage(ctx context.Context, m *tgMessage) {
 	cfg := b.cfg()
 	chatID := m.Chat.ID
 
-	// The seller's chat is the shop's back room: the only thing the bot
-	// does there is carry a reply back to the buyer it belongs to. A
-	// reply to anything else — a receipt, say — is the seller talking to
-	// themselves, and approvals happen on the receipt's buttons.
+	// The seller's chat is the shop's back room: its work there is
+	// carrying a reply back to the buyer it belongs to. But a seller
+	// who writes anything else — /start above all — is answered with
+	// the seller's home, never silence: approvals happen on the
+	// receipt's buttons, and a bot that says nothing to its own seller
+	// reads as a dead one.
 	if cfg.AdminChatID != 0 && chatID == cfg.AdminChatID {
 		if m.ReplyTo != nil {
 			if buyer, ok := b.relay[m.ReplyTo.ID]; ok {
 				if _, err := b.api.copyMessage(ctx, buyer, chatID, m.ID, "", nil); err != nil {
 					b.log.Warn("shop bot could not relay the seller's reply", "error", err)
 				}
+				return
 			}
 		}
+		b.sellerHome(ctx, chatID)
 		return
 	}
 	// Sales happen one-to-one. In a group the bot stays silent.
@@ -121,6 +125,18 @@ func (b *bot) handleMessage(ctx context.Context, m *tgMessage) {
 	// Anything else at the top level earns the menu again: a buyer who
 	// typed something the bot does not know is a buyer who is lost.
 	b.send(ctx, chatID, txtMenuTitle, menuKeyboard())
+}
+
+// sellerHome answers the seller in their own chat: proof the shop is
+// alive, today's count and what is still waiting on them, and where
+// the approvals land. The numbers are a courtesy — when they cannot
+// be read, the plain home goes out instead of nothing.
+func (b *bot) sellerHome(ctx context.Context, chatID int64) {
+	text := txtSellerHomePlain
+	if st, err := b.mgr.shop.StatsFor(ctx, b.cfg().OperatorID); err == nil {
+		text = fmt.Sprintf(txtSellerHome, st.TodaySales, st.Pending)
+	}
+	b.send(ctx, chatID, text, nil)
 }
 
 func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {

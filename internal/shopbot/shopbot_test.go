@@ -688,3 +688,43 @@ func TestSendAnnouncement(t *testing.T) {
 		t.Error("the single announcement did not reach the buyer")
 	}
 }
+
+// TestTheSellerIsAnsweredInTheirOwnChat guards the fix for a seller who
+// opened their own bot, sent /start, and heard nothing back: the
+// seller's chat used to swallow everything but a support reply. Now
+// the seller gets their home there — and a buyer chatting at the same
+// time is served as before.
+func TestTheSellerIsAnsweredInTheirOwnChat(t *testing.T) {
+	fx := newShopFixture(t)
+	fake, srv := newFakeTG(t)
+
+	oldBase := APIBase
+	APIBase = srv.URL
+	t.Cleanup(func() { APIBase = oldBase })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	mgr := New(fx.sh, fx.clients, quietLog())
+	mgr.Start(ctx)
+
+	waitFor(t, "the bot to be running", func() bool {
+		_, running := mgr.BotInfo(fx.opID)
+		return running
+	})
+
+	const buyer, seller = 111, 999
+	fake.push(updText(1, seller, seller, "Seller", "/start"))
+	waitFor(t, "the seller's home", func() bool {
+		return fake.saidTo(seller, "این بات فروش شماست و فعال است")
+	})
+
+	fake.push(updText(2, seller, seller, "Seller", "سلام"))
+	waitFor(t, "the seller's home again for plain text", func() bool {
+		return fake.saidTo(seller, "رسیدهای خرید همین‌جا")
+	})
+
+	fake.push(updText(3, buyer, buyer, "Buyer", "/start"))
+	waitFor(t, "the buyer's welcome, unaffected", func() bool {
+		return fake.saidTo(buyer, "خوش آمدید")
+	})
+}
