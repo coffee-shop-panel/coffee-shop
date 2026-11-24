@@ -92,9 +92,16 @@ func (s *Admins) checkHandDown(ctx context.Context, interfaceIDs []uint, quota *
 		}
 	}
 	// A reseller cannot be given more than the admin has left. An admin with
-	// no limit of their own hands down without one.
-	if quota != nil && caller.QuotaBytes > 0 && *quota > caller.RemainingBytes() {
-		return fault.Field("quotaBytes", "that is more traffic than you have left to hand down")
+	// no limit of their own hands down without one. Zero is no limit, not
+	// nothing: without the check below a capped admin could hand a reseller
+	// unlimited traffic, since zero is never more than what is left.
+	if quota != nil && caller.QuotaBytes > 0 {
+		if *quota <= 0 {
+			return fault.Field("quotaBytes", "a reseller under you needs a traffic limit: yours is limited")
+		}
+		if *quota > caller.RemainingBytes() {
+			return fault.Field("quotaBytes", "that is more traffic than you have left to hand down")
+		}
 	}
 	// The same for users. The limit counts users, not customers -- the
 	// device limits of the customers in the admin's tree added up, as the

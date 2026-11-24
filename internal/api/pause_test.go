@@ -161,6 +161,48 @@ func TestAPausedResellerIsToldWhyOnEveryChange(t *testing.T) {
 	}
 }
 
+// An admin the owner let see every customer still sells as themselves:
+// their customers are stamped with their id, and their ceiling still
+// holds. Before this their scope was bare, so their sales were filed
+// under the owner and past any cap.
+func TestACanViewAllAdminKeepsIdentityAndCeiling(t *testing.T) {
+	srv, db, clients := pauseServer(t)
+	a := model.Admin{Username: "amina", Role: model.RoleAdmin, Enabled: true, PasswordHash: "x",
+		CanViewAllClients: true, ClientLimit: 1}
+	if err := db.Create(&a).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.AdminInterface{AdminID: a.ID, InterfaceID: 1}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	sc, err := srv.scopeFor(context.Background(), &a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.Restricted {
+		t.Error("a can-view-all admin is restricted")
+	}
+	if sc.AdminID != a.ID || sc.AdminStamp != a.ID {
+		t.Errorf("scope stamps owner %d admin %d, want %d", sc.AdminID, sc.AdminStamp, a.ID)
+	}
+	if sc.ClientLimit != 1 {
+		t.Errorf("scope carries limit %d, want 1", sc.ClientLimit)
+	}
+
+	ctx := service.WithScope(context.Background(), sc)
+	first, err := clients.Create(ctx, service.CreateInput{Name: "one", InterfaceIDs: []uint{1}, DeviceLimit: 1})
+	if err != nil {
+		t.Fatalf("first customer: %v", err)
+	}
+	if first.OwnerID != a.ID || first.AdminID != a.ID {
+		t.Errorf("first customer stamped owner %d admin %d, want %d", first.OwnerID, first.AdminID, a.ID)
+	}
+	if _, err := clients.Create(ctx, service.CreateInput{Name: "two", InterfaceIDs: []uint{1}, DeviceLimit: 1}); err == nil {
+		t.Error("a second customer past the admin's one-user ceiling was sold")
+	}
+}
+
 // The owner is never restricted. An admin is restricted to their own tree
 // unless the owner has let them see every customer. A good-standing operator
 // of any kind is not barred.

@@ -124,12 +124,17 @@ func (s *Admins) Create(ctx context.Context, in AdminInput) (*model.Admin, error
 		parentAdmin = caller.ID
 		// A limit not said is the zero Create stores, which means none --
 		// said out loud here so the hand-down check can refuse it under an
-		// admin who has one of their own.
+		// admin who has one of their own. The same for the traffic
+		// allowance: an omitted quota would otherwise store unlimited.
 		limit := 0
 		if in.ClientLimit != nil {
 			limit = *in.ClientLimit
 		}
-		if err := s.checkHandDown(ctx, in.InterfaceIDs, in.QuotaBytes, &limit, 0); err != nil {
+		quota := uint64(0)
+		if in.QuotaBytes != nil {
+			quota = *in.QuotaBytes
+		}
+		if err := s.checkHandDown(ctx, in.InterfaceIDs, &quota, &limit, 0); err != nil {
 			return nil, err
 		}
 	}
@@ -435,7 +440,12 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 			return nil, fmt.Errorf("service: hash password: %w", err)
 		}
 		fields["password_hash"] = string(hash)
-		fields["session_epoch"] = admin.SessionEpoch + 1
+		// An absolute number read when this update began: a second
+		// session-ending change landing between the read and this write
+		// would set the generation back, and tokens already revoked by
+		// it would work again. Counted from what is stored, as the
+		// sign-in path does.
+		fields["session_epoch"] = gorm.Expr("session_epoch + 1")
 	}
 
 	if in.Enabled != nil && *in.Enabled != admin.Enabled {
@@ -445,7 +455,10 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 		// leaving the operator signed in to watch it happen is not what an
 		// owner who clicked this meant.
 		if !*in.Enabled {
-			fields["session_epoch"] = admin.SessionEpoch + 1
+			// Counted from what is stored, for the same reason as the
+			// password change above: a stale number read at the top of
+			// this update must not set the generation back.
+			fields["session_epoch"] = gorm.Expr("session_epoch + 1")
 		}
 	}
 
@@ -606,19 +619,6 @@ func (s *Admins) Delete(ctx context.Context, id uint, mode DeleteMode, clients C
 			admin.Username, held)
 	}
 
-	if held > 0 && mode == DeleteWithClients {
-		// Through the customer service rather than a DELETE, so addresses
-		// go back to their pools and the tunnels are told.
-		var ids []uint
-		if err := s.db.WithContext(ctx).Model(&model.Client{}).
-			Where("owner_id = ?", admin.ID).Pluck("id", &ids).Error; err != nil {
-			return fmt.Errorf("service: list the operator's customers: %w", err)
-		}
-		if err := clients.DeleteCustomers(ctx, ids); err != nil {
-			return err
-		}
-	}
-
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Anything left is kept, and the owner administers it; the
 		// operator's own groups go, and their customers leave the label.
@@ -629,6 +629,18 @@ func (s *Admins) Delete(ctx context.Context, id uint, mode DeleteMode, clients C
 			if err := dropOwnerGroupIfUnused(tx, admin.GroupName, admin.ID); err != nil {
 				return err
 			}
+		}
+		// Resellers of the deleted operator are kept too, under the owner:
+		// left pointing at a deleted parent, no live operator could ever
+		// manage them again, and their new customers would be stamped
+		// with an admin id that no longer exists.
+		var owner model.Admin
+		if err := tx.Where("role = ?", model.RoleOwner).First(&owner).Error; err != nil {
+			return fmt.Errorf("find the panel's owner: %w", err)
+		}
+		if err := tx.Model(&model.Admin{}).Where("parent_admin_id = ?", admin.ID).
+			Update("parent_admin_id", owner.ID).Error; err != nil {
+			return fmt.Errorf("hand the operator's resellers to the owner: %w", err)
 		}
 		if err := tx.Where("admin_id = ?", admin.ID).Delete(&model.AdminInterface{}).Error; err != nil {
 			return fmt.Errorf("clear the operator's tunnels: %w", err)
@@ -646,6 +658,23 @@ func (s *Admins) Delete(ctx context.Context, id uint, mode DeleteMode, clients C
 	})
 	if err != nil {
 		return fmt.Errorf("service: %w", err)
+	}
+
+	// The customers go last, once the operator is gone. The other way
+	// round, a failure in the transaction above would leave the operator
+	// in place with their customers already deleted — the one loss here
+	// that cannot be undone.
+	if held > 0 && mode == DeleteWithClients {
+		// Through the customer service rather than a DELETE, so addresses
+		// go back to their pools and the tunnels are told.
+		var ids []uint
+		if err := s.db.WithContext(ctx).Model(&model.Client{}).
+			Where("owner_id = ?", admin.ID).Pluck("id", &ids).Error; err != nil {
+			return fmt.Errorf("service: list the operator's customers: %w", err)
+		}
+		if err := clients.DeleteCustomers(ctx, ids); err != nil {
+			return err
+		}
 	}
 
 	s.log.Warn("operator deleted", "username", admin.Username, "customers", held, "mode", mode)

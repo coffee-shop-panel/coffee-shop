@@ -477,6 +477,15 @@ func (s *Server) shopAppBuy(w http.ResponseWriter, r *http.Request, cfg *shop.Co
 		}
 		o.Status = shop.StatusPaid
 		if err := s.shop.UpdateOrder(ctx, o); err != nil {
+			// The wallet is already debited and the order still says
+			// unpaid: give the money back rather than leaving a charge
+			// with nothing delivered, as the failed-delivery path below
+			// does.
+			if debited {
+				if rerr := s.shop.CreditWallet(ctx, cfg.OperatorID, tgID, final); rerr != nil {
+					s.log.Error("shop app could not refund a wallet order whose payment could not be recorded", "order", o.ID, "error", rerr)
+				}
+			}
 			s.shopAppFail(w, err, "مشکلی پیش آمد؛ دوباره تلاش کنید.")
 			return
 		}
@@ -496,8 +505,11 @@ func (s *Server) shopAppBuy(w http.ResponseWriter, r *http.Request, cfg *shop.Co
 		}
 		subs, err := s.shopAppSubscriptions(ctx, cfg, tgID)
 		if err != nil {
-			s.shopAppFail(w, err, "مشکلی پیش آمد؛ دوباره تلاش کنید.")
-			return
+			// Charged and delivered already: the list is only for
+			// display, and failing the purchase now would send the buyer
+			// back to buy — and be charged — a second time.
+			s.log.Warn("shop app could not list a delivered wallet order's subscriptions", "order", o.ID, "error", err)
+			subs = []shopAppSub{}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"orderID":       o.ID,

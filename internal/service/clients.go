@@ -388,7 +388,10 @@ func (s *Clients) loadInterfaces(ctx context.Context, ids []uint) ([]*model.Inte
 // for.
 func checkBarred(ctx context.Context) error {
 	sc := ScopeOf(ctx)
-	if !sc.Restricted || sc.Barred == "" {
+	// Barred is only ever set on a signed-in operator's scope — the owner
+	// and the internal callers carry none — so the message alone decides,
+	// not whether that operator's reads are narrowed.
+	if sc.Barred == "" {
 		return nil
 	}
 	return fmt.Errorf("%w: %s", ErrInvalid, sc.Barred)
@@ -414,9 +417,10 @@ func checkBarred(ctx context.Context) error {
 // Telegram bot alike.
 func (s *Clients) checkCeiling(ctx context.Context, users, was int) error {
 	sc := ScopeOf(ctx)
-	if !sc.Restricted {
-		return nil
-	}
+	// The ceiling is the operator's own, not their read reach: an admin who
+	// sees every customer still may not sell past it. ClientLimit is only
+	// ever set on a signed-in operator's scope, and zero is no limit, so
+	// that is the gate — not whether their reads are narrowed.
 	if err := checkBarred(ctx); err != nil {
 		return err
 	}
@@ -446,8 +450,16 @@ func (s *Clients) checkCeiling(ctx context.Context, users, was int) error {
 // of their customers' plans is for, added up.
 func (s *Clients) usersHeld(ctx context.Context) (int64, error) {
 	var held *int64
-	if err := s.db.WithContext(ctx).Model(&model.Client{}).
-		Select("SUM(device_limit)").Scan(&held).Error; err != nil {
+	q := s.db.WithContext(ctx).Model(&model.Client{}).
+		Select("SUM(device_limit)")
+	// The automatic narrowing only covers a restricted scope. An operator
+	// who sees every customer still has a ceiling, counted over their own
+	// tree — the whole panel's total would refuse them the moment the
+	// panel outgrew their limit.
+	if sc := ScopeOf(ctx); sc.AdminID != 0 {
+		q = q.Where("owner_id IN ?", sc.OwnerList())
+	}
+	if err := q.Scan(&held).Error; err != nil {
 		return 0, fmt.Errorf("service: count your users: %w", err)
 	}
 	if held == nil {

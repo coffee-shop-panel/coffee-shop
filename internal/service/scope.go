@@ -26,11 +26,13 @@ func ScopeFor(admin *model.Admin) Scope {
 	if admin == nil || admin.Role.SeesEveryone() {
 		return Scope{}
 	}
-	// An admin the owner has let see every customer is unrestricted too --
+	// An admin the owner has let see every customer reads unrestricted too --
 	// one scope that matches no condition rather than a condition over the
-	// whole panel that could be got wrong.
+	// whole panel that could be got wrong. But they are still an admin with
+	// a cap and a stamp of their own: a bare scope would file everything
+	// they create under the owner and skip their ceiling.
 	if admin.Role == model.RoleAdmin && admin.CanViewAllClients {
-		return Scope{}
+		return Scope{AdminID: admin.ID, AdminStamp: admin.ID, Owners: []uint{admin.ID}, Hidden: admin.GroupName}
 	}
 	// Owners is the set the narrowing matches against. A reseller's is their
 	// own id alone; an admin's starts with their own id and gains their

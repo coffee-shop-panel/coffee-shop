@@ -37,7 +37,7 @@ func (s *Shop) OperatorCtx(ctx context.Context, operatorID uint) (context.Contex
 	}
 	ctx = operators.WithCaller(ctx, &admin)
 	sc := service.ScopeFor(&admin)
-	if sc.Restricted {
+	if !admin.Role.SeesEveryone() {
 		// ScopeFor alone says whose name a sale is stamped with. What the
 		// operator may actually sell -- which tunnels, how many customers,
 		// whether they are barred right now -- is the half the API layer

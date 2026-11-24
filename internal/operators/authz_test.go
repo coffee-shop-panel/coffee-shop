@@ -56,6 +56,30 @@ func mkAdmin(t *testing.T, s *Admins, name string, quota uint64, ifaces []uint) 
 
 const gb = uint64(1) << 30
 
+// A capped admin cannot hand a reseller unlimited traffic: zero is no
+// limit, not nothing, and an omitted quota stores zero.
+func TestACappedAdminCannotHandDownUnlimitedTraffic(t *testing.T) {
+	s := authzDB(t)
+	ali := mkAdmin(t, s, "ali", 100*gb, []uint{1, 2})
+	asAli := WithCaller(context.Background(), ali)
+
+	if _, err := s.Create(asAli, AdminInput{Username: "res-free", Password: "correct-horse",
+		Role: model.RoleReseller, InterfaceIDs: []uint{1}}); !errors.Is(err, fault.ErrInvalid) {
+		t.Errorf("a reseller with no quota at all was created under a capped admin: %v", err)
+	}
+	zero := uint64(0)
+	if _, err := s.Create(asAli, AdminInput{Username: "res-zero", Password: "correct-horse",
+		Role: model.RoleReseller, QuotaBytes: &zero, InterfaceIDs: []uint{1}}); !errors.Is(err, fault.ErrInvalid) {
+		t.Errorf("a reseller with zero quota was created under a capped admin: %v", err)
+	}
+	// Within the allowance still works.
+	q := 30 * gb
+	if _, err := s.Create(asAli, AdminInput{Username: "res-ok", Password: "correct-horse",
+		Role: model.RoleReseller, QuotaBytes: &q, InterfaceIDs: []uint{1}}); err != nil {
+		t.Errorf("a reseller within the allowance was refused: %v", err)
+	}
+}
+
 // An admin creates resellers only, under themselves, within their own
 // ceiling, and never reaches anyone else's operators.
 func TestAnAdminManagesOnlyTheirOwnResellers(t *testing.T) {
