@@ -20,6 +20,12 @@ import (
 // so it counts what it can see -- credentials with traffic moving right now,
 // and the public addresses that traffic comes from -- and when more of those
 // are live than the plan allows, the newest are held off for a short while.
+// One exception, learned from group subscriptions: when every live
+// credential's traffic comes from the one public address, that is one
+// person in one place -- an app testing all of its configs at once -- and
+// nothing is held, however many credentials lit up. The exception is for
+// bursts: credentials that stay live together from that address for
+// minutes on end are people sharing behind one router, and are held.
 // A WireGuard device held off has its peer removed and comes back on its own
 // when the hold ends; an OpenVPN session is ended.
 //
@@ -45,6 +51,13 @@ const (
 	// customer to notice which device won, short enough that a mistake costs
 	// them a couple of minutes.
 	holdFor = 2 * time.Minute
+
+	// sameIPGrace is how long several of one customer's credentials may
+	// be live together from the one public address before it stops
+	// looking like an app testing its configs and starts looking like
+	// several people behind one router. A test burst is seconds; a
+	// second person settling in to watch something is not.
+	sameIPGrace = 3 * time.Minute
 
 	// remoteTTL is how long a node's last report of its live sessions is
 	// believed. A node that has gone quiet for longer is not counted -- its
@@ -453,6 +466,26 @@ func (c *concurrency) sessions(now time.Time) []fleet.NodeSession {
 	return out
 }
 
+// liveAddrsOf is the public addresses one account's live traffic comes
+// from, from wherever it is served: this server's own readings, or the
+// last report from its node. Empty when nothing is known of it.
+func (c *concurrency) liveAddrsOf(id uint, now time.Time) []string {
+	if node := c.nodeOf[id]; node != 0 {
+		rep := c.remote[node]
+		if rep == nil || now.Sub(rep.at) > remoteTTL {
+			return nil
+		}
+		if s, has := rep.sessions[id]; has {
+			return s.addrs
+		}
+		return nil
+	}
+	if a := c.acts[id]; a != nil {
+		return a.liveAddrs(now)
+	}
+	return nil
+}
+
 // hold puts one account off until the given time, whoever decided it.
 func (c *concurrency) hold(id uint, until time.Time) {
 	c.mu.Lock()
@@ -539,6 +572,8 @@ func (c *concurrency) enforce(client *model.Client, accs []model.Account, now ti
 	}
 	var lives []live
 	total := 0
+	addrSet := map[string]bool{}
+	allKnown := true
 	for _, a := range accs {
 		if until, ok := c.held[a.ID]; ok && now.Before(until) {
 			continue // already off; not counted, not counted again
@@ -549,9 +584,40 @@ func (c *concurrency) enforce(client *model.Client, accs []model.Account, now ti
 		}
 		total += n
 		lives = append(lives, live{acc: a, n: n, since: since})
+		addrs := c.liveAddrsOf(a.ID, now)
+		if len(addrs) == 0 {
+			allKnown = false
+		}
+		for _, h := range addrs {
+			addrSet[h] = true
+		}
 	}
 	if total <= client.DeviceLimit {
 		return nil
+	}
+	// One person, one address: a group subscription tested from a single
+	// phone lights up several of the customer's credentials at once, all
+	// from the same public address. That is one person in one place, not
+	// sharing -- the limit is for connections from more places than the
+	// plan allows. Only when every live credential's address is known and
+	// they all come to one is the customer let be; a credential fighting
+	// between two devices still shows two addresses and is still held.
+	// The letting-be lasts only while it looks like a test: once more
+	// credentials than the plan allows have each been running without a
+	// break for longer than sameIPGrace, it is several people behind one
+	// router, and the limit applies as usual. A brief probe of an idle
+	// config beside a long connection starts a fresh run each time, so
+	// it never counts towards the sustained side.
+	if allKnown && len(addrSet) == 1 {
+		sustained := 0
+		for _, l := range lives {
+			if now.Sub(l.since) > sameIPGrace {
+				sustained++
+			}
+		}
+		if sustained <= client.DeviceLimit {
+			return nil
+		}
 	}
 	// Oldest first: the device that was already connected stays. Ties --
 	// two reports rounded to the same second -- go by id, so the answer is
