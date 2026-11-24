@@ -948,6 +948,134 @@ type ActivityEntry struct {
 	Reason string `gorm:"size:512" json:"reason"`
 }
 
+// ShopBot is one operator's own sales bot: the Telegram shop an owner, an
+// admin or a reseller runs under their own BotFather token, selling their
+// own plans to their own customers.
+//
+// One row per operator (OperatorID is unique) because the bot is not a
+// panel-wide shop with sellers inside it: whose token it is decides whose
+// customers a sale creates, whose card a buyer pays, and whose ceiling the
+// sale counts against. Keeping each operator's bot a row of their own is
+// what makes that separation a fact of the data rather than a filter
+// somebody has to remember.
+type ShopBot struct {
+	ID         uint `gorm:"primaryKey" json:"id"`
+	OperatorID uint `gorm:"uniqueIndex;not null" json:"operatorId"`
+
+	Enabled bool `gorm:"not null;default:false" json:"enabled"`
+
+	// Token is the BotFather token. A secret of the same order as a
+	// password -- whoever holds it is the bot -- so it is never serialised,
+	// like the password hashes and the WireGuard private keys.
+	Token string `gorm:"size:128" json:"-"`
+
+	// AdminChatID is where this operator reads their shop's events: the new
+	// orders to approve and the sales that landed. Zero is nowhere, and the
+	// bot then has nobody to ask, so card sales cannot be approved.
+	AdminChatID int64 `gorm:"not null;default:0" json:"adminChatId"`
+
+	// The card a buyer transfers to, and the name on it, for card-to-card
+	// sales. Shown to the buyer by design: it is the shop's till, not a
+	// secret.
+	CardNumber string `gorm:"size:32" json:"cardNumber"`
+	CardHolder string `gorm:"size:128" json:"cardHolder"`
+
+	// ZarinpalMerchant is this operator's merchant id at ZarinPal, for
+	// buyers who pay through the gateway instead of by card.
+	ZarinpalMerchant string `gorm:"size:64" json:"zarinpalMerchant"`
+
+	// Welcome is the text the bot opens with. Empty is the built-in one.
+	Welcome string `gorm:"type:text" json:"welcome"`
+
+	// InterfaceIDs is the tunnels a sale from this bot places the buyer on,
+	// as a JSON array of ids kept in a text column: a short list, read whole
+	// whenever it is used and never queried inside, so a join table would
+	// be machinery for nothing.
+	InterfaceIDs string `gorm:"type:text" json:"interfaceIds"`
+
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// ShopPlan is one thing an operator's bot sells: an allowance, a length of
+// time and a price, as a row the operator edits rather than a setting
+// buried in a config blob, so plans can be listed, reordered and switched
+// off one by one.
+type ShopPlan struct {
+	ID         uint `gorm:"primaryKey" json:"id"`
+	OperatorID uint `gorm:"index;not null" json:"operatorId"`
+
+	Name string `gorm:"size:128;not null" json:"name"`
+	// QuotaBytes of 0 means unlimited, as on a customer.
+	QuotaBytes  uint64 `gorm:"not null;default:0" json:"quotaBytes"`
+	Days        int    `gorm:"not null;default:0" json:"days"`
+	PriceToman  int64  `gorm:"not null;default:0" json:"priceToman"`
+	DeviceLimit int    `gorm:"not null;default:0" json:"deviceLimit"`
+	Enabled     bool   `gorm:"not null;default:false" json:"enabled"`
+	// Sort is the order the bot offers plans in; the id breaks ties.
+	Sort int `gorm:"not null;default:0" json:"sort"`
+
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// ShopOrder is one sale, from the moment a buyer picks a plan to the
+// customer it became.
+//
+// The plan's terms are copied onto the order (PlanName, QuotaBytes, Days,
+// PriceToman, DeviceLimit) rather than read back from the plan at
+// delivery: a plan an operator edits or deletes while a buyer is paying
+// must not change what that buyer paid for. What is delivered is what was
+// sold, and the order is the only record that can still say what that was.
+type ShopOrder struct {
+	ID         uint `gorm:"primaryKey" json:"id"`
+	OperatorID uint `gorm:"index;not null" json:"operatorId"`
+
+	BuyerTGID int64  `gorm:"index;not null" json:"buyerTgId"`
+	BuyerName string `gorm:"size:128" json:"buyerName"`
+
+	PlanID      uint   `gorm:"not null;default:0" json:"planId"`
+	PlanName    string `gorm:"size:128" json:"planName"`
+	QuotaBytes  uint64 `gorm:"not null;default:0" json:"quotaBytes"`
+	Days        int    `gorm:"not null;default:0" json:"days"`
+	PriceToman  int64  `gorm:"not null;default:0" json:"priceToman"`
+	DeviceLimit int    `gorm:"not null;default:0" json:"deviceLimit"`
+
+	// Kind is "new" for a first purchase and "renew" for more of the same
+	// customer's plan. It records what the buyer asked for; delivery
+	// renews an existing customer of the seller's either way, because one
+	// Telegram account holding two customers under one seller is a
+	// bookkeeping error, not a product.
+	Kind string `gorm:"size:8;not null" json:"kind"`
+	// ClientID is the customer the sale was delivered as, once it has been.
+	ClientID uint `gorm:"not null;default:0" json:"clientId"`
+
+	// Method is "card" (a transfer the operator approves by hand) or
+	// "zarinpal" (the gateway, which approves itself).
+	Method string `gorm:"size:16;not null" json:"method"`
+	// Status is where the sale stands: unpaid, awaiting_receipt,
+	// pending_review, paid, fulfilled, rejected, expired, failed.
+	Status string `gorm:"size:16;not null;index" json:"status"`
+
+	// ReceiptFileID is the buyer's transfer receipt as Telegram holds it,
+	// so the operator can be shown the very picture the buyer sent.
+	ReceiptFileID string `gorm:"size:128" json:"receiptFileId"`
+	// Authority and RefID are the gateway's own trail for a ZarinPal sale:
+	// the authority the payment was opened under, and the reference it
+	// settled with.
+	Authority string `gorm:"size:64" json:"authority"`
+	RefID     string `gorm:"size:64" json:"refId"`
+
+	// PublicToken is the unguessable name of this order in the one public
+	// link a sale needs -- the gateway's callback -- so the callback can
+	// find its order without exposing a countable id to guess the next one
+	// from.
+	PublicToken string `gorm:"size:32;uniqueIndex;not null" json:"publicToken"`
+
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // AllModels is the migration set, in dependency order.
 func AllModels() []any {
 	return []any{
@@ -972,6 +1100,9 @@ func AllModels() []any {
 		&Host{},
 		&Setting{},
 		&ActivityEntry{},
+		&ShopBot{},
+		&ShopPlan{},
+		&ShopOrder{},
 	}
 }
 

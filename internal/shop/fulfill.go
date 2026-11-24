@@ -1,0 +1,262 @@
+package shop
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"gorm.io/gorm"
+
+	"github.com/abolfazl/w-ui/internal/database/model"
+	"github.com/abolfazl/w-ui/internal/fault"
+	"github.com/abolfazl/w-ui/internal/operators"
+	"github.com/abolfazl/w-ui/internal/service"
+)
+
+// OperatorCtx builds the context an operator's own requests are served
+// under, from their row alone: the caller the API layer would attach, and
+// the scope the service layer narrows by. Everything done under it -- a
+// customer created for a sale -- is stamped and fenced as that operator's,
+// exactly as if they had done it in the panel with their own hands.
+//
+// An operator who does not exist, or whom the owner has switched off, has
+// no context: their bot should not be selling, and a sale already paid for
+// is left standing rather than delivered in a dead operator's name.
+func (s *Shop) OperatorCtx(ctx context.Context, operatorID uint) (context.Context, error) {
+	var admin model.Admin
+	if err := s.db.WithContext(ctx).First(&admin, operatorID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("%w: operator %d", fault.ErrNotFound, operatorID)
+		}
+		return nil, fmt.Errorf("shop: load operator %d: %w", operatorID, err)
+	}
+	if !admin.Enabled {
+		return nil, fmt.Errorf("%w: operator %d is switched off", fault.ErrInvalid, operatorID)
+	}
+	ctx = operators.WithCaller(ctx, &admin)
+	sc := service.ScopeFor(&admin)
+	if sc.Restricted {
+		// ScopeFor alone says whose name a sale is stamped with. What the
+		// operator may actually sell -- which tunnels, how many customers,
+		// whether they are barred right now -- is the half the API layer
+		// adds to every request it serves (scopeFor in internal/api), and
+		// a bot selling without it would sell straight past the owner's
+		// fences: a reseller's bot could fill another tunnel, or a
+		// thousandth customer, in his name. Mirror it exactly, so the bot
+		// sells with precisely the rights its operator has in the panel.
+		allowed, err := s.admins.AllowedInterfaces(ctx, &admin)
+		if err != nil {
+			return nil, fmt.Errorf("shop: operator %d tunnels: %w", operatorID, err)
+		}
+		sc.Interfaces = allowed
+		sc.ClientLimit = admin.ClientLimit
+		sc.Barred = model.PauseMessage(admin.PauseReason(time.Now().UTC()))
+		if admin.Role == model.RoleAdmin {
+			resellers, err := s.admins.ResellerIDs(ctx, admin.ID)
+			if err != nil {
+				return nil, fmt.Errorf("shop: operator %d resellers: %w", operatorID, err)
+			}
+			sc.Owners = append(sc.Owners, resellers...)
+		}
+	}
+	ctx = service.WithScope(ctx, sc)
+	return ctx, nil
+}
+
+// SubLink is the subscription link to hand a buyer: the panel's public
+// origin and the customer's token. Empty when either half is missing --
+// no public origin set yet, or a customer without a token -- so a caller
+// can tell "delivered, here is the link" from "delivered, but the link
+// cannot be written down yet" without guessing.
+func (s *Shop) SubLink(ctx context.Context, client *model.Client) string {
+	if client == nil || client.SubToken == "" {
+		return ""
+	}
+	base, err := s.PublicBase(ctx)
+	if err != nil || base == "" {
+		return ""
+	}
+	return base + "/subscribe/" + client.SubToken
+}
+
+// Fulfill delivers a paid order: it makes the customer the buyer paid for,
+// or renews the one they already hold from this seller, and marks the
+// order delivered with that customer on it.
+//
+// A buyer is one customer per seller. The buyer's existing customer under
+// this operator -- found by their Telegram id, through the operator's own
+// scope, so another seller's customer with the same id is never touched --
+// is renewed whatever the order calls itself: two customers for one
+// Telegram account under one seller would split the person's allowance
+// and their link across two rows, and the second purchase would look like
+// a stranger's. Only a buyer with no customer yet gets a new one.
+//
+// Delivery is idempotent. An order already fulfilled hands back its
+// customer and changes nothing, because the approve that triggers this is
+// a button a person can tap twice, and a double tap must not become a
+// double sale. A delivery that fails leaves the order paid, where the
+// operator can see it and it can be tried again; nothing is marked failed
+// by a machine that cannot know whether the money was real.
+func (s *Shop) Fulfill(ctx context.Context, orderID uint) (*model.Client, error) {
+	order, err := s.OrderByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	opCtx, err := s.OperatorCtx(ctx, order.OperatorID)
+	if err != nil {
+		return nil, err
+	}
+
+	if order.Status == StatusFulfilled {
+		client, err := s.clients.Get(opCtx, order.ClientID)
+		if err != nil {
+			return nil, fmt.Errorf("shop: reload the delivered customer: %w", err)
+		}
+		return client, nil
+	}
+	if order.Status != StatusPaid && order.Status != StatusPendingReview {
+		return nil, fmt.Errorf("%w: order %d is %s; only a paid order can be delivered",
+			fault.ErrInvalid, order.ID, order.Status)
+	}
+
+	cfg, err := s.ConfigFor(ctx, order.OperatorID)
+	if err != nil {
+		return nil, err
+	}
+
+	existing, err := s.clients.ByTelegramID(opCtx, order.BuyerTGID)
+	if err != nil {
+		return nil, err
+	}
+
+	var client *model.Client
+	if len(existing) > 0 {
+		client = &existing[0]
+		if err := s.renew(opCtx, client, order); err != nil {
+			return nil, err
+		}
+		// Read back what the renewal wrote, so what is returned -- and
+		// linked for the buyer -- is the customer as they now stand.
+		client, err = s.clients.Get(opCtx, client.ID)
+		if err != nil {
+			return nil, fmt.Errorf("shop: reload the renewed customer: %w", err)
+		}
+	} else {
+		name := order.BuyerName
+		if name == "" {
+			name = fmt.Sprintf("TG-%d", order.BuyerTGID)
+		}
+		in := service.CreateInput{
+			Name:         name,
+			InterfaceIDs: cfg.InterfaceIDs,
+			QuotaBytes:   order.QuotaBytes,
+			DeviceLimit:  order.DeviceLimit,
+			TelegramID:   order.BuyerTGID,
+		}
+		// The shop starts the clock at purchase: the date is written
+		// outright rather than left to first connection, so a plan bought
+		// today ends on its day whether or not it is used tonight. A plan
+		// of no days has no date at all, as in the panel.
+		if order.Days > 0 {
+			expires := time.Now().UTC().Add(time.Duration(order.Days) * 24 * time.Hour)
+			in.ExpiresAt = &expires
+		}
+		client, err = s.clients.Create(opCtx, in)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	order.Status = StatusFulfilled
+	order.ClientID = client.ID
+	if err := s.UpdateOrder(ctx, order); err != nil {
+		return nil, err
+	}
+	s.log.Info("shop order delivered",
+		"order", order.ID, "operator", order.OperatorID,
+		"client", client.ID, "kind", order.Kind)
+	return client, nil
+}
+
+// renew gives an existing customer what a renewal order sold them, by the
+// panel's own rules for adding to a plan:
+//
+//   - The allowance grows by the plan's quota -- it is added, not
+//     replaced, so traffic a customer had not spent is still theirs. An
+//     unlimited plan makes the customer unlimited; a limited one adds
+//     nothing to a customer who already has no limit.
+//   - The end date moves by the plan's days from the later of now and
+//     their current end, so time already paid for is never taken back and
+//     a customer who lapsed restarts from today. A customer with no end
+//     date keeps having none.
+//   - A plan still waiting for its first connection takes the days onto
+//     its length instead, and still starts when they connect.
+//   - Running out is undone by what restores it: more time revives the
+//     expired, more allowance the exhausted, through the same Adjust the
+//     panel's own renewals go through. A customer the operator switched
+//     off stays off -- that word is the operator's, not the shop's.
+//
+// Clients.Adjust is the panel's entry point for exactly this, but it sets
+// the allowance rather than adding to it, so the sum is worked out here
+// and handed over whole; the date it moves exactly as asked for, from the
+// later of now and the customer's own end.
+func (s *Shop) renew(ctx context.Context, client *model.Client, order *Order) error {
+	if client.Waiting() && order.Days > 0 {
+		// Onto the plan's length, to the day, and it still starts on
+		// first connection: Extend with the waiting included is the
+		// panel's one path that does this.
+		_, err := s.clients.Extend(ctx, service.ExtendInput{
+			IDs: []uint{client.ID}, Kind: service.ExtendTime,
+			Days: float64(order.Days), IncludeWaiting: true,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	in := service.AdjustInput{IDs: []uint{client.ID}}
+	if order.Days > 0 && !client.Waiting() && client.ExpiresAt != nil {
+		days := float64(order.Days)
+		in.AddDays = &days
+	}
+	switch {
+	case order.QuotaBytes == 0:
+		// An unlimited plan: the customer becomes unlimited, unless they
+		// already are, in which case there is nothing to write.
+		if client.QuotaBytes != 0 {
+			unlimited := uint64(0)
+			in.QuotaBytes = &unlimited
+		}
+	case client.QuotaBytes != 0:
+		grown := client.QuotaBytes + order.QuotaBytes
+		in.QuotaBytes = &grown
+	}
+	if in.AddDays == nil && in.QuotaBytes == nil {
+		return nil
+	}
+	if _, err := s.clients.Adjust(ctx, in); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Reject refuses an order whose payment the operator will not accept --
+// the receipt that is not a transfer, the gateway payment that never
+// settled. Only an order standing at the operator's own decision point
+// can be rejected: one awaiting their review, or one already marked paid
+// and not yet delivered. A delivered order is a customer now, and refusing
+// it is not this function's to do.
+func (s *Shop) Reject(ctx context.Context, orderID uint) error {
+	order, err := s.OrderByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+	if order.Status != StatusPendingReview && order.Status != StatusPaid {
+		return fmt.Errorf("%w: order %d is %s; only an order awaiting review or paid can be rejected",
+			fault.ErrInvalid, order.ID, order.Status)
+	}
+	order.Status = StatusRejected
+	return s.UpdateOrder(ctx, order)
+}

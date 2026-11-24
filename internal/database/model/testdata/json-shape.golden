@@ -416,3 +416,48 @@ ActivityEntry
 	status int
 	ip string
 	reason string
+ShopBot
+	id uint
+	operatorId uint
+	enabled bool
+	adminChatId int64
+	cardNumber string
+	cardHolder string
+	zarinpalMerchant string
+	welcome string
+	interfaceIds string
+	createdAt time.Time
+	updatedAt time.Time
+ShopPlan
+	id uint
+	operatorId uint
+	name string
+	quotaBytes uint64
+	days int
+	priceToman int64
+	deviceLimit int
+	enabled bool
+	sort int
+	createdAt time.Time
+	updatedAt time.Time
+ShopOrder
+	id uint
+	operatorId uint
+	buyerTgId int64
+	buyerName string
+	planId uint
+	planName string
+	quotaBytes uint64
+	days int
+	priceToman int64
+	deviceLimit int
+	kind string
+	clientId uint
+	method string
+	status string
+	receiptFileId string
+	authority string
+	refId string
+	publicToken string
+	createdAt time.Time
+	updatedAt time.Time
