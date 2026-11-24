@@ -918,6 +918,36 @@ const (
 	SharingFromLog = "log"
 )
 
+// ActivityEntry is one line of the panel's own record of who did what: a
+// change made through the API, or a sign-in, kept in the database rather
+// than only in the log -- so the owner can still browse it in the panel
+// after the server's journal has rotated the line away.
+//
+// The actor's name and role are copied in, not looked up, for the same
+// reason SharingEvent copies names: an operator who is later deleted
+// should not take the record of what they did with them.
+type ActivityEntry struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Actor is the operator's username, or "token" for a request made with
+	// a machine token. On a sign-in it is the name that was tried, whether
+	// or not it exists.
+	Actor   string `gorm:"size:64;not null" json:"actor"`
+	ActorID uint   `gorm:"not null;default:0" json:"actorId"`
+	Role    string `gorm:"size:16" json:"role"`
+
+	// Action is the request that was made, method and path together:
+	// "DELETE /api/clients/12".
+	Action string `gorm:"size:128;not null" json:"action"`
+	// Status is the HTTP status the request was answered with.
+	Status int    `gorm:"not null" json:"status"`
+	IP     string `gorm:"size:45" json:"ip"`
+	// Reason is why a refused action was refused, taken from the answer
+	// itself. Empty whenever the action went through.
+	Reason string `gorm:"size:512" json:"reason"`
+}
+
 // AllModels is the migration set, in dependency order.
 func AllModels() []any {
 	return []any{
@@ -941,6 +971,7 @@ func AllModels() []any {
 		&RoutingRule{},
 		&Host{},
 		&Setting{},
+		&ActivityEntry{},
 	}
 }
 

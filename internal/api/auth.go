@@ -1,9 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -58,7 +61,51 @@ type loginResponse struct {
 	NeedCode bool `json:"needCode,omitempty"`
 }
 
+// handleLogin is serveLogin with the attempt kept in the activity table.
+//
+// Sign-ins are the one action the action log deliberately stays quiet
+// about -- they are the panel's front door and would drown it -- but a
+// sign-in, and especially a failed one, is exactly what an owner goes
+// looking for after something has gone wrong. So they are recorded here
+// instead, successes and failures alike, under the name that was tried.
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	username := attemptedUsername(r)
+	rec := &actionRecorder{statusRecorder: statusRecorder{ResponseWriter: w, status: http.StatusOK}}
+	s.serveLogin(rec, r)
+	if s.activity != nil {
+		entry := model.ActivityEntry{
+			Actor:  username,
+			Action: "POST /api/auth/login",
+			Status: rec.status,
+			IP:     clientIP(r),
+		}
+		if rec.status >= 400 {
+			entry.Reason = rec.reason()
+		}
+		s.activity.Record(entry)
+	}
+}
+
+// attemptedUsername reads the name a sign-in is being tried under, for the
+// activity record, and puts the body back for the handler to read again.
+// A body that does not parse names nobody, which is recorded as such.
+func attemptedUsername(r *http.Request) string {
+	if r.Body == nil {
+		return ""
+	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return ""
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	var req loginRequest
+	if json.Unmarshal(body, &req) != nil {
+		return ""
+	}
+	return strings.TrimSpace(req.Username)
+}
+
+func (s *Server) serveLogin(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if !decode(w, r, &req) {
 		return

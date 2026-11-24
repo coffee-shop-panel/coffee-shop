@@ -79,6 +79,7 @@ const nav = [
   { to: '/resellers', key: 'nav.resellers', icon: 'ShopOutlined', menu: 'resellers' },
   { to: '/nodes', key: 'nav.nodes', icon: 'ClusterOutlined' },
   { to: '/hosts', key: 'nav.hosts', icon: 'GlobalOutlined' },
+  { to: '/activity', key: 'nav.activity', icon: 'FileTextOutlined' },
   { to: '/outbounds', key: 'nav.outbounds', icon: 'ExportOutlined' },
   { to: '/routing', key: 'nav.routing', icon: 'SwapOutlined' },
   {

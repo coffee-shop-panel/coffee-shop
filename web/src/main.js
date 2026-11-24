@@ -39,6 +39,7 @@ const AdminsView = () => import('./views/AdminsView.vue')
 const SharingView = () => import('./views/SharingView.vue')
 const ApiView = () => import('./views/ApiView.vue')
 const NodesView = () => import('./views/NodesView.vue')
+const ActivityView = () => import('./views/ActivityView.vue')
 const HostsView = () => import('./views/HostsView.vue')
 const OutboundsView = () => import('./views/OutboundsView.vue')
 const RoutingView = () => import('./views/RoutingView.vue')
@@ -67,6 +68,7 @@ const router = createRouter({
     { path: '/groups', name: 'groups', component: GroupsView, meta: { sells: true } },
     { path: '/interfaces', name: 'interfaces', component: InterfacesView },
     { path: '/nodes', name: 'nodes', component: NodesView },
+    { path: '/activity', name: 'activity', component: ActivityView },
     { path: '/hosts', name: 'hosts', component: HostsView },
     { path: '/outbounds', name: 'outbounds', component: OutboundsView },
     { path: '/routing', name: 'routing', component: RoutingView },

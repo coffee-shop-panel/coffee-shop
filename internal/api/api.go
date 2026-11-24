@@ -76,6 +76,7 @@ type Server struct {
 	balancers *egress.Balancers
 	providers *egress.Providers
 	audit     *oversight.Audit
+	activity  *activityStore
 	admins    *operators.Admins
 	pool      *backend.Pool
 	nodeSync  *fleet.NodeSync
@@ -156,6 +157,7 @@ func New(o Options) *Server {
 		enforcer:  o.Enforcer,
 		settings:  o.Settings,
 		nodes:     fleet.NewNodes(o.DB, o.Logger),
+		activity:  newActivityStore(o.DB),
 		admins:    operators.NewAdmins(o.DB, o.Logger),
 		prober:    o.Prober,
 		throttle:  newThrottle(),

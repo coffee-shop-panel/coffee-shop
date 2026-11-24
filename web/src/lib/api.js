@@ -400,10 +400,20 @@ export const api = {
   overview: (opts) => request('GET', '/api/overview', undefined, opts),
   fullOverview: (opts) => request('GET', '/api/overview/full', undefined, opts),
 
+  // The owner's record of who did what, newest first. before is the id of
+  // the oldest entry already on screen: the log only grows, so an id is a
+  // steadier page marker than an offset, which would shift under new rows.
+  activity: (before = 0, limit = 100) =>
+    request('GET', `/api/activity?limit=${limit}` + (before ? `&before=${before}` : '')),
+
   interfaces: (opts) => request('GET', '/api/interfaces', undefined, opts),
   createInterface: (input) => request('POST', '/api/interfaces', input),
   updateInterface: (id, input) => request('PATCH', `/api/interfaces/${id}`, input),
   deleteInterface: (id) => request('DELETE', `/api/interfaces/${id}`),
+  // Every customer on one tunnel moved onto another, in one request: the
+  // alternative is recreating them by hand and handing out new configs.
+  moveInterfaceClients: (id, toInterfaceId) =>
+    request('POST', `/api/interfaces/${id}/move`, { toInterfaceId }),
 
   clients: (params = {}, opts) => {
     const q = new URLSearchParams()
@@ -414,6 +424,7 @@ export const api = {
     return request('GET', `/api/clients${qs ? `?${qs}` : ''}`, undefined, opts)
   },
   client: (id) => request('GET', `/api/clients/${id}`),
+  clientDiagnostics: (id) => request('GET', `/api/clients/${id}/diagnostics`),
   createClient: (input) => request('POST', '/api/clients', input),
   updateClient: (id, input) => request('PATCH', `/api/clients/${id}`, input),
   deleteClient: (id) => request('DELETE', `/api/clients/${id}`),

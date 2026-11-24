@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/abolfazl/w-ui/internal/database/model"
 )
 
 // Who did what.
@@ -56,6 +58,26 @@ func (s *Server) logAction(method string, next http.HandlerFunc) http.HandlerFun
 			// Whatever changed, every open subscription page hears of it
 			// now; each asks whether its own files moved.
 			s.subHub.Broadcast()
+		}
+		// The same line goes to the activity table, where the owner can
+		// browse it in the panel after the journal has moved on. The
+		// node calls never reach here -- they are quiet above -- and
+		// sign-ins are recorded by the login handler itself.
+		if s.activity != nil {
+			entry := model.ActivityEntry{
+				Actor:  by,
+				Action: method + " " + r.URL.Path,
+				Status: rec.status,
+				IP:     clientIP(r),
+			}
+			if a := adminFrom(r.Context()); a != nil {
+				entry.ActorID = a.ID
+				entry.Role = string(a.Role)
+			}
+			if rec.status >= 400 {
+				entry.Reason = rec.reason()
+			}
+			s.activity.Record(entry)
 		}
 		switch {
 		case rec.status >= 500:

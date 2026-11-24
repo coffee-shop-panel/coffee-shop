@@ -406,3 +406,13 @@ Setting
 	key string
 	value string
 	updatedAt time.Time
+ActivityEntry
+	id uint
+	createdAt time.Time
+	actor string
+	actorId uint
+	role string
+	action string
+	status int
+	ip string
+	reason string
