@@ -149,7 +149,7 @@ func (c SubSettings) address() SubAddress {
 }
 
 // SubTemplates are the looks the subscription page can wear.
-var SubTemplates = []string{"classic", "aurora", "waves", "network", "minimal", "midnight", "ember", "ocean", "forest", "sunset", "neon", "glass", "paper", "terminal", "carbon", "royal", "sakura", "frost", "graphite", "mesh", "retro"}
+var SubTemplates = []string{"classic", "aurora", "waves", "network", "minimal", "midnight", "ember", "ocean", "forest", "sunset", "neon", "glass", "paper", "terminal", "carbon", "royal", "sakura", "frost", "graphite", "mesh", "retro", "parseh"}
 
 func validSubTemplate(v string) bool {
 	for _, t := range SubTemplates {

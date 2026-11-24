@@ -11,7 +11,7 @@ const { inner, sub, subError } = useSettings()
 
 // The looks the customer's page can wear. Chosen here; every customer's
 // page follows on its next opening.
-const SUB_TEMPLATES = ['classic', 'aurora', 'waves', 'network', 'minimal', 'midnight', 'ember', 'ocean', 'forest', 'sunset', 'neon', 'glass', 'paper', 'terminal', 'carbon', 'royal', 'sakura', 'frost', 'graphite', 'mesh', 'retro']
+const SUB_TEMPLATES = ['classic', 'aurora', 'waves', 'network', 'minimal', 'midnight', 'ember', 'ocean', 'forest', 'sunset', 'neon', 'glass', 'paper', 'terminal', 'carbon', 'royal', 'sakura', 'frost', 'graphite', 'mesh', 'retro', 'parseh']
 // A one-time link, opened in a new tab: the page is served without the
 // panel's session, so the tab cannot carry it.
 async function previewTemplate(key) {
