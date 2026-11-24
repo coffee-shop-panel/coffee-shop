@@ -344,17 +344,6 @@ function reload() {
     <!-- Acknowledges the click before the new page has anything to show. -->
     <div v-if="store.navigating || working" class="navbar-progress" role="presentation"></div>
 
-    <!-- Phone: the rail is gone and this is the only way back to the menu. -->
-    <button
-      class="drawer-handle"
-      type="button"
-      :aria-label="t('nav.menu')"
-      :aria-expanded="drawerOpen"
-      @click="drawerOpen = true"
-    >
-      <AntIcon name="MenuOutlined" />
-    </button>
-
     <aside
       class="sidebar"
       :class="{ expanded }"
@@ -516,6 +505,25 @@ function reload() {
     </Transition>
 
     <main class="main">
+      <!-- The design's topbar: a blurred bar over the content carrying the
+           page's name as a crumb, and on a phone the way back to the menu —
+           the rail is gone there, and the handle lives in the bar now
+           rather than floating over the page. The crumb repeats the name
+           the page heads below already carry, the way a breadcrumb does;
+           it is decoration for the eye, so it is hidden from a reader. -->
+      <header class="topbar">
+        <button
+          class="drawer-handle"
+          type="button"
+          :aria-label="t('nav.menu')"
+          :aria-expanded="drawerOpen"
+          @click="drawerOpen = true"
+        >
+          <AntIcon name="MenuOutlined" />
+        </button>
+        <div v-if="pageTitle" class="topbar-crumb" aria-hidden="true">{{ pageTitle }}</div>
+      </header>
+
       <!-- The page's name, for a screen reader: pages here have no visible
            title -- the menu shows where you are -- and without one there is
            nothing to jump to, and nothing that says which page opened. -->
