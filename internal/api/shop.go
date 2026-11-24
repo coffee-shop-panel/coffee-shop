@@ -298,6 +298,90 @@ func (s *Server) handleShopPlanSave(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, planView(plan))
 }
 
+// shopCodeView is one discount or gift code as the page works with
+// it, in the plans' shape: the operator it belongs to is the caller's,
+// and usedCount is read-only in practice -- the store keeps it from
+// the uses' own record whatever a save sends.
+type shopCodeView struct {
+	ID         uint       `json:"id"`
+	OperatorID uint       `json:"operatorId"`
+	Code       string     `json:"code"`
+	Kind       string     `json:"kind"`
+	Value      int64      `json:"value"`
+	MaxUses    int        `json:"maxUses"`
+	UsedCount  int        `json:"usedCount"`
+	ExpiresAt  *time.Time `json:"expiresAt"`
+	Enabled    bool       `json:"enabled"`
+}
+
+func codeView(c shop.Code) shopCodeView {
+	return shopCodeView{
+		ID: c.ID, OperatorID: c.OperatorID, Code: c.Code, Kind: c.Kind,
+		Value: c.Value, MaxUses: c.MaxUses, UsedCount: c.UsedCount,
+		ExpiresAt: c.ExpiresAt, Enabled: c.Enabled,
+	}
+}
+
+func (s *Server) handleShopCodes(w http.ResponseWriter, r *http.Request) {
+	op, ok := s.shopOperator(w, r)
+	if !ok {
+		return
+	}
+	codes, err := s.shop.CodesFor(r.Context(), op.ID)
+	if err != nil {
+		fail(w, s.log, err)
+		return
+	}
+	items := make([]shopCodeView, 0, len(codes))
+	for _, c := range codes {
+		items = append(items, codeView(c))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+// handleShopCodeSave writes one of the caller's codes: a new one when
+// the body carries no id, an edit when it does -- the plans handler's
+// contract, with the code's owner taken from the caller for the same
+// reason. A code the input refuses (a percent over a hundred, a text
+// the operator already has) is answered 400 with the refusal's words,
+// which fail does for the store's validation errors.
+func (s *Server) handleShopCodeSave(w http.ResponseWriter, r *http.Request) {
+	op, ok := s.shopOperator(w, r)
+	if !ok {
+		return
+	}
+	var body shopCodeView
+	if !decode(w, r, &body) {
+		return
+	}
+	code := shop.Code{
+		ID: body.ID, OperatorID: op.ID, Code: body.Code, Kind: body.Kind,
+		Value: body.Value, MaxUses: body.MaxUses,
+		ExpiresAt: body.ExpiresAt, Enabled: body.Enabled,
+	}
+	if err := s.shop.SaveCode(r.Context(), &code); err != nil {
+		fail(w, s.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, codeView(code))
+}
+
+func (s *Server) handleShopCodeDelete(w http.ResponseWriter, r *http.Request) {
+	op, ok := s.shopOperator(w, r)
+	if !ok {
+		return
+	}
+	id, okID := pathID(w, r)
+	if !okID {
+		return
+	}
+	if err := s.shop.DeleteCode(r.Context(), op.ID, id); err != nil {
+		fail(w, s.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
+}
+
 func (s *Server) handleShopPlanDelete(w http.ResponseWriter, r *http.Request) {
 	op, ok := s.shopOperator(w, r)
 	if !ok {
@@ -490,6 +574,10 @@ type shopBuyerView struct {
 	QuotaBytes  uint64     `json:"quotaBytes"`
 	Orders      int        `json:"orders"`
 	LastOrderAt time.Time  `json:"lastOrderAt"`
+	// WalletBalance is what this buyer's wallet holds with this
+	// seller, in Toman: money a gift code or a cashback put there,
+	// waiting to be spent with this shop alone.
+	WalletBalance int64 `json:"walletBalance"`
 }
 
 // handleShopBuyers lists the caller's buyers -- nobody else's, because
@@ -507,11 +595,20 @@ func (s *Server) handleShopBuyers(w http.ResponseWriter, r *http.Request) {
 	}
 	items := make([]shopBuyerView, 0, len(buyers))
 	for _, b := range buyers {
+		// The balance rides along per buyer; the list is a seller's
+		// own customers, so it stays short. A wallet that will not
+		// read costs that buyer their balance figure, not the whole
+		// list -- the row is worth more than the number on it.
+		var balance int64
+		if wallet, err := s.shop.WalletFor(r.Context(), op.ID, b.TelegramID); err == nil {
+			balance = wallet.BalanceToman
+		}
 		items = append(items, shopBuyerView{
 			ClientID: b.ClientID, Name: b.Name, TelegramID: b.TelegramID,
 			Status: b.Status, ExpiresAt: b.ExpiresAt,
 			UsedBytes: b.UsedBytes, QuotaBytes: b.QuotaBytes,
 			Orders: b.Orders, LastOrderAt: b.LastOrderAt,
+			WalletBalance: balance,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
