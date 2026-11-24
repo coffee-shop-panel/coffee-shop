@@ -47,10 +47,10 @@ func signInitData(token string, fields map[string]string) string {
 func miniAppFields(authDate time.Time, tgID int64, firstName string) map[string]string {
 	user, _ := json.Marshal(map[string]any{"id": tgID, "first_name": firstName})
 	return map[string]string{
-		"auth_date":  strconv.FormatInt(authDate.Unix(), 10),
-		"query_id":   "AAHdF6IQAAAAAN0XohDhrOrc",
-		"user":       string(user),
-		"chat_type":  "private",
+		"auth_date":   strconv.FormatInt(authDate.Unix(), 10),
+		"query_id":    "AAHdF6IQAAAAAN0XohDhrOrc",
+		"user":        string(user),
+		"chat_type":   "private",
 		"start_param": "",
 	}
 }
