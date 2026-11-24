@@ -1,6 +1,6 @@
 # Coffee-shop fork of W-UI
 
-This is AliAhmad-lab's fork of [AbolfazlTafakori/w-ui](https://github.com/AbolfazlTafakori/w-ui)
+This is The Coffee-shop fork of [AbolfazlTafakori/w-ui](https://github.com/AbolfazlTafakori/w-ui)
 (AGPL-3.0, same license as upstream). It carries the fixes and features
 built for the Coffee-shop fleet on top of upstream 3.2.0. The `coffee-shop`
 branch holds them as separate commits over upstream `main`, so upstream
@@ -26,7 +26,7 @@ can still be merged in.
   again once more credentials than the limit allows have each run
   without a break for over three minutes.
 - **feat(update):** self-update fetches this fork's releases
-  (`update.Repo = "AliAhmad-lab/w-ui"`), signed with this fork's own
+  (`update.Repo = "ali-coffee/coffee-shop"`), signed with this fork's own
   Ed25519 key.
 
 ## Releasing
