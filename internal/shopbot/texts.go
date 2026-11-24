@@ -29,6 +29,62 @@ const (
 	txtBackWord = "بازگشت"
 )
 
+// The buyer's own money and doors: their wallet, the free trial, the
+// shop's teaching words.
+const (
+	btnWallet   = "👛 کیف پول من"
+	btnTrial    = "🎁 اکانت تست رایگان"
+	btnTutorial = "📚 آموزش اتصال"
+	btnFaq      = "❓ سؤالات متداول"
+	btnCode     = "🎟 کد تخفیف"
+	btnSkipCode = "⏭ ادامه بدون کد"
+	btnTopup    = "💰 شارژ کیف پول"
+	btnGift     = "🎁 ثبت کد هدیه"
+	btnRefer    = "👥 دعوت دوستان"
+	btnCustom   = "✏️ مبلغ دلخواه"
+)
+
+// Quantity and the checkout's arithmetic: how many of the plan, what
+// the code took off, and what is finally owed.
+const (
+	txtChooseQty   = "چند عدد از این پلن می‌خواهید؟"
+	txtPayTotal    = "🧾 تعداد: %s — جمع: %s"
+	txtPayDiscount = "🎟 کد تخفیف: %s تخفیف\n💰 مبلغ نهایی: %s"
+	txtCodeAsk     = "کد تخفیف را بنویسید و بفرستید؛ اگر کدی ندارید، «ادامه بدون کد» را بزنید:"
+	txtCodeInvalid = "این کد قابل استفاده نیست؛ یا اشتباه است، یا منقضی شده، یا قبلاً از آن استفاده کرده‌اید. دوباره بنویسید یا بدون کد ادامه دهید."
+)
+
+// The wallet screen and what hangs off it: topping up, gift codes,
+// and the invitation that pays cashback.
+const (
+	txtWalletTitle     = "👛 کیف پول شما\n\n💰 موجودی: %s\n\nبا موجودی کیف پول می‌توانید اشتراک را بدون کارت‌به‌کارت و درجا بخرید."
+	txtPayWalletBtn    = "👛 پرداخت از کیف پول (موجودی: %s)"
+	txtWalletPayFailed = "پرداخت از کیف پول انجام نشد؛ موجودی کافی نیست."
+	txtWalletRefunded  = "💰 مبلغ سفارش به کیف پولتان برگشت داده شد؛ تحویل اشتراک انجام نشد."
+	txtTopupChoose     = "💰 شارژ کیف پول\n\nمبلغ شارژ را انتخاب کنید:"
+	txtTopupCustomAsk  = "مبلغ شارژ را به تومان بنویسید (فقط عدد):"
+	txtTopupBadAmount  = "این مبلغ درست نیست؛ یک عدد به تومان بنویسید، مثلاً ۱۰۰۰۰۰."
+	txtTopupPayChoose  = "💰 شارژ کیف پول به مبلغ %s\n\nروش پرداخت را انتخاب کنید:"
+	txtTopupPlanName   = "شارژ کیف پول"
+	txtTopupDelivered  = "💰 کیف پول شما شارژ شد!\n\nمبلغ شارژ: %s\n💰 موجودی فعلی: %s"
+	txtGiftAsk         = "🎁 کد هدیه را بنویسید و بفرستید:"
+	txtGiftOK          = "🎁 کد هدیه ثبت شد و %s به کیف پولتان اضافه شد.\n💰 موجودی فعلی: %s"
+	txtGiftInvalid     = "این کد هدیه معتبر نیست؛ یا اشتباه است، یا منقضی شده، یا قبلاً ثبتش کرده‌اید. دوباره بنویسید یا «بازگشت» را بزنید."
+	txtReferTitle      = "👥 دعوت دوستان\n\n🔗 لینک دعوت شما:\n%s\n\nهر کس با این لینک وارد بات شود، دعوت‌شدهٔ شما حساب می‌شود.\n\n👥 دعوت‌شده‌های شما: %s نفر"
+	txtReferCashback   = "\n🎁 از هر خرید دعوت‌شده‌هایتان، %s٪ مبلغ خرید به کیف پول شما برمی‌گردد."
+)
+
+// The trial and the bulk delivery.
+const (
+	txtTrialName      = "اکانت تست رایگان"
+	txtTrialUsed      = "شما قبلاً اکانت تست این فروشگاه را گرفته‌اید؛ اکانت تست برای هر نفر فقط یک بار است."
+	txtTrialFailed    = "گرفتن اکانت تست الان ممکن نیست؛ این فروشگاه در حال حاضر تستی برای ارائه ندارد."
+	txtDeliveredBulk  = "🎉 اشتراک‌های شما آماده است!\n\n📦 پلن: %s\n🔢 تعداد: %s"
+	txtDeliverBulkOne = "\n\n%s) %s\n🔗 لینک اشتراک:\n%s"
+	txtDeliverBulkTok = "\n\n%s) %s\n🔑 کد اشتراک: <code>%s</code>"
+	txtDeliverBulkV2  = "\n\n🚀 برای V2Box و v2rayNG، به انتهای هر لینک ?format=base64 اضافه کنید."
+)
+
 // Menu and welcome.
 const (
 	txtWelcomeDefault = "سلام! 👋\nبه فروشگاه اشتراک خوش آمدید.\nاز منوی زیر می‌توانید اشتراک بخرید، اشتراکتان را ببینید یا با پشتیبانی در تماس باشید."
@@ -143,6 +199,7 @@ const (
 	txtSpBuyersTitle = "👥 مشتری‌های شما (%s)\n\nمشتری‌ای را برای دیدن انتخاب کنید:"
 	txtSpNoBuyers    = "👥 هنوز هیچ مشتری‌ای از بات نخریده است."
 	txtSpBuyerDetail = "👤 %s\n\n📌 وضعیت: %s\n📅 انقضا: %s\n📊 مصرف: %s از %s\n🧾 سفارش‌ها: %s"
+	txtSpBuyerWallet = "👛 موجودی کیف پول: %s"
 	txtSpBuyerLink   = "🔗 لینک اشتراک:\n%s"
 	txtSpBuyerToken  = "🔑 کد اشتراک:\n<code>%s</code>"
 	txtSpPlansTitle  = "📦 پلن‌های فروش شما\n\nبرای ساخت یا ویرایش پلن، از صفحهٔ «بات فروش» در پنل استفاده کنید."

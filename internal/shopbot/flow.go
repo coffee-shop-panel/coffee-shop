@@ -3,10 +3,12 @@ package shopbot
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/abolfazl/w-ui/internal/database/model"
 	"github.com/abolfazl/w-ui/internal/shop"
 )
 
@@ -21,12 +23,27 @@ const (
 	stepReceipt    = "receipt"    // the next photo is this order's receipt
 	stepSupport    = "support"    // the next message goes to the seller
 	stepSellerText = "sellertext" // the seller is writing at their panel's prompt
+	stepCode       = "code"       // the next text is a discount code for the checkout below
+	stepGift       = "gift"       // the next text is a gift code to redeem into the wallet
+	stepTopup      = "topup"      // the next text is a custom top-up amount
 )
 
 type session struct {
 	step    string
 	planID  uint
 	orderID uint
+	// The checkout being put together, between the plan tap and the
+	// order it becomes: how many of the plan, and the code named
+	// against the total. qty under one is one; an empty code is none.
+	// A plan tap starts a fresh checkout -- see planPicked -- so a
+	// discount priced for one basket is never carried into another.
+	qty      int
+	code     string
+	discount int64
+	// renewing says this walk began at a «تمدید» button rather than a
+	// «خرید» one: a renewal is more of the one customer's plan, so it
+	// keeps a quantity of one and never sees the quantity step.
+	renewing bool
 	// The seller panel's writing desk: castText holds an announcement
 	// waiting for its confirming tap; castTo is the one buyer a
 	// message is addressed to (zero = the announcement goes to every
@@ -120,19 +137,20 @@ func (b *bot) handleMessage(ctx context.Context, m *tgMessage) {
 	// Commands win over every step: wherever the buyer is, they can
 	// always start over.
 	switch {
-	case text == "/start":
+	case text == "/start" || strings.HasPrefix(text, "/start "):
 		sess.reset()
+		b.bindReferral(ctx, m)
 		welcome := cfg.Welcome
 		if strings.TrimSpace(welcome) == "" {
 			welcome = txtWelcomeDefault
 		} else {
 			welcome = escapeHTML(welcome)
 		}
-		b.send(ctx, chatID, welcome, menuKeyboard())
+		b.send(ctx, chatID, welcome, b.menuKeyboard(ctx))
 		return
 	case text == "/cancel" || text == txtBackWord:
 		sess.reset()
-		b.send(ctx, chatID, txtMenuTitle, menuKeyboard())
+		b.send(ctx, chatID, txtMenuTitle, b.menuKeyboard(ctx))
 		return
 	}
 
@@ -147,11 +165,46 @@ func (b *bot) handleMessage(ctx context.Context, m *tgMessage) {
 	case stepSupport:
 		b.forwardSupport(ctx, m, sess)
 		return
+	case stepCode:
+		b.takeCode(ctx, m, sess)
+		return
+	case stepGift:
+		b.takeGift(ctx, m, sess)
+		return
+	case stepTopup:
+		b.takeTopupAmount(ctx, m, sess)
+		return
 	}
 
 	// Anything else at the top level earns the menu again: a buyer who
 	// typed something the bot does not know is a buyer who is lost.
-	b.send(ctx, chatID, txtMenuTitle, menuKeyboard())
+	b.send(ctx, chatID, txtMenuTitle, b.menuKeyboard(ctx))
+}
+
+// bindReferral reads a /start payload -- ref_<telegram id>, the tail
+// of the invitation link the wallet screen hands out -- and records
+// who brought this buyer. It is best effort by design: the shop's
+// binding rules refuse the stale, the forged and the self-invitation
+// quietly, and even a failure of the recording itself is only logged.
+// A buyer's arrival must never break because the link they arrived
+// holding was odd. The seller's own chat never binds: the seller
+// testing their shop is not their own referral.
+func (b *bot) bindReferral(ctx context.Context, m *tgMessage) {
+	cfg := b.cfg()
+	if cfg.AdminChatID != 0 && m.Chat.ID == cfg.AdminChatID {
+		return
+	}
+	fields := strings.Fields(m.Text)
+	if len(fields) < 2 || !strings.HasPrefix(fields[1], "ref_") {
+		return
+	}
+	ref, err := strconv.ParseInt(strings.TrimPrefix(fields[1], "ref_"), 10, 64)
+	if err != nil || ref <= 0 {
+		return
+	}
+	if err := b.mgr.shop.BindReferral(ctx, cfg.OperatorID, m.From.ID, ref); err != nil {
+		b.log.Warn("shop bot could not bind a referral", "buyer", m.From.ID, "error", err)
+	}
 }
 
 // sellerHome answers the seller in their own chat with the seller
@@ -176,6 +229,10 @@ func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {
 	switch {
 	case data == "buy" || data == "renew":
 		b.answer(ctx, cb, "")
+		// Which door the buyer came through decides whether a
+		// quantity is theirs to choose: a purchase may be bulk, a
+		// renewal is more of the one plan they already hold.
+		sess.renewing = data == "renew"
 		b.showSections(ctx, cb, sess)
 	case data == "plans":
 		// Back from the payment choices: the plan list of the section
@@ -209,11 +266,69 @@ func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {
 		if cfg := b.cfg(); cfg.AdminChatID != 0 && chatID == cfg.AdminChatID {
 			sess.testing = true
 		}
-		b.editOrSend(ctx, cb, txtMenuTitle, menuKeyboard())
+		b.editOrSend(ctx, cb, txtMenuTitle, b.menuKeyboard(ctx))
+	case data == "wallet":
+		b.answer(ctx, cb, "")
+		text, kb := b.walletScreen(ctx, cb.From.ID)
+		b.editOrSend(ctx, cb, text, kb)
+	case data == "topup":
+		b.answer(ctx, cb, "")
+		b.editOrSend(ctx, cb, txtTopupChoose, topupAmountKeyboard())
+	case data == "topcustom":
+		b.answer(ctx, cb, "")
+		sess.step = stepTopup
+		b.editOrSend(ctx, cb, txtTopupCustomAsk, walletBackKeyboard())
+	case data == "gift":
+		b.answer(ctx, cb, "")
+		sess.step = stepGift
+		b.editOrSend(ctx, cb, txtGiftAsk, walletBackKeyboard())
+	case data == "refer":
+		b.answer(ctx, cb, "")
+		text, kb := b.referralScreen(ctx, cb.From.ID)
+		b.editOrSend(ctx, cb, text, kb)
+	case data == "trial":
+		b.claimTrial(ctx, cb)
+	case data == "tutorial":
+		b.answer(ctx, cb, "")
+		b.sendLong(ctx, chatID, b.cfg().TutorialText)
+	case data == "faq":
+		b.answer(ctx, cb, "")
+		b.sendLong(ctx, chatID, b.cfg().FaqText)
 	case strings.HasPrefix(data, "plan:"):
 		if id, ok := parseCallbackID(data, "plan:"); ok {
 			b.answer(ctx, cb, "")
+			b.planPicked(ctx, cb, sess, id)
+		}
+	case strings.HasPrefix(data, "qty:"):
+		if planID, n, ok := parseQtyCallback(data); ok {
+			b.answer(ctx, cb, "")
+			sess.qty = n
+			sess.planID = planID
+			b.showPayments(ctx, cb, sess, planID)
+		} else {
+			b.answer(ctx, cb, "")
+		}
+	case strings.HasPrefix(data, "pay:"):
+		// The way past the code prompt without a code: the payment
+		// screen as it stands, checkout untouched.
+		if id, ok := parseCallbackID(data, "pay:"); ok {
+			b.answer(ctx, cb, "")
+			sess.step = stepNone
 			b.showPayments(ctx, cb, sess, id)
+		}
+	case strings.HasPrefix(data, "code:"):
+		if id, ok := parseCallbackID(data, "code:"); ok {
+			b.answer(ctx, cb, "")
+			sess.step = stepCode
+			sess.planID = id
+			b.editOrSend(ctx, cb, txtCodeAsk, tgKeyboard{
+				{{Text: btnSkipCode, Data: fmt.Sprintf("pay:%d", id)}},
+				{{Text: btnBack, Data: "plans"}},
+			})
+		}
+	case strings.HasPrefix(data, "wal:"):
+		if id, ok := parseCallbackID(data, "wal:"); ok {
+			b.startWalletOrder(ctx, cb, sess, id)
 		}
 	case strings.HasPrefix(data, "card:"):
 		if id, ok := parseCallbackID(data, "card:"); ok {
@@ -221,7 +336,27 @@ func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {
 		}
 	case strings.HasPrefix(data, "zp:"):
 		if id, ok := parseCallbackID(data, "zp:"); ok {
-			b.startZarinpalOrder(ctx, cb, id)
+			b.startZarinpalOrder(ctx, cb, sess, id)
+		}
+	case strings.HasPrefix(data, "top:"):
+		if amount, ok := parseCallbackID(data, "top:"); ok && amount > 0 {
+			b.answer(ctx, cb, "")
+			text, kb := b.topupPayScreen(ctx, int64(amount))
+			b.editOrSend(ctx, cb, text, kb)
+		} else {
+			b.answer(ctx, cb, "")
+		}
+	case strings.HasPrefix(data, "topcard:"):
+		if amount, ok := parseCallbackID(data, "topcard:"); ok && amount > 0 {
+			b.startTopupCard(ctx, cb, sess, int64(amount))
+		} else {
+			b.answer(ctx, cb, "")
+		}
+	case strings.HasPrefix(data, "topzp:"):
+		if amount, ok := parseCallbackID(data, "topzp:"); ok && amount > 0 {
+			b.startTopupZarinpal(ctx, cb, sess, int64(amount))
+		} else {
+			b.answer(ctx, cb, "")
 		}
 	case strings.HasPrefix(data, "check:"):
 		if id, ok := parseCallbackID(data, "check:"); ok {
@@ -254,12 +389,31 @@ func parseCallbackID(data, prefix string) (uint, bool) {
 }
 
 // menuKeyboard is the main menu, offered at /start and under every
-// finished flow.
-func menuKeyboard() tgKeyboard {
-	return tgKeyboard{
+// finished flow. What it holds beyond the three standing doors is
+// the shop's own: the trial button exists only in a shop that offers
+// a trial, and the teaching buttons only where the seller has
+// written the words -- a menu that offers what the shop does not
+// have is a menu that lies.
+func (b *bot) menuKeyboard(ctx context.Context) tgKeyboard {
+	cfg := b.cfg()
+	kb := tgKeyboard{
 		{{Text: btnBuy, Data: "buy"}, {Text: btnMine, Data: "mine"}},
-		{{Text: btnSupport, Data: "support"}},
+		{{Text: btnWallet, Data: "wallet"}},
 	}
+	if cfg.TrialEnabled {
+		kb = append(kb, []tgButton{{Text: btnTrial, Data: "trial"}})
+	}
+	var docs []tgButton
+	if strings.TrimSpace(cfg.TutorialText) != "" {
+		docs = append(docs, tgButton{Text: btnTutorial, Data: "tutorial"})
+	}
+	if strings.TrimSpace(cfg.FaqText) != "" {
+		docs = append(docs, tgButton{Text: btnFaq, Data: "faq"})
+	}
+	if len(docs) > 0 {
+		kb = append(kb, docs)
+	}
+	return append(kb, []tgButton{{Text: btnSupport, Data: "support"}})
 }
 
 func backKeyboard() tgKeyboard {
@@ -420,29 +574,196 @@ func (b *bot) zarinpalOffered(ctx context.Context) bool {
 	return err == nil && strings.TrimSpace(base) != ""
 }
 
-// showPayments offers the ways this plan can be paid for — only the
-// ones the operator has actually set up.
-func (b *bot) showPayments(ctx context.Context, cb *tgCallback, sess *session, planID uint) {
+// planPicked is a tap on a plan: a fresh checkout begins there --
+// no quantity and no code carried over from whatever the buyer was
+// pricing before, because a discount is priced against one basket
+// and must never leak into another. The walk then forks: a purchase
+// chooses how many first, a renewal goes straight to paying for the
+// one plan it extends.
+func (b *bot) planPicked(ctx context.Context, cb *tgCallback, sess *session, planID uint) {
+	sess.planID = planID
+	sess.qty = 0
+	sess.code = ""
+	sess.discount = 0
+	if sess.renewing {
+		b.showPayments(ctx, cb, sess, planID)
+		return
+	}
+	b.showQuantity(ctx, cb, sess, planID)
+}
+
+// showQuantity asks how many of the plan the buyer wants: one button
+// per count, each carrying the total for that many, so the price of
+// the choice is on the choice itself.
+func (b *bot) showQuantity(ctx context.Context, cb *tgCallback, sess *session, planID uint) {
 	plan := b.plan(ctx, planID)
 	if plan == nil {
 		b.editOrSend(ctx, cb, txtOrderGone, backKeyboard())
 		return
 	}
-	sess.planID = planID
+	kb := tgKeyboard{}
+	var row []tgButton
+	for n := 1; n <= 5; n++ {
+		row = append(row, tgButton{
+			Text: fmt.Sprintf("%s — %s", faNum(int64(n)), formatPrice(plan.PriceToman*int64(n))),
+			Data: fmt.Sprintf("qty:%d:%d", planID, n),
+		})
+		if len(row) == 3 {
+			kb = append(kb, row)
+			row = nil
+		}
+	}
+	if len(row) > 0 {
+		kb = append(kb, row)
+	}
+	kb = append(kb, []tgButton{{Text: btnBack, Data: "plans"}})
+	b.editOrSend(ctx, cb, planButtonText(plan)+"\n\n"+txtChooseQty, kb)
+}
+
+// parseQtyCallback reads qty:<plan>:<count>. Two numbers ride in the
+// one callback, which parseCallbackID cannot read, and the count is
+// fenced to the buttons the bot itself offers.
+func parseQtyCallback(data string) (planID uint, n int, ok bool) {
+	parts := strings.Split(strings.TrimPrefix(data, "qty:"), ":")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	p, err1 := strconv.ParseUint(parts[0], 10, 64)
+	c, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil || c < 1 || c > 5 {
+		return 0, 0, false
+	}
+	return uint(p), c, true
+}
+
+// checkoutTotals prices the session's basket against a plan: the
+// total for the quantity chosen, and what is finally owed after the
+// code named against it. Every order the checkout makes is priced
+// here, so the card instructions, the gateway and the wallet debit
+// can never disagree about what a sale costs.
+func checkoutTotals(sess *session, plan *shop.Plan) (qty int, total, final int64) {
+	qty = 1
+	var discount int64
+	if sess != nil {
+		if sess.qty > 1 {
+			qty = sess.qty
+		}
+		discount = sess.discount
+	}
+	total = plan.PriceToman * int64(qty)
+	final = total - discount
+	if final < 0 {
+		final = 0
+	}
+	return qty, total, final
+}
+
+// paymentsScreen builds the payment screen for a checkout: the ways
+// this plan can be paid for -- only the ones the operator has
+// actually set up, plus the buyer's own wallet when it covers what
+// is owed -- over the basket's arithmetic. ok is false when the plan
+// is gone or no way of paying exists; the caller words the refusal.
+func (b *bot) paymentsScreen(ctx context.Context, buyerID int64, sess *session, planID uint) (string, tgKeyboard, bool) {
+	plan := b.plan(ctx, planID)
+	if plan == nil {
+		return "", nil, false
+	}
+	qty, total, final := checkoutTotals(sess, plan)
 
 	var kb tgKeyboard
+	methods := 0
 	if b.cfg().CardNumber != "" {
 		kb = append(kb, []tgButton{{Text: btnPayCard, Data: fmt.Sprintf("card:%d", planID)}})
+		methods++
 	}
 	if b.zarinpalOffered(ctx) {
 		kb = append(kb, []tgButton{{Text: btnPayLink, Data: fmt.Sprintf("zp:%d", planID)}})
+		methods++
 	}
-	if len(kb) == 0 {
+	if final > 0 {
+		w, err := b.mgr.shop.WalletFor(ctx, b.cfg().OperatorID, buyerID)
+		if err != nil {
+			b.log.Warn("shop bot could not read the buyer's wallet", "error", err)
+		} else if w.BalanceToman >= final {
+			kb = append(kb, []tgButton{{
+				Text: fmt.Sprintf(txtPayWalletBtn, formatPrice(w.BalanceToman)),
+				Data: fmt.Sprintf("wal:%d", planID),
+			}})
+			methods++
+		}
+	}
+	if methods == 0 {
+		return "", nil, false
+	}
+	if sess == nil || sess.code == "" {
+		kb = append(kb, []tgButton{{Text: btnCode, Data: fmt.Sprintf("code:%d", planID)}})
+	}
+	kb = append(kb, []tgButton{{Text: btnBack, Data: "plans"}})
+
+	text := txtChoosePay + "\n\n" + planButtonText(plan)
+	if qty > 1 {
+		text += "\n" + fmt.Sprintf(txtPayTotal, faNum(int64(qty)), formatPrice(total))
+	}
+	if sess != nil && sess.code != "" {
+		text += "\n" + fmt.Sprintf(txtPayDiscount, formatPrice(sess.discount), formatPrice(final))
+	}
+	return text, kb, true
+}
+
+// showPayments offers the payment screen on the message the buyer
+// tapped through, wording the two refusals -- the plan gone, no way
+// of paying set up -- the way it always has.
+func (b *bot) showPayments(ctx context.Context, cb *tgCallback, sess *session, planID uint) {
+	if b.plan(ctx, planID) == nil {
+		b.editOrSend(ctx, cb, txtOrderGone, backKeyboard())
+		return
+	}
+	sess.planID = planID
+	text, kb, ok := b.paymentsScreen(ctx, cb.From.ID, sess, planID)
+	if !ok {
 		b.editOrSend(ctx, cb, txtPayNotConfigured, backKeyboard())
 		return
 	}
-	kb = append(kb, []tgButton{{Text: btnBack, Data: "plans"}})
-	b.editOrSend(ctx, cb, txtChoosePay+"\n\n"+planButtonText(plan), kb)
+	b.editOrSend(ctx, cb, text, kb)
+}
+
+// takeCode takes the discount code a buyer typed at the checkout
+// prompt: priced against the basket's total by the shop -- which
+// validates it and records nothing -- and, when it holds, stamped
+// onto the session for the order the payment will make. A code that
+// does not hold is refused in words, with the prompt left open: the
+// buyer may type another, or go on without one.
+func (b *bot) takeCode(ctx context.Context, m *tgMessage, sess *session) {
+	chatID := m.Chat.ID
+	code := strings.TrimSpace(m.Text)
+	plan := b.plan(ctx, sess.planID)
+	if plan == nil {
+		sess.reset()
+		b.send(ctx, chatID, txtOrderGone, b.menuKeyboard(ctx))
+		return
+	}
+	if code == "" {
+		b.send(ctx, chatID, txtCodeAsk, nil)
+		return
+	}
+	_, total, _ := checkoutTotals(sess, plan)
+	_, discount, err := b.mgr.shop.PriceWithCode(ctx, b.cfg().OperatorID, m.From.ID, code, total)
+	if err != nil {
+		b.log.Warn("shop bot could not price a buyer's code", "error", err)
+		b.send(ctx, chatID, txtCodeInvalid, tgKeyboard{
+			{{Text: btnSkipCode, Data: fmt.Sprintf("pay:%d", plan.ID)}},
+		})
+		return
+	}
+	sess.code = code
+	sess.discount = discount
+	sess.step = stepNone
+	text, kb, ok := b.paymentsScreen(ctx, m.From.ID, sess, plan.ID)
+	if !ok {
+		b.send(ctx, chatID, txtPayNotConfigured, backKeyboard())
+		return
+	}
+	b.send(ctx, chatID, text, kb)
 }
 
 // newOrder records a purchase at the moment the buyer commits to a way
@@ -451,12 +772,19 @@ func (b *bot) showPayments(ctx context.Context, cb *tgCallback, sess *session, p
 // section is copied with the rest, because the section is what delivery
 // hands over -- the tunnels of that half of the shop, and no other.
 //
+// The checkout rides along with the terms: the quantity the buyer
+// chose, the code they named, and the price as the two of them leave
+// it -- the total for that many, less the code's discount. That final
+// price is the order's PriceToman, so every way of paying charges the
+// same number the buyer was shown.
+//
 // Kind is always "new" here, deliberately: whether this purchase creates
 // a customer or renews the one the buyer already has is decided by
 // shop.Fulfill, which finds the existing customer by Telegram id. The
 // bot would have to read the operator's customers to guess earlier, and
 // its guess could still be wrong by the time the money lands.
-func (b *bot) newOrder(ctx context.Context, from *tgUser, plan *shop.Plan, method, status string) (*shop.Order, error) {
+func (b *bot) newOrder(ctx context.Context, from *tgUser, plan *shop.Plan, sess *session, method, status string) (*shop.Order, error) {
+	qty, _, final := checkoutTotals(sess, plan)
 	o := &shop.Order{
 		OperatorID:  b.cfg().OperatorID,
 		BuyerTGID:   from.ID,
@@ -466,11 +794,16 @@ func (b *bot) newOrder(ctx context.Context, from *tgUser, plan *shop.Plan, metho
 		Section:     shop.NormalizeSection(plan.Section),
 		QuotaBytes:  plan.QuotaBytes,
 		Days:        plan.Days,
-		PriceToman:  plan.PriceToman,
+		PriceToman:  final,
 		DeviceLimit: plan.DeviceLimit,
 		Kind:        "new",
 		Method:      method,
 		Status:      status,
+	}
+	if sess != nil {
+		o.Quantity = qty
+		o.Code = sess.code
+		o.DiscountToman = sess.discount
 	}
 	if err := b.mgr.shop.CreateOrder(ctx, o); err != nil {
 		b.log.Warn("shop bot could not create the order", "error", err)
@@ -487,7 +820,7 @@ func (b *bot) startCardOrder(ctx context.Context, cb *tgCallback, sess *session,
 		b.answer(ctx, cb, txtOrderGone)
 		return
 	}
-	o, err := b.newOrder(ctx, cb.From, plan, "card", "awaiting_receipt")
+	o, err := b.newOrder(ctx, cb.From, plan, sess, "card", "awaiting_receipt")
 	if err != nil {
 		_ = b.api.answerCallbackQuery(ctx, cb.ID, txtOrderFailed, true)
 		return
@@ -509,7 +842,7 @@ func (b *bot) takeReceipt(ctx context.Context, m *tgMessage, sess *session) {
 	o, err := b.mgr.shop.OrderByID(ctx, sess.orderID)
 	if err != nil || o == nil || o.BuyerTGID != m.From.ID || o.Status != "awaiting_receipt" {
 		sess.reset()
-		b.send(ctx, chatID, txtOrderGone, menuKeyboard())
+		b.send(ctx, chatID, txtOrderGone, b.menuKeyboard(ctx))
 		return
 	}
 	o.ReceiptFileID = m.photoFileID()
@@ -520,7 +853,7 @@ func (b *bot) takeReceipt(ctx context.Context, m *tgMessage, sess *session) {
 		return
 	}
 	sess.reset()
-	b.send(ctx, chatID, txtReceiptReceived, menuKeyboard())
+	b.send(ctx, chatID, txtReceiptReceived, b.menuKeyboard(ctx))
 
 	if admin := b.cfg().AdminChatID; admin != 0 {
 		caption := fmt.Sprintf(txtReceiptCaption,
@@ -579,13 +912,13 @@ func receiptContentType(path string) string {
 
 // startZarinpalOrder opens an online payment and hands the buyer its
 // page, with a button to say the money is sent.
-func (b *bot) startZarinpalOrder(ctx context.Context, cb *tgCallback, planID uint) {
+func (b *bot) startZarinpalOrder(ctx context.Context, cb *tgCallback, sess *session, planID uint) {
 	plan := b.plan(ctx, planID)
 	if plan == nil {
 		b.answer(ctx, cb, txtOrderGone)
 		return
 	}
-	o, err := b.newOrder(ctx, cb.From, plan, "zarinpal", "unpaid")
+	o, err := b.newOrder(ctx, cb.From, plan, sess, "zarinpal", "unpaid")
 	if err != nil {
 		_ = b.api.answerCallbackQuery(ctx, cb.ID, txtOrderFailed, true)
 		return
@@ -672,7 +1005,7 @@ func (b *bot) decide(ctx context.Context, cb *tgCallback, orderID uint, approve 
 		b.answer(ctx, cb, "")
 		_ = b.api.editMessageReplyMarkup(ctx, cb.Message.Chat.ID, cb.Message.ID, nil)
 		b.send(ctx, cfg.AdminChatID, fmt.Sprintf(txtRejectedSeller, o.ID), nil)
-		b.send(ctx, o.BuyerTGID, txtRejectedBuyer, menuKeyboard())
+		b.send(ctx, o.BuyerTGID, txtRejectedBuyer, b.menuKeyboard(ctx))
 		return
 	}
 
@@ -685,15 +1018,16 @@ func (b *bot) decide(ctx context.Context, cb *tgCallback, orderID uint, approve 
 	b.send(ctx, cfg.AdminChatID, fmt.Sprintf(txtApprovedSeller, o.ID), nil)
 }
 
-// deliver fulfills an order and puts the subscription in the buyer's
-// hands. Fulfillment is the shop's and is idempotent, so delivering
+// deliver fulfills an order and puts what it bought in the buyer's
+// hands: a customer for a service order, money in the wallet for a
+// top-up. Fulfillment is the shop's and is idempotent, so delivering
 // twice — a seller's tap racing the buyer's — hands over the same
 // subscription twice rather than making two.
 func (b *bot) deliver(ctx context.Context, o *shop.Order) error {
 	client, err := b.mgr.shop.Fulfill(ctx, o.ID)
 	if err != nil {
 		b.log.Warn("shop bot could not fulfill the order", "order", o.ID, "error", err)
-		b.send(ctx, o.BuyerTGID, txtDeliverFailed, menuKeyboard())
+		b.send(ctx, o.BuyerTGID, txtDeliverFailed, b.menuKeyboard(ctx))
 		if admin := b.cfg().AdminChatID; admin != 0 {
 			b.send(ctx, admin, fmt.Sprintf(txtDeliverFailedSeller,
 				o.ID, err, escapeHTML(o.BuyerName), o.BuyerTGID), nil)
@@ -701,8 +1035,35 @@ func (b *bot) deliver(ctx context.Context, o *shop.Order) error {
 		return err
 	}
 
+	// A top-up hands back no customer: what the buyer is owed is the
+	// news that their wallet now holds the money.
+	if client == nil {
+		balance := int64(0)
+		if w, werr := b.mgr.shop.WalletFor(ctx, o.OperatorID, o.BuyerTGID); werr == nil {
+			balance = w.BalanceToman
+		} else {
+			b.log.Warn("shop bot could not read the topped-up wallet", "order", o.ID, "error", werr)
+		}
+		b.send(ctx, o.BuyerTGID, fmt.Sprintf(txtTopupDelivered,
+			formatPrice(o.PriceToman), formatPrice(balance)), b.menuKeyboard(ctx))
+		return nil
+	}
+	if o.Quantity > 1 {
+		b.deliverBulk(ctx, o, client)
+		return nil
+	}
+	b.deliverClient(ctx, o.BuyerTGID, o.BuyerName, client, o.PlanName, o.Section)
+	return nil
+}
+
+// deliverClient puts one delivered customer in its buyer's hands:
+// the link that opens it, and the section's own word about which
+// apps speak it. A sale's delivery calls it, and so does the free
+// trial -- what the buyer holds is the same either way, and so is
+// what they are told.
+func (b *bot) deliverClient(ctx context.Context, buyerID int64, buyerName string, client *model.Client, planName, section string) {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf(txtDelivered, escapeHTML(o.PlanName)))
+	sb.WriteString(fmt.Sprintf(txtDelivered, escapeHTML(planName)))
 	if client.ExpiresAt != nil {
 		sb.WriteString("\n" + fmt.Sprintf(txtDeliveredUntil, formatDate(*client.ExpiresAt)))
 	}
@@ -712,7 +1073,7 @@ func (b *bot) deliver(ctx context.Context, o *shop.Order) error {
 		// a WireGuard buyer is told which apps speak it, and a V2ray
 		// buyer gets the direct bundle link as well, because that --
 		// not the subscription page -- is what their apps import.
-		if shop.NormalizeSection(o.Section) == shop.SectionV2ray {
+		if shop.NormalizeSection(section) == shop.SectionV2ray {
 			sb.WriteString("\n\n" + fmt.Sprintf(txtDeliverV2rayLink, link+"?format=base64"))
 		} else {
 			sb.WriteString("\n\n" + txtDeliverWireGuardGuide)
@@ -725,11 +1086,65 @@ func (b *bot) deliver(ctx context.Context, o *shop.Order) error {
 		sb.WriteString("\n\n" + fmt.Sprintf(txtDeliverToken, escapeHTML(client.SubToken)))
 		if admin := b.cfg().AdminChatID; admin != 0 {
 			b.send(ctx, admin, fmt.Sprintf(txtSellerLinkNote,
-				escapeHTML(o.BuyerName), escapeHTML(client.SubToken)), nil)
+				escapeHTML(buyerName), escapeHTML(client.SubToken)), nil)
 		}
 	}
-	b.send(ctx, o.BuyerTGID, sb.String(), menuKeyboard())
-	return nil
+	b.send(ctx, buyerID, sb.String(), b.menuKeyboard(ctx))
+}
+
+// deliverBulk is a bulk order's delivery: every customer the order
+// made, numbered, each with its own link -- one message a buyer can
+// hand one service each to the people they bought them for. The
+// customers are gathered from the buyer's own under this operator,
+// newest first, as many as the order bought: the units stand beside
+// each other under the buyer's Telegram id, which is where a bulk
+// delivery has to look for them.
+func (b *bot) deliverBulk(ctx context.Context, o *shop.Order, first *model.Client) {
+	customers := []*model.Client{first}
+	if opCtx, err := b.mgr.shop.OperatorCtx(ctx, o.OperatorID); err != nil {
+		b.log.Warn("shop bot could not build the operator scope", "error", err)
+	} else if list, err := b.mgr.clients.ByTelegramID(opCtx, o.BuyerTGID); err != nil {
+		b.log.Warn("shop bot could not gather the bulk delivery", "error", err)
+	} else if len(list) > 0 {
+		sort.Slice(list, func(i, j int) bool { return list[i].ID > list[j].ID })
+		customers = customers[:0]
+		for i := range list {
+			if len(customers) >= o.Quantity {
+				break
+			}
+			customers = append(customers, &list[i])
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(txtDeliveredBulk, escapeHTML(o.PlanName), faNum(int64(len(customers)))))
+	if first.ExpiresAt != nil {
+		sb.WriteString("\n" + fmt.Sprintf(txtDeliveredUntil, formatDate(*first.ExpiresAt)))
+	}
+	noLink := false
+	for i, c := range customers {
+		num := faNum(int64(i + 1))
+		if link := b.mgr.shop.SubLink(ctx, c); link != "" {
+			sb.WriteString(fmt.Sprintf(txtDeliverBulkOne, num, escapeHTML(c.Name), link))
+		} else {
+			noLink = true
+			sb.WriteString(fmt.Sprintf(txtDeliverBulkTok, num, escapeHTML(c.Name), escapeHTML(c.SubToken)))
+		}
+	}
+	if !noLink {
+		if shop.NormalizeSection(o.Section) == shop.SectionV2ray {
+			sb.WriteString(txtDeliverBulkV2)
+		} else {
+			sb.WriteString("\n\n" + txtDeliverWireGuardGuide)
+		}
+	} else if admin := b.cfg().AdminChatID; admin != 0 {
+		// As with a single delivery: no public address, no links --
+		// the seller is told, with the first token, to send them by
+		// hand rather than leave a paid buyer holding nothing.
+		b.send(ctx, admin, fmt.Sprintf(txtSellerLinkNote,
+			escapeHTML(o.BuyerName), escapeHTML(first.SubToken)), nil)
+	}
+	b.send(ctx, o.BuyerTGID, sb.String(), b.menuKeyboard(ctx))
 }
 
 // mine answers "my subscription": the buyer's customers under this
@@ -798,7 +1213,7 @@ func (b *bot) mine(ctx context.Context, buyerID int64) (string, tgKeyboard) {
 		sb.WriteString(block)
 	}
 	kb := tgKeyboard{
-		{{Text: btnRenew, Data: "buy"}},
+		{{Text: btnRenew, Data: "renew"}},
 		{{Text: btnBack, Data: "menu"}},
 	}
 	return sb.String(), kb
@@ -811,7 +1226,7 @@ func (b *bot) forwardSupport(ctx context.Context, m *tgMessage, sess *session) {
 	sess.reset()
 	admin := b.cfg().AdminChatID
 	if admin == 0 {
-		b.send(ctx, chatID, txtSupportOff, menuKeyboard())
+		b.send(ctx, chatID, txtSupportOff, b.menuKeyboard(ctx))
 		return
 	}
 	b.send(ctx, admin, fmt.Sprintf(txtSupportFrom, escapeHTML(buyerName(m.From)), m.From.ID), nil)
@@ -820,5 +1235,5 @@ func (b *bot) forwardSupport(ctx context.Context, m *tgMessage, sess *session) {
 	} else {
 		b.relay[copied.ID] = chatID
 	}
-	b.send(ctx, chatID, txtSupportSent, menuKeyboard())
+	b.send(ctx, chatID, txtSupportSent, b.menuKeyboard(ctx))
 }

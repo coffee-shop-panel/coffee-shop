@@ -412,6 +412,11 @@ func TestTheCardSaleEndToEnd(t *testing.T) {
 	waitFor(t, "the plan list", func() bool { return fake.anySaid("یک ماهه") })
 
 	fake.push(updCallback(3, buyer, buyer, "Buyer", 5001, fmt.Sprintf("plan:%d", fx.plan.ID)))
+	waitFor(t, "the quantity choices", func() bool {
+		return fake.anySaid(fmt.Sprintf("qty:%d:1", fx.plan.ID))
+	})
+
+	fake.push(updCallback(30, buyer, buyer, "Buyer", 5001, fmt.Sprintf("qty:%d:1", fx.plan.ID)))
 	waitFor(t, "the payment choices", func() bool { return fake.anySaid(btnPayCard) })
 
 	fake.push(updCallback(4, buyer, buyer, "Buyer", 5001, fmt.Sprintf("card:%d", fx.plan.ID)))
@@ -568,6 +573,10 @@ func TestTheTwoSectionSale(t *testing.T) {
 	}
 
 	fake.push(updCallback(4, buyer, buyer, "Buyer", 5001, fmt.Sprintf("plan:%d", fx.v2plan.ID)))
+	waitFor(t, "the quantity choices", func() bool {
+		return fake.anySaid(fmt.Sprintf("qty:%d:1", fx.v2plan.ID))
+	})
+	fake.push(updCallback(40, buyer, buyer, "Buyer", 5001, fmt.Sprintf("qty:%d:1", fx.v2plan.ID)))
 	waitFor(t, "the payment choices", func() bool { return fake.anySaid(btnPayCard) })
 	fake.push(updCallback(5, buyer, buyer, "Buyer", 5001, fmt.Sprintf("card:%d", fx.v2plan.ID)))
 	waitFor(t, "the card instructions", func() bool { return fake.anySaid("6037991234567890") })
@@ -836,6 +845,10 @@ func TestTheSellerCanTestTheShop(t *testing.T) {
 	waitFor(t, "the plan list", func() bool { return fake.anySaid("یک ماهه") })
 
 	fake.push(updCallback(4, seller, seller, "Seller", 5002, fmt.Sprintf("plan:%d", fx.plan.ID)))
+	waitFor(t, "the quantity choices", func() bool {
+		return fake.anySaid(fmt.Sprintf("qty:%d:1", fx.plan.ID))
+	})
+	fake.push(updCallback(40, seller, seller, "Seller", 5002, fmt.Sprintf("qty:%d:1", fx.plan.ID)))
 	waitFor(t, "the payment choices", func() bool { return fake.anySaid(btnPayCard) })
 
 	fake.push(updCallback(5, seller, seller, "Seller", 5002, fmt.Sprintf("card:%d", fx.plan.ID)))
