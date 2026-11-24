@@ -15,7 +15,7 @@ import AntIcon from '../components/AntIcon.vue'
 import MoreMenu from '../components/MoreMenu.vue'
 import TextDialog from '../components/TextDialog.vue'
 import InterfaceStats from '../components/interfaces/InterfaceStats.vue'
-import InterfacesTable from '../components/interfaces/InterfacesTable.vue'
+import InterfaceTunnels from '../components/interfaces/InterfaceTunnels.vue'
 import InterfaceCards from '../components/interfaces/InterfaceCards.vue'
 import ImportDialog from '../components/interfaces/ImportDialog.vue'
 import AttachDialog from '../components/interfaces/AttachDialog.vue'
@@ -71,13 +71,42 @@ const hasPanel = computed(() => panelCount.value > 0)
 // The panel tab picked while its panel is gone leaves nothing to show.
 watch(hasPanel, (has) => { if (!has && kind.value === 'sanaei') kind.value = 'wireguard' })
 const onKind = computed(() => interfaces.value.filter((i) => (kind.value === 'sanaei' ? isPanel(i) : !isPanel(i))))
+// Which server's tunnels to show: a filter over the rows already
+// loaded, for finding one node's tunnels without searching by name.
+const serverFilter = ref('')
+const serverChips = computed(() => {
+  const chips = []
+  if (onKind.value.some((i) => i.nodeLocal)) chips.push({ key: 'local', label: t('iface.col.localPanel') })
+  const names = [...new Set(onKind.value.filter((i) => !i.nodeLocal && i.nodeName).map((i) => i.nodeName))]
+  for (const name of names) chips.push({ key: name, label: name })
+  return chips
+})
 const visible = computed(() => {
+  let rows = onKind.value
+  if (serverFilter.value === 'local') rows = rows.filter((i) => i.nodeLocal)
+  else if (serverFilter.value) rows = rows.filter((i) => i.nodeName === serverFilter.value)
   const q = search.value.trim().toLowerCase()
-  if (!q) return onKind.value
-  return onKind.value.filter((i) =>
+  if (!q) return rows
+  return rows.filter((i) =>
     [i.name, String(i.listenPort), i.protocol, i.endpointHost, i.nodeName].some((v) => String(v || '').toLowerCase().includes(q)),
   )
 })
+// The live speed across the tab, for the strip: the rows carry their
+// own current rates, and the strip shows their sum.
+const liveSpeed = computed(() =>
+  onKind.value.reduce(
+    (a, i) => ({ up: a.up + (i.speed?.up || 0), down: a.down + (i.speed?.down || 0) }),
+    { up: 0, down: 0 },
+  ),
+)
+// The order, chosen from a select now that the cards have no sortable
+// headers: picking a column sets it, the button beside it turns it over.
+function setSortKey(key) {
+  sort.value = key ? nextSort({ key: '', dir: '' }, key) : { key: '', dir: '' }
+}
+function flipSortDir() {
+  sort.value = { key: sort.value.key, dir: sort.value.dir === 'asc' ? 'desc' : 'asc' }
+}
 const hasNodes = computed(() => interfaces.value.some((i) => i.nodeName && !i.nodeLocal))
 
 // The order the headers set, and the pages: the size from the settings
@@ -305,37 +334,65 @@ async function submitForm(input) {
 </script>
 
 <template>
-  <div class="antpage inbounds">
-  <!-- Their summary Card: size="small", three Statistics. -->
-  <InterfaceStats :totals="totals" />
+  <div class="antpage inbounds cs">
+  <div class="ph">
+    <div>
+      <h2>{{ t('nav.interfaces') }}</h2>
+      <p>{{ t('iface.lede') }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn primary" @click="formFor = {}">
+        <AntIcon name="PlusOutlined" />{{ t('iface.menu.add') }}
+      </button>
+    </div>
+  </div>
 
-  <!-- Their list Card: the title is a Space of Add Inbound, General Actions,
-       the search, and -- with rows picked -- the count and a Delete. -->
-  <div class="acard">
-    <div class="acard-head">
-      <div class="aspace">
-        <button class="abtn primary" @click="formFor = {}">
-          <AntIcon name="PlusOutlined" /><span v-if="!isMobile">{{ t('iface.menu.add') }}</span>
+  <!-- The strip over the list: what the set has carried, and how fast
+       it is moving now. -->
+  <InterfaceStats :totals="totals" :rows="onKind" :live="liveSpeed" />
+
+  <!-- Their list Card: General Actions, the search, the order, and --
+       with rows picked -- the count and a Delete. -->
+  <div class="card calm" style="margin-top: 14px">
+    <div class="toolbar" style="border-bottom: 1px solid var(--line-soft)">
+      <MoreMenu :items="generalItems()" :compact="isMobile" button-class="btn" icon="MenuOutlined" :label="t('iface.menu.general')" @pick="pickGeneral" />
+      <label class="ainput">
+        <span class="ainput-prefix"><AntIcon name="SearchOutlined" /></span>
+        <input v-model="search" type="text" :placeholder="t('iface.menu.search')" :aria-label="t('iface.menu.search')" />
+        <button v-if="search" type="button" class="ainput-clear" :aria-label="t('action.cancel')" @click="search = ''"><AntIcon name="CloseCircleFilled" /></button>
+      </label>
+      <template v-if="selected.size">
+        <span class="atag blue closable">
+          {{ t('client.menu.selectedCount').replace('{count}', nf(selected.size)) }}
+          <button type="button" class="atag-close" :aria-label="t('action.cancel')" @click="selected = new Set()"><AntIcon name="CloseOutlined" /></button>
+        </span>
+        <button class="btn danger" @click="bulkDelete">
+          <AntIcon name="DeleteOutlined" /><span v-if="!isMobile">{{ t('action.delete') }}</span>
         </button>
-        <MoreMenu :items="generalItems()" :compact="isMobile" button-class="abtn primary more-btn" icon="MenuOutlined" :label="t('iface.menu.general')" @pick="pickGeneral" />
-        <label class="ainput">
-          <span class="ainput-prefix"><AntIcon name="SearchOutlined" /></span>
-          <input v-model="search" type="text" :placeholder="t('iface.menu.search')" :aria-label="t('iface.menu.search')" />
-          <button v-if="search" type="button" class="ainput-clear" :aria-label="t('action.cancel')" @click="search = ''"><AntIcon name="CloseCircleFilled" /></button>
-        </label>
-        <template v-if="selected.size">
-          <span class="atag blue closable">
-            {{ t('client.menu.selectedCount').replace('{count}', nf(selected.size)) }}
-            <button type="button" class="atag-close" :aria-label="t('action.cancel')" @click="selected = new Set()"><AntIcon name="CloseOutlined" /></button>
-          </span>
-          <button class="abtn danger" @click="bulkDelete">
-            <AntIcon name="DeleteOutlined" /><span v-if="!isMobile">{{ t('action.delete') }}</span>
-          </button>
-        </template>
-      </div>
+      </template>
+      <span class="spacer"></span>
+      <select class="aselect" style="width: auto" :value="sort.key" :aria-label="t('client.sort.label')" @change="setSortKey($event.target.value)">
+        <option value="">{{ t('client.sort.label') }}</option>
+        <option value="id">ID</option>
+        <option value="remark">{{ t('iface.col.remark') }}</option>
+        <option value="node">{{ t('iface.col.node') }}</option>
+        <option value="port">{{ t('interface.port') }}</option>
+        <option value="protocol">{{ t('client.protocol') }}</option>
+        <option value="clients">{{ t('nav.clients') }}</option>
+        <option value="traffic">{{ t('client.traffic') }}</option>
+        <option value="speed">{{ t('client.speed') }}</option>
+        <option value="expiry">{{ t('iface.col.duration') }}</option>
+      </select>
+      <button v-if="sort.key" class="btn sm" :aria-label="t('client.sort.label')" @click="flipSortDir">{{ sort.dir === 'asc' ? '↑' : '↓' }}</button>
     </div>
 
-    <div class="acard-body">
+    <div class="cb" style="padding-top: 12px">
+      <!-- One chip per server with tunnels on this tab: a way to look at
+           one node's tunnels without typing its name into the search. -->
+      <div v-if="serverChips.length > 1" class="chips" style="margin-bottom: 12px">
+        <button class="fchip" :class="{ on: !serverFilter }" @click="serverFilter = ''">{{ t('common.all') }}</button>
+        <button v-for="chip in serverChips" :key="chip.key" class="fchip" :class="{ on: serverFilter === chip.key }" @click="serverFilter = chip.key">{{ chip.label }}</button>
+      </div>
       <div v-if="hasPanel" class="atabs-nav server-tabs"><div class="atabs-list" role="tablist">
         <button class="atab" role="tab" :class="{ active: kind === 'wireguard' }" :aria-selected="kind === 'wireguard'" @click="kind = 'wireguard'">
           <AntIcon name="ClusterOutlined" /><span>{{ t('protocol.wireguard') }}</span><span class="atag count">{{ nf(wgCount) }}</span>
@@ -357,15 +414,15 @@ async function submitForm(input) {
           <li><button class="apage" :disabled="page >= pageCount" :aria-label="t('action.next')" @click="page++">›</button></li>
         </ul>
       </InterfaceCards>
-      <InterfacesTable v-else :rows="paged" :selected="selected" :all-selected="allSelected" :pending="pending"
+      <InterfaceTunnels v-else :rows="paged" :selected="selected" :all-selected="allSelected" :pending="pending"
         @toggle="toggleOne" @toggle-all="toggleAll" @enable="setEnabled" @pick="pickRow"
-        :has-nodes="hasNodes" :sort="sort" @edit="(i) => (formFor = { iface: i })" @sort="(key) => (sort = nextSort(sort, key))">
+        @edit="(i) => (formFor = { iface: i })">
         <ul v-if="pageCount > 1" class="apagination">
           <li><button class="apage" :disabled="page <= 1" :aria-label="t('action.previous')" @click="page--">‹</button></li>
           <li v-for="n in pageNumbers" :key="n"><button class="apage" :class="{ active: n === page }" @click="page = n">{{ n }}</button></li>
           <li><button class="apage" :disabled="page >= pageCount" :aria-label="t('action.next')" @click="page++">›</button></li>
         </ul>
-      </InterfacesTable>
+      </InterfaceTunnels>
     </div>
   </div>
   </div>

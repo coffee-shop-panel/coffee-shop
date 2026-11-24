@@ -7,20 +7,20 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../lib/api.js'
 import { mergeRows, useDelayed } from '../lib/live.js'
 import { t, notify } from '../lib/store.js'
-import { takesImport, totals as totalsOf } from '../lib/nodes/rows.js'
+import { ago, takesImport, totals as totalsOf } from '../lib/nodes/rows.js'
+import { nodePlace } from '../lib/nodes/geo.js'
+import { WORLD_DOTS } from '../lib/nodes/worldDots.js'
 import Icon from '../components/Icon.vue'
 import ErrorState from '../components/ErrorState.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import PageSpin from '../components/PageSpin.vue'
 import NodeImportDialog from '../components/NodeImportDialog.vue'
-import NodesTable from '../components/nodes/NodesTable.vue'
-import NodeCards from '../components/nodes/NodeCards.vue'
+import NodeGrid from '../components/nodes/NodeGrid.vue'
 import NodeForm from '../components/nodes/NodeForm.vue'
 import TokenDialog from '../components/nodes/TokenDialog.vue'
-import { useIsMobile } from '../lib/mobile.js'
+import AuthorityDialog from '../components/nodes/AuthorityDialog.vue'
 
 const nodes = ref([])
-const isMobile = useIsMobile()
 const loading = ref(true)
 
 // Declared here, after the state it reads: useDelayed watches with `immediate`
@@ -55,6 +55,69 @@ async function load(quiet = false) {
 }
 
 const totals = computed(() => totalsOf(nodes.value))
+
+// The fleet strip's fourth figure and first: what kinds of panel the
+// fleet is made of, and which node has been silent longest.
+const authorityOpen = ref(false)
+const kindsLine = computed(() => {
+  const counts = { wui: 0, xui: 0, pasarguard: 0 }
+  for (const n of nodes.value) {
+    if (n.kind === 'xui') counts.xui++
+    else if (n.kind === 'pasarguard') counts.pasarguard++
+    else counts.wui++
+  }
+  const parts = []
+  if (counts.wui) parts.push(`${counts.wui} W-UI`)
+  if (counts.xui) parts.push(`${counts.xui} 3x-ui`)
+  if (counts.pasarguard) parts.push(`${counts.pasarguard} Pasarguard`)
+  return parts.join(' · ')
+})
+const firstOffline = computed(
+  () => nodes.value.find((n) => n.kind !== 'local' && n.enabled && !n.reachable) || null,
+)
+
+// The fleet map. The dotted world is the design's own artwork; the
+// markers are the nodes whose names carry a flag this panel knows
+// (lib/nodes/geo.js) — a node without one is listed below the map and
+// simply has no dot on it. The panel's own node anchors the arcs.
+const dotsSvg = WORLD_DOTS.split(' ')
+  .map((p) => {
+    const [x, y] = p.split(',')
+    return `<circle class="land" cx="${x}" cy="${y}" r=".28"/>`
+  })
+  .join('')
+const markers = computed(() => {
+  const out = []
+  for (const n of nodes.value) {
+    const place = nodePlace(n.name)
+    if (n.kind === 'local') out.push({ n, main: true, place: place || { x: 52.5, y: 28.4 } })
+    else if (place) out.push({ n, main: false, place })
+  }
+  return out
+})
+const markerOff = (n) => n.kind !== 'local' && (!n.enabled || !n.reachable)
+const markerSub = (n) => {
+  if (n.kind === 'local') return t('node.running')
+  if (!n.enabled) return t('status.disabled')
+  if (n.reachable) return `${n.latencyMs || 0} ms`
+  return n.lastSeenAt ? ago(n.lastSeenAt) : t('node.noAnswer')
+}
+const shortName = (name) => name.replace(/^[^A-Za-z0-9\u0600-\u06FF]+/, '').trim() || name
+const arcs = computed(() => {
+  const main = markers.value.find((m) => m.main)
+  if (!main) return []
+  return markers.value
+    .filter((m) => !m.main)
+    .map((m) => {
+      const mx = (main.place.x + m.place.x) / 2
+      const my = Math.min(main.place.y, m.place.y) - 9
+      return {
+        key: m.n.id,
+        bad: markerOff(m.n),
+        d: `M ${main.place.x} ${main.place.y} Q ${mx} ${my} ${m.place.x} ${m.place.y}`,
+      }
+    })
+})
 
 async function saved(made) {
   formFor.value = null
@@ -191,51 +254,102 @@ const rowEvents = {
 </script>
 
 <template>
-  <!-- No page heading. the classic panel opens this page straight on the figures, and
-       both controls live in the table's card, where the rows they act on are.
-       Add node takes the primary spot on the left; the token button sits at
-       the far end the way their Node mTLS does -- both are how a node proves
-       itself to this panel, and that is the position they gave that. -->
-  <div class="strip card">
-    <div class="strip-item">
-      <span class="strip-label"><Icon name="server" :size="14" />{{ t('node.total') }}</span>
-      <span class="strip-value num">{{ totals.all }}</span>
+  <div class="cs">
+    <div class="ph">
+      <div>
+        <h2>{{ t('nav.nodes') }}</h2>
+        <p>{{ t('node.lede') }}</p>
+      </div>
+      <div class="actions">
+        <button class="btn" @click="authorityOpen = true">
+          <Icon name="shield" :size="14" />{{ t('node.authority') }}
+        </button>
+        <button class="btn" @click="issuing = true">
+          <Icon name="key" :size="14" />{{ t('node.issueToken') }}
+        </button>
+        <button class="btn primary" @click="formFor = {}">
+          <Icon name="plus" :size="14" />{{ t('node.add') }}
+        </button>
+      </div>
     </div>
-    <div class="strip-item">
-      <span class="strip-label"><Icon name="check" :size="14" />{{ t('node.online') }}</span>
-      <span class="strip-value num" style="color: var(--ok)">{{ totals.online }}</span>
+
+    <!-- The fleet in four figures: how many, how many answering, how
+         many silent and which one, and how far away they read. -->
+    <div class="grid g4 mb2">
+      <div class="card stat">
+        <div class="lbl">
+          <span class="ico-tile" style="width: 26px; height: 26px; border-radius: 8px"><Icon name="server" :size="14" /></span>
+          {{ t('node.total') }}
+        </div>
+        <div class="val">{{ totals.all }}</div>
+        <div class="foot faint">{{ kindsLine }}</div>
+      </div>
+      <div class="card stat">
+        <div class="lbl">
+          <span class="ico-tile ok" style="width: 26px; height: 26px; border-radius: 8px"><Icon name="check" :size="14" /></span>
+          {{ t('node.online') }}
+        </div>
+        <div class="val">{{ totals.online }}</div>
+      </div>
+      <div class="card stat" :class="{ hot: totals.offline > 0 }">
+        <div class="lbl">
+          <span class="ico-tile bad" style="width: 26px; height: 26px; border-radius: 8px"><Icon name="alert" :size="14" /></span>
+          {{ t('node.offline') }}
+        </div>
+        <div class="val">{{ totals.offline }}</div>
+        <div v-if="firstOffline" class="foot faint">
+          {{ firstOffline.name }} · {{ firstOffline.lastSeenAt ? ago(firstOffline.lastSeenAt) : t('node.noAnswer') }}
+        </div>
+      </div>
+      <div class="card stat">
+        <div class="lbl">
+          <span class="ico-tile acc" style="width: 26px; height: 26px; border-radius: 8px"><Icon name="clock" :size="14" /></span>
+          {{ t('node.avgLatency') }}
+        </div>
+        <div class="val ltr">{{ totals.latency === null ? '—' : totals.latency + ' ms' }}</div>
+        <div class="foot faint">{{ t('node.latencyFoot') }}</div>
+      </div>
     </div>
-    <div class="strip-item">
-      <span class="strip-label"><Icon name="alert" :size="14" />{{ t('node.offline') }}</span>
-      <span class="strip-value num" :style="totals.offline ? 'color: var(--bad)' : ''">
-        {{ totals.offline }}
-      </span>
+
+    <!-- The fleet on the design's dotted world: a marker for every node
+         whose name carries a known flag, an arc from this panel to each. -->
+    <section class="card calm mb2">
+      <div class="ch">
+        <h3>{{ t('node.fleet') }}</h3>
+        <span class="sub">{{ t('node.fleetSub') }}</span>
+        <div class="row tight spacer">
+          <span class="small"><span class="ddot info"></span> {{ t('node.thisPanel') }}</span>
+          <span class="small"><span class="ddot"></span> {{ t('node.online') }}</span>
+          <span class="small"><span class="ddot bad"></span> {{ t('node.offline') }}</span>
+        </div>
+      </div>
+      <div class="map">
+        <svg viewBox="0 0 100 50" preserveAspectRatio="xMidYMid slice" aria-hidden="true" v-html="dotsSvg"></svg>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path v-for="a in arcs" :key="a.key" class="arc" :class="{ bad: a.bad }" :d="a.d" />
+        </svg>
+        <div
+          v-for="m in markers"
+          :key="m.n.id"
+          class="map-node"
+          :class="{ main: m.main, off: markerOff(m.n) }"
+          :style="{ left: m.place.x + '%', top: m.place.y + '%' }"
+        >
+          <span class="halo"></span><span class="core"></span>
+          <span class="lbl">{{ shortName(m.n.name) }}<small>{{ markerSub(m.n) }}</small></span>
+        </div>
+      </div>
+    </section>
+
+    <div v-if="showSkeleton || loading || loadError" class="card">
+      <PageSpin v-if="showSkeleton" />
+      <div v-else-if="loading" class="empty"></div>
+      <ErrorState v-else-if="loadError" :error="loadError" @retry="load" />
     </div>
-    <div class="strip-item">
-      <span class="strip-label"><Icon name="clock" :size="14" />{{ t('node.avgLatency') }}</span>
-      <span class="strip-value num ltr">{{ totals.latency === null ? '—' : totals.latency + ' ms' }}</span>
-    </div>
+    <NodeGrid v-else :nodes="nodes" :pending="pending" v-bind="rowEvents" />
   </div>
 
-  <div class="card">
-    <div class="card-toolbar spread">
-      <button class="btn primary" @click="formFor = {}">
-        <Icon name="plus" :size="14" />
-        <span v-if="!isMobile">{{ t('node.add') }}</span>
-      </button>
-      <button class="btn" @click="issuing = true">
-        <Icon name="key" :size="14" />
-        <span>{{ t('node.issueToken') }}</span>
-      </button>
-    </div>
-
-    <PageSpin v-if="showSkeleton" />
-    <div v-else-if="loading" class="empty"></div>
-    <ErrorState v-else-if="loadError" :error="loadError" @retry="load" />
-    <NodeCards v-else-if="isMobile" :nodes="nodes" :pending="pending" v-bind="rowEvents" />
-    <NodesTable v-else :nodes="nodes" :pending="pending" v-bind="rowEvents" />
-  </div>
-
+  <AuthorityDialog v-if="authorityOpen" @close="authorityOpen = false" />
   <NodeForm v-if="formFor" :node="formFor.node || null" @close="formFor = null" @saved="saved" />
   <TokenDialog v-if="issuing" @close="issuing = false" />
   <NodeImportDialog v-if="importing" :node="importing" @close="importing = null" />

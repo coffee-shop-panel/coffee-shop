@@ -1,16 +1,19 @@
 <script setup>
-// The overview's four vitals -- CPU, memory, swap, storage -- each a number
-// read against its own recent history, and the network and connections
-// beside them.
+// The overview's machine readings in the design's arrangement: four
+// vital tiles across (a number read against its own recent history),
+// then the throughput chart with a side stack — connections, uptime and
+// the server's addresses (OverviewStrip) — beside it.
 import { computed } from 'vue'
 import { store, t } from '../../lib/store.js'
 import { bytes } from '../../lib/format.js'
 import Icon from '../Icon.vue'
 import Sparkline from '../Sparkline.vue'
+import OverviewStrip from './OverviewStrip.vue'
 
 const props = defineProps({
   // The host's readings, with their recent history.
   system: { type: Object, required: true },
+  panel: { type: Object, default: null },
 })
 const sys = computed(() => props.system)
 const hist = computed(() => sys.value?.history || {})
@@ -32,7 +35,7 @@ const stat = (arr) => {
 const vitals = computed(() => {
   const s = sys.value
   if (!s) return []
-  const mk = (key, icon, label, usage, detail, series) => {
+  const mk = (key, icon, label, usage, detail, series, empty = false) => {
     const st = stat(series)
     return {
       key,
@@ -40,10 +43,10 @@ const vitals = computed(() => {
       label,
       percent: usage.percent,
       detail,
-      footLeft: `${t('overview.min')} ${st.min.toFixed(0)}%`,
-      footRight: `${t('overview.max')} ${st.max.toFixed(0)}%`,
+      range: `${t('overview.min')} ${st.min.toFixed(0)}% · ${t('overview.max')} ${st.max.toFixed(0)}%`,
       data: series || [],
       mean: st.mean,
+      empty,
     }
   }
   return [
@@ -65,6 +68,7 @@ const vitals = computed(() => {
         ? `${bytes(s.swap.used, store.locale)} / ${bytes(s.swap.total, store.locale)}`
         : t('overview.noSwap'),
       hist.value.swap,
+      !s.swap.total,
     ),
     mk(
       'disk',
@@ -97,319 +101,103 @@ const downStat = computed(() => stat(hist.value.down))
 const totalConns = computed(
   () => (sys.value?.network.tcpConns || 0) + (sys.value?.network.udpConns || 0),
 )
+const connPct = (n) => (totalConns.value ? Math.round(((n || 0) / totalConns.value) * 100) : 0)
 </script>
 
 <template>
-  <div class="ov-vitals">
-    <article v-for="v in vitals" :key="v.key" class="card ov-tile">
-      <div class="ov-tile-head">
-        <span class="ov-tile-icon"><Icon :name="v.icon" :size="15" /></span>
-        <span class="ov-kicker">{{ v.label }}</span>
+  <div class="grid g12 mb">
+    <section v-for="v in vitals" :key="v.key" class="card s3">
+      <div class="cb">
+        <div class="row between">
+          <div class="row tight">
+            <span class="ico-tile"><Icon :name="v.icon" :size="15" /></span>
+            <b>{{ v.label }}</b>
+          </div>
+          <span class="faint xs mono">{{ v.range }}</span>
+        </div>
+        <div class="row nowrap" style="margin-top: 10px; align-items: flex-end; gap: 14px">
+          <div class="stat" style="padding: 0">
+            <div class="val" :class="{ faint: v.empty }" :style="v.empty ? {} : { color: vitalColor(v.percent) }">
+              {{ v.empty ? '—' : Math.round(v.percent) + '%' }}
+            </div>
+            <div class="foot">{{ v.detail }}</div>
+          </div>
+          <div style="flex: 1; min-width: 0">
+            <!-- Left to scale itself: the big number already states the level, so
+                 the line's job is the shape of the last few minutes. Pinned to
+                 0–100 a steady 43% would draw a flat slab and say nothing. -->
+            <Sparkline
+              :series="[{ data: v.data, color: vitalLine(v.percent) }]"
+              :reference="[{ value: v.mean }]"
+              :height="44"
+            />
+          </div>
+        </div>
       </div>
-      <div class="ov-tile-value">
-        <span class="ov-tile-number" :style="{ color: vitalColor(v.percent) }">
-          {{ v.percent.toFixed(1) }}
-        </span>
-        <span class="ov-tile-unit">%</span>
-      </div>
-      <div class="ov-tile-detail">{{ v.detail }}</div>
-      <div class="ov-tile-foot">
-        <span>{{ v.footLeft }}</span>
-        <span>{{ v.footRight }}</span>
-      </div>
-      <div class="ov-tile-chart">
-        <!-- Left to scale itself: the big number already states the level, so
-             the line's job is the shape of the last few minutes. Pinned to
-             0–100 a steady 43% would draw a flat slab and say nothing. -->
-        <Sparkline
-          :series="[{ data: v.data, color: vitalLine(v.percent) }]"
-          :reference="[{ value: v.mean }]"
-          :height="62"
-        />
-      </div>
-    </article>
+    </section>
   </div>
 
-  <div class="ov-mid">
+  <div class="grid g12 mb">
     <!-- Throughput -->
-    <article class="card ov-wide">
-      <div class="ov-wide-head">
-        <div>
-          <div class="ov-kicker">{{ t('overview.throughput') }}</div>
-          <div class="ov-sub">{{ t('overview.throughputSub') }}</div>
-        </div>
-        <div class="ov-wide-legend">
-          <span class="ov-legend-label">
-            <i class="ov-swatch up"></i>{{ t('overview.upload') }}
-            <b class="ov-legend-num">{{ rate(sys.network.sentRate) }}</b>
-          </span>
-          <span class="ov-legend-label">
-            <i class="ov-swatch down"></i>{{ t('overview.download') }}
-            <b class="ov-legend-num">{{ rate(sys.network.recvRate) }}</b>
-          </span>
-        </div>
+    <section class="card s8">
+      <div class="ch">
+        <h3>{{ t('overview.throughput') }}</h3>
+        <span class="sub">{{ t('overview.throughputSub') }}</span>
       </div>
-      <div class="ov-wide-chart">
+      <div class="cb">
         <Sparkline
           :series="[
-            { data: hist.down, color: 'var(--ok)', fill: false },
+            { data: hist.down, color: 'var(--sky)', fill: false },
             { data: hist.up, color: 'var(--accent)', fill: false },
           ]"
           :reference="[
-            { value: sys.network.recvRate, color: 'var(--ok)' },
+            { value: sys.network.recvRate, color: 'var(--sky)' },
             { value: sys.network.sentRate, color: 'var(--accent)' },
           ]"
           :height="186"
           :min="0"
         />
-      </div>
-      <div class="ov-wide-foot">
-        <div class="ov-foot-part">
-          <span class="ov-kicker">{{ t('overview.sent') }}</span>
-          <span class="ov-foot-value">{{ bytes(sys.network.bytesSent, store.locale) }}</span>
-        </div>
-        <div class="ov-foot-sep"></div>
-        <div class="ov-foot-part">
-          <span class="ov-kicker">{{ t('overview.received') }}</span>
-          <span class="ov-foot-value">{{ bytes(sys.network.bytesRecv, store.locale) }}</span>
-        </div>
-        <div class="ov-foot-sep"></div>
-        <div class="ov-foot-part">
-          <span class="ov-kicker">{{ t('overview.peak') }}</span>
-          <span class="ov-foot-value">↓ {{ rate(downStat.max) }} · ↑ {{ rate(upStat.max) }}</span>
+        <div class="row between mt">
+          <div class="legend">
+            <span><i></i>{{ t('overview.upload') }} <b class="mono">{{ rate(sys.network.sentRate) }}</b></span>
+            <span><i class="sky"></i>{{ t('overview.download') }} <b class="mono">{{ rate(sys.network.recvRate) }}</b></span>
+          </div>
+          <span class="faint small">
+            {{ t('overview.sent') }} {{ bytes(sys.network.bytesSent, store.locale) }} ·
+            {{ t('overview.received') }} {{ bytes(sys.network.bytesRecv, store.locale) }} ·
+            {{ t('overview.peak') }} ↓ {{ rate(downStat.max) }} ↑ {{ rate(upStat.max) }}
+          </span>
         </div>
       </div>
-    </article>
+    </section>
 
-    <!-- Connections -->
-    <article class="card ov-wide">
-      <div class="ov-wide-head ov-wide-head-stack">
-        <div class="ov-kicker">{{ t('overview.connections') }}</div>
-        <div class="ov-conn-total">
-          <span class="ov-tile-number">{{ nf(totalConns) }}</span>
-          <span class="ov-tile-unit">{{ t('overview.open') }}</span>
+    <div class="s4 grid" style="align-content: start">
+      <!-- Connections -->
+      <section class="card">
+        <div class="ch">
+          <h3>{{ t('overview.connections') }}</h3>
+          <span class="faint small spacer mono">{{ nf(totalConns) }} {{ t('overview.open') }}</span>
         </div>
-        <div class="ov-conn-legend">
-          <span class="ov-legend-label">
-            <i class="ov-swatch tcp"></i>TCP
-            <b class="ov-legend-num">{{ nf(sys.network.tcpConns) }}</b>
-          </span>
-          <span class="ov-legend-label">
-            <i class="ov-swatch udp"></i>UDP
-            <b class="ov-legend-num">{{ nf(sys.network.udpConns) }}</b>
-          </span>
+        <div class="cb tight stack">
+          <div>
+            <div class="row between small">
+              <span>TCP</span>
+              <b class="mono">{{ nf(sys.network.tcpConns) }}</b>
+            </div>
+            <div class="dmeter"><i :style="{ width: connPct(sys.network.tcpConns) + '%' }"></i></div>
+          </div>
+          <div>
+            <div class="row between small">
+              <span>UDP</span>
+              <b class="mono">{{ nf(sys.network.udpConns) }}</b>
+            </div>
+            <div class="dmeter"><i class="sky" :style="{ width: connPct(sys.network.udpConns) + '%' }"></i></div>
+          </div>
         </div>
-      </div>
-      <div class="ov-wide-chart">
-        <Sparkline
-          :series="[
-            { data: hist.tcp, color: 'var(--accent)', fill: false },
-            { data: hist.udp, color: 'var(--warn)', fill: false },
-          ]"
-          :reference="[
-            { value: sys.network.tcpConns, color: 'var(--accent)' },
-            { value: sys.network.udpConns, color: 'var(--warn)' },
-          ]"
-          :height="186"
-        />
-      </div>
-    </article>
+      </section>
+
+      <!-- Uptime, panel memory, and the server's addresses. -->
+      <OverviewStrip :system="sys" :panel="panel" />
+    </div>
   </div>
 </template>
-
-<style scoped>
-/* ---------- vitals ---------- */
-.ov-vitals {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--ov-gap, 12px);
-}
-/* IndexPage.css: four tiles, two under 1100, one under 560. */
-@media (max-width: 1100px) {
-  .ov-vitals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 560px) {
-  .ov-vitals { grid-template-columns: minmax(0, 1fr); }
-}
-.ov-tile {
-  padding: 16px 0 0;
-  overflow: hidden;
-  transition: border-color 0.15s;
-}
-.ov-tile:hover {
-  border-color: var(--faint);
-}
-.ov-tile-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 18px;
-}
-.ov-tile-icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: var(--surface-3);
-  color: var(--muted);
-}
-.ov-tile-value {
-  display: flex;
-  align-items: baseline;
-  gap: 3px;
-  padding: 12px 18px 0;
-}
-.ov-tile-number {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  direction: ltr;
-}
-.ov-tile-unit {
-  font-size: var(--t-sm);
-  color: var(--muted);
-  font-weight: 500;
-}
-.ov-tile-detail {
-  padding: 6px 18px 0;
-  font-size: var(--t-xs);
-  color: var(--ink-2);
-  font-family: var(--mono);
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-.ov-tile-foot {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 18px 8px;
-  font-size: var(--t-xs);
-  color: var(--faint);
-  font-variant-numeric: tabular-nums;
-}
-.ov-tile-chart {
-  margin-top: auto;
-}
-/* ---------- mid grid ---------- */
-.ov-mid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: var(--ov-gap, 12px);
-}
-@media (max-width: 1100px) {
-  .ov-mid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.ov-wide {
-  padding: 16px 0 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-.ov-wide-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 0 18px 14px;
-}
-.ov-wide-head-stack {
-  flex-direction: column;
-  gap: 8px;
-}
-.ov-sub {
-  font-size: var(--t-xs);
-  color: var(--faint);
-  margin-top: 3px;
-}
-.ov-wide-legend {
-  display: flex;
-  gap: 18px;
-  margin-inline-start: auto;
-  flex-wrap: wrap;
-}
-.ov-legend-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--t-xs);
-  color: var(--muted);
-}
-.ov-legend-num {
-  color: var(--ink);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-.ov-swatch {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-.ov-swatch.up,
-.ov-swatch.tcp {
-  background: var(--accent);
-}
-.ov-swatch.down {
-  background: var(--ok);
-}
-.ov-swatch.udp {
-  background: var(--warn);
-}
-.ov-wide-chart {
-  flex: 1;
-  min-height: 0;
-}
-.ov-conn-total {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-}
-.ov-conn-legend {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.ov-wide-foot {
-  display: flex;
-  align-items: stretch;
-  border-top: 1px solid var(--line-soft);
-  margin-top: 12px;
-}
-.ov-foot-part {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 18px;
-  min-width: 0;
-}
-.ov-foot-value {
-  font-size: var(--t-base);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-.ov-foot-sep {
-  width: 1px;
-  background: var(--line-soft);
-}
-@media (max-width: 560px) {
-  .ov-wide-foot {
-    flex-direction: column;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .ov-foot-sep {
-    display: none;
-  }
-  .ov-foot-part {
-    border-top: 1px solid var(--line-soft);
-  }
-}
-</style>

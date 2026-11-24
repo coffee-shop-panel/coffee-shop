@@ -582,3 +582,263 @@ body {
     padding: 10px 12px;
   }
 }
+
+/* ══════════ Wave 2: the main pages in the design's layout ══════════
+   The design's page-level components (cs.css), scoped under .cs so the
+   pages wave 3 has not reached keep the app's own presentation. A page
+   opts in by putting .cs on its root; everything below is the mockup's
+   values, read through the wave-1 tokens. Where the app already has a
+   class of the same name with a different shape (.tag, .meter, .kv),
+   the design's version carries a d- prefix here rather than fighting
+   the app's over every other page that still uses it. */
+
+/* ── page head, grids, spacing ─────────────────────────────────────── */
+.cs .ph { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.cs .ph h2 { font-size: 26px; font-weight: 800; letter-spacing: -.025em; }
+.cs .ph p { color: var(--muted); margin-top: 4px; font-size: 13px; }
+.cs .ph .actions { margin-inline-start: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cs .grid { display: grid; gap: 14px; }
+.cs .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cs .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cs .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.cs .g6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.cs .g12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.cs .s2 { grid-column: span 2; } .cs .s3 { grid-column: span 3; } .cs .s4 { grid-column: span 4; }
+.cs .s5 { grid-column: span 5; } .cs .s6 { grid-column: span 6; } .cs .s7 { grid-column: span 7; }
+.cs .s8 { grid-column: span 8; } .cs .s9 { grid-column: span 9; } .cs .s10 { grid-column: span 10; }
+.cs .s11 { grid-column: span 11; } .cs .s12 { grid-column: span 12; }
+.cs .mb { margin-bottom: 14px; } .cs .mb2 { margin-bottom: 20px; } .cs .mt { margin-top: 14px; }
+.cs .stack > * + * { margin-top: 14px; }
+.cs .hr { height: 1px; background: var(--line-soft); margin: 16px 0; border: 0; }
+.cs .row.between { justify-content: space-between; }
+.cs .row.nowrap { flex-wrap: nowrap; }
+.cs .row.tight { gap: 6px; }
+.cs .col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+/* ── cards ─────────────────────────────────────────────────────────── */
+.cs .card { position: relative; background-color: var(--surface); background-image: var(--card-grad); border: 1px solid var(--line-soft); border-radius: var(--r); box-shadow: var(--e1); min-width: 0; }
+.cs .card::before { content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; background: var(--border-glow); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; opacity: .45; pointer-events: none; transition: opacity .2s; }
+.cs .card:hover::before { opacity: .85; }
+.cs .card.calm::before { opacity: .2; } .cs .card.calm:hover::before { opacity: .35; }
+.cs .card.hot { border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); background-image: linear-gradient(180deg, color-mix(in srgb, var(--warn) 8%, transparent), transparent 60%); }
+.cs .card.danger { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--bad) 20%, transparent), 0 18px 40px -22px color-mix(in srgb, var(--bad) 60%, transparent); }
+.cs .card.dim { opacity: .6; }
+.cs a.card { color: inherit; text-decoration: none; }
+.cs .ch { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--line-soft); }
+.cs .ch h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+.cs .ch .sub { color: var(--faint); font-size: 12px; }
+.cs .cb { padding: 18px; }
+.cs .cb.tight { padding: 12px 14px; }
+.cs .cf { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
+
+/* ── type ──────────────────────────────────────────────────────────── */
+.cs .kicker { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+html[lang='fa'] .cs .kicker { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.cs .faint { color: var(--faint); }
+.cs .xs { font-size: 11.5px; }
+.cs .ok-t { color: var(--ok); } .cs .sky-t { color: var(--sky); } .cs .warn-t { color: var(--warn); }
+.cs .bad-t { color: var(--bad); } .cs .info-t { color: var(--info); } .cs .accent-t { color: var(--accent-text); }
+.cs .purple-t { color: var(--purple); }
+
+/* ── stat cards, tiles, hero ───────────────────────────────────────── */
+.cs .stat { display: flex; flex-direction: column; gap: 6px; padding: 15px 17px; text-align: start; color: inherit; font: inherit; }
+.cs .stat .lbl { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 550; }
+.cs .stat .val { font-size: 26px; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.cs .stat .val small { font-size: 13px; font-weight: 600; color: var(--faint); letter-spacing: 0; }
+.cs .stat .foot { font-size: 12px; color: var(--faint); }
+.cs .stat.quiet .val { color: var(--faint); }
+.cs .ico-tile { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--fill); border: 1px solid var(--line-soft); color: var(--muted); flex: none; }
+.cs .ico-tile.ok { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-line); }
+.cs .ico-tile.warn { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-line); }
+.cs .ico-tile.bad { color: var(--bad); background: var(--bad-soft); border-color: var(--bad-line); }
+.cs .ico-tile.acc { color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent-line); }
+.cs .ico-tile.info { color: var(--info); background: var(--info-soft); border-color: var(--info-line); }
+.cs .ico-tile.purple { color: var(--purple); background: var(--purple-soft); border-color: var(--purple-line); }
+.cs .hero-num { font-size: 72px; font-weight: 850; letter-spacing: -.05em; line-height: .95; font-variant-numeric: tabular-nums; }
+.cs .avatar { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 9px; background: var(--primary); color: var(--accent-ink); font-weight: 800; font-size: 14px; text-transform: uppercase; }
+.cs .avatar.round { border-radius: 50%; }
+
+/* ── pills, tags, dots ─────────────────────────────────────────────── */
+.cs .pill { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); color: var(--ink-2); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cs .pill .d { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 20%, transparent); }
+.cs .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); background: color-mix(in srgb, var(--ok) 8%, var(--surface)); }
+.cs .pill.ok .d, .cs .dtag.ok .d, .cs .ddot.live { animation: cs-pulse 2.2s ease-in-out infinite; }
+.cs .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); background: color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+.cs .pill.ver { font-family: var(--mono); color: var(--muted); }
+button.cs-pill-btn { font: inherit; cursor: pointer; background: none; border: 0; padding: 0; color: inherit; }
+.cs .pill.upd { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-soft); cursor: pointer; }
+@keyframes cs-pulse { 0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 25%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.cs .dtag { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 99px; font-size: 11.5px; font-weight: 650; white-space: nowrap; border: 1px solid var(--line); background: var(--surface-3); color: var(--ink-2); box-shadow: var(--edge); font-variant-numeric: tabular-nums; }
+.cs .dtag .d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent); }
+.cs .dtag.ok { background: var(--ok-soft); border-color: var(--ok-line); color: var(--ok); }
+.cs .dtag.warn { background: var(--warn-soft); border-color: var(--warn-line); color: var(--warn); }
+.cs .dtag.bad { background: var(--bad-soft); border-color: var(--bad-line); color: var(--bad); }
+.cs .dtag.info { background: var(--info-soft); border-color: var(--info-line); color: var(--info); }
+.cs .dtag.purple { background: var(--purple-soft); border-color: var(--purple-line); color: var(--purple); }
+.cs .dtag.gold { background: var(--gold-soft); border-color: var(--gold-line); color: var(--gold); }
+.cs .dtag.cyan { background: var(--cyan-soft); border-color: var(--cyan-line); color: var(--cyan); }
+.cs .dtag.acc { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-text); }
+.cs .dtag.gray { color: var(--muted); }
+.cs .dtag.sq { border-radius: 6px; font-family: var(--mono); font-size: 11px; height: 20px; padding: 0 7px; }
+.cs .dtag.lg { height: 28px; padding: 0 12px; font-size: 12.5px; }
+.cs .ddot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.cs .ddot.ok { background: var(--ok); color: var(--ok); } .cs .ddot.warn { background: var(--warn); color: var(--warn); }
+.cs .ddot.bad { background: var(--bad); color: var(--bad); } .cs .ddot.info { background: var(--info); color: var(--info); }
+.cs .ddot.acc { background: var(--accent); color: var(--accent); } .cs .ddot.purple { background: var(--purple); } .cs .ddot.gray { background: var(--faint); }
+.cs .cnt { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: 50px; padding: 5px 8px; border-radius: 9px; background: var(--surface-3); border: 1px solid var(--line-soft); line-height: 1.1; }
+.cs .cnt b { font-size: 16px; font-variant-numeric: tabular-nums; } .cs .cnt span { font-size: 10.5px; color: var(--muted); }
+.cs .cnt.ok { background: var(--ok-soft); border-color: var(--ok-line); } .cs .cnt.ok b { color: var(--ok); }
+.cs .cnt.bad { background: var(--bad-soft); border-color: var(--bad-line); } .cs .cnt.bad b { color: var(--bad); }
+.cs .cnt.info { background: var(--info-soft); border-color: var(--info-line); } .cs .cnt.info b { color: var(--info); }
+
+/* ── meters, usage ─────────────────────────────────────────────────── */
+.cs .dmeter { height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; min-width: 60px; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .3); }
+.cs .dmeter > i { display: block; height: 100%; min-width: 3px; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent-hi)); box-shadow: 0 0 8px -2px var(--accent); }
+.cs .dmeter > i.ok { background: linear-gradient(90deg, #10b981, var(--ok)); }
+.cs .dmeter > i.warn { background: linear-gradient(90deg, #f97316, var(--warn)); }
+.cs .dmeter > i.bad { background: linear-gradient(90deg, #ef4444, var(--bad)); }
+.cs .dmeter > i.purple { background: linear-gradient(90deg, #a855f7, var(--purple)); opacity: .75; }
+.cs .dmeter > i.gray { background: var(--faint); box-shadow: none; }
+.cs .dmeter > i.sky { background: linear-gradient(90deg, #0ea5e9, var(--sky)); }
+.cs .dmeter.thin { height: 4px; } .cs .dmeter.fat { height: 10px; }
+.cs .dmeter.split { display: flex; gap: 2px; background: transparent; box-shadow: none; }
+.cs .dmeter.split > i { border-radius: 99px; }
+.cs .usage { display: flex; flex-direction: column; gap: 5px; min-width: 130px; }
+.cs .usage .top { display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap; }
+.cs .usage .top b { font-weight: 650; } .cs .usage .top span { color: var(--faint); font-size: 12px; }
+.cs .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.cs .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cs .legend i { width: 10px; height: 3px; border-radius: 3px; background: var(--accent); flex: none; } .cs .legend i.sky { background: var(--sky); }
+
+/* ── key-values, lists, feed ───────────────────────────────────────── */
+.cs .kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; font-size: 13px; margin: 0; }
+.cs .kv dt { color: var(--faint); } .cs .kv dd { margin: 0; text-align: end; font-variant-numeric: tabular-nums; }
+.cs .kv.left dd { text-align: start; }
+.cs .list { list-style: none; margin: 0; padding: 0; }
+.cs .list > li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+.cs .list > li:last-child { border-bottom: 0; }
+.cs .feed > li { align-items: flex-start; }
+.cs .feed .when { margin-inline-start: auto; color: var(--faint); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── chips, selection, toolbar ─────────────────────────────────────── */
+.cs .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cs .fchip { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cs .fchip .n { min-width: 22px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--surface-3); color: var(--muted); font-size: 11.5px; display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; }
+.cs .fchip:hover { border-color: var(--accent-line); }
+.cs .fchip.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.cs .fchip.on .n { background: var(--accent); color: var(--accent-ink); }
+.cs .fchip.ok .n { background: var(--ok-soft); color: var(--ok); } .cs .fchip.warn .n { background: var(--warn-soft); color: var(--warn); }
+.cs .fchip.bad .n { background: var(--bad-soft); color: var(--bad); } .cs .fchip.info .n { background: var(--info-soft); color: var(--info); }
+.cs .rchip { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 2px 6px 2px 10px; border-radius: 99px; background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--accent-text); font-size: 12px; font-weight: 600; }
+.cs .rchip button { border: 0; background: none; color: inherit; cursor: pointer; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; padding: 0; }
+.cs .rchip button:hover { background: var(--fill); }
+.cs .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
+.cs .toolbar .search-in { flex: 1 1 260px; max-width: 380px; }
+.cs .selbar { display: inline-flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; border-radius: 10px; background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--accent-text); font-weight: 650; font-size: 13px; }
+.cs .selbar button { border: 0; background: none; color: inherit; cursor: pointer; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; padding: 0; }
+.cs .selbar button:hover { background: var(--fill); }
+.cs .selnote { padding: 8px 14px; background: var(--surface-2); font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--line-soft); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px; }
+.cs .selnote .linkbtn { font-weight: 600; }
+
+/* ── tables ────────────────────────────────────────────────────────── */
+.cs .tw { overflow-x: auto; border-radius: inherit; }
+.cs .tw table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cs .tw th, .cs .tw td { padding: 10px 14px; text-align: start; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.cs .tw thead th { position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--surface-2) 92%, transparent); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; padding-block: 11px; }
+html[lang='fa'] .cs .tw thead th { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.cs .tw tbody tr { transition: background .12s; }
+.cs .tw tbody tr:hover { background: color-mix(in srgb, var(--accent) 4%, var(--surface-2)); }
+.cs .tw tbody tr:last-child td { border-bottom: 0; }
+.cs .tw tbody tr.picked { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+[dir='rtl'] .cs .tw tbody tr.picked { box-shadow: inset -2px 0 0 var(--accent); }
+.cs .tw tbody tr.off td:not(.keep) { opacity: .55; }
+.cs .tw tbody tr.exp-row td { background: color-mix(in srgb, var(--surface-2) 70%, transparent); padding: 0; }
+.cs .tw tr.exp-row .exp { padding: 16px 18px 18px; display: grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap: 18px; align-items: start; border-inline-start: 2px solid var(--accent); }
+.cs .tw td.w0 { width: 1%; white-space: nowrap; }
+.cs .tw td .name { font-weight: 650; color: var(--ink); text-decoration: none; }
+.cs .tw td .name:hover { color: var(--accent-text); }
+.cs .tw td .note { font-size: 12px; color: var(--faint); }
+
+/* ── buttons inside design pages ───────────────────────────────────── */
+.cs .btn.xs { min-height: 24px; padding: 0 8px; font-size: 12px; border-radius: 7px; box-shadow: none; }
+.cs .act:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-text); }
+.cs .act.danger:hover:not(:disabled) { background: var(--bad-soft); color: var(--bad); }
+.cs .acts { display: flex; gap: 2px; flex-wrap: nowrap; align-items: center; }
+
+/* ── banners ───────────────────────────────────────────────────────── */
+.cs .banner { border-radius: 12px; }
+.cs .banner.warn { background: linear-gradient(90deg, color-mix(in srgb, var(--warn) 12%, var(--surface)), var(--surface)); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+.cs .banner.bad { background: linear-gradient(90deg, color-mix(in srgb, var(--bad) 12%, var(--surface)), var(--surface)); border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
+.cs .banner.info { background: linear-gradient(90deg, color-mix(in srgb, var(--info) 10%, var(--surface)), var(--surface)); border-color: color-mix(in srgb, var(--info) 30%, transparent); }
+
+/* ── protocol tiles and tunnel cards ───────────────────────────────── */
+.cs .proto { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; font-family: var(--mono); font-weight: 800; font-size: 12.5px; letter-spacing: -.02em; flex: none; border: 1px solid; }
+.cs .proto.long { font-size: 10.5px; }
+.cs .proto.wg { color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent-line); box-shadow: 0 0 22px -8px var(--accent-glow); }
+.cs .proto.awg { color: var(--purple); background: var(--purple-soft); border-color: var(--purple-line); box-shadow: 0 0 22px -8px var(--purple); }
+.cs .proto.ovpn { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-line); box-shadow: 0 0 22px -8px var(--warn); }
+.cs .proto.l2tp, .cs .proto.ikev2, .cs .proto.pptp, .cs .proto.oc { color: var(--cyan); background: var(--cyan-soft); border-color: var(--cyan-line); }
+.cs .proto.x { color: var(--info); background: var(--info-soft); border-color: var(--info-line); }
+.cs .proto.off { color: var(--faint); background: var(--surface-3); border-color: var(--line); box-shadow: none; }
+/* Six columns, not the mockup's five: the app's cards carry a selection
+   checkbox the design's do not, so bulk actions survive the move. */
+.cs .tunnel { display: grid; grid-template-columns: auto auto minmax(200px, 1.2fr) minmax(270px, 1.5fr) minmax(150px, .9fr) auto; gap: 18px; align-items: center; padding: 16px 18px; }
+.cs .tunnel .vsep { border-inline-start: 1px solid var(--line-soft); padding-inline-start: 18px; min-width: 0; }
+.cs .tunnel h4 { font-size: 17px; font-weight: 800; font-family: var(--mono); letter-spacing: -.02em; }
+
+/* ── subscription bits ─────────────────────────────────────────────── */
+.cs .qrbox { width: 196px; height: 196px; padding: 12px; background: #fff; border-radius: 14px; flex: none; box-shadow: 0 0 0 1px var(--line), 0 18px 40px -20px var(--accent-glow); display: grid; place-items: center; }
+.cs .qrbox img { max-width: 100%; height: auto; display: block; }
+.cs .link-box { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); font-family: var(--mono); font-size: 12px; direction: ltr; min-width: 0; }
+.cs .link-box span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.cs .blur { filter: blur(5px); transition: filter .2s; }
+.cs .blur.shown { filter: none; }
+.cs .dempty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 46px 24px; text-align: center; color: var(--muted); }
+.cs .dempty .ico-tile { width: 52px; height: 52px; border-radius: 14px; }
+
+/* ── fleet map ─────────────────────────────────────────────────────── */
+.cs .map { position: relative; height: 360px; overflow: hidden; border-radius: 0 0 var(--r) var(--r); }
+.cs .map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cs .map .land { fill: color-mix(in srgb, var(--ink) 16%, transparent); }
+.cs .map .arc { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 5 6; filter: drop-shadow(0 0 4px var(--accent-glow)); animation: cs-dash 2.4s linear infinite; }
+.cs .map .arc.bad { stroke: var(--bad); opacity: .6; animation: none; }
+@keyframes cs-dash { to { stroke-dashoffset: -44; } }
+.cs .map-node { position: absolute; width: 0; height: 0; z-index: 2; }
+.cs .map-node .core { position: absolute; width: 9px; height: 9px; border-radius: 50%; left: -4.5px; top: -4.5px; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.cs .map-node .halo { position: absolute; width: 22px; height: 22px; border-radius: 50%; left: -11px; top: -11px; background: var(--accent); opacity: .25; animation: cs-halo 2.4s ease-out infinite; }
+.cs .map-node.bad .core { background: var(--bad); box-shadow: 0 0 8px var(--bad); } .cs .map-node.bad .halo { background: var(--bad); }
+.cs .map-node.main .core { background: var(--sky); box-shadow: 0 0 8px var(--sky); } .cs .map-node.main .halo { background: var(--sky); }
+@keyframes cs-halo { from { transform: scale(.6); opacity: .5; } to { transform: scale(1.6); opacity: 0; } }
+.cs .map .lbl { position: absolute; transform: translate(-50%, -135%); padding: 5px 9px; border-radius: 8px; background: color-mix(in srgb, var(--elev-1) 90%, transparent); border: 1px solid var(--line); font-size: 11.5px; font-weight: 650; white-space: nowrap; line-height: 1.25; box-shadow: var(--e2); direction: ltr; z-index: 3; }
+.cs .map .lbl small { display: block; font-family: var(--mono); font-weight: 600; color: var(--ok); }
+.cs .map .lbl.bad { border-color: var(--bad-line); } .cs .map .lbl.bad small { color: var(--bad); }
+.cs .map .lbl.main small { color: var(--sky); }
+
+/* ── the app's own tags and switches, in the design's metrics ──────── */
+/* Inside a design page the app's atag takes the design tag's shape; its
+   colour classes keep the wave-1 tag palette, which was derived from
+   the same triples. */
+.cs .atag { height: 22px; padding: 0 9px; border-radius: 99px; font-size: 11.5px; font-weight: 650; box-shadow: var(--edge); }
+.cs .atag.sq { border-radius: 6px; font-family: var(--mono); font-size: 11px; height: 20px; padding: 0 7px; }
+
+/* ── responsive ────────────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .cs .g6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cs .tunnel { grid-template-columns: auto auto 1fr auto auto; }
+  .cs .tunnel .vsep.traffic { display: none; }
+}
+@media (max-width: 1100px) {
+  .cs .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cs .g12 > * { grid-column: 1 / -1 !important; }
+  .cs .tw tr.exp-row .exp { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+  .cs .g2, .cs .g3 { grid-template-columns: 1fr; }
+  .cs .g6 { grid-template-columns: 1fr 1fr; }
+  .cs .ph h2 { font-size: 22px; }
+  .cs .tunnel { grid-template-columns: auto auto 1fr auto; }
+  .cs .tunnel .vsep { display: none; }
+  .cs .hero-num { font-size: 56px; }
+  .cs .tw tr.exp-row .exp { grid-template-columns: 1fr; }
+  .cs .map { height: 280px; }
+}

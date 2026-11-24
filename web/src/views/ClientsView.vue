@@ -230,6 +230,26 @@ watch([statusFilter, groupFilter, sort], () => {
 
 const hasGroups = computed(() => groupNames.value.length > 0)
 
+// The design's status chips over the list: the drawer's buckets, one at
+// a time, with the summary's own counts. A drawer selection of several
+// buckets lights none of them — the chips are the quick way to the one
+// bucket an operator usually wants, not a second copy of the drawer.
+const statusChips = computed(() => {
+  const s = stats.value
+  if (!s) return []
+  return [
+    { bucket: 'online', tone: 'ok', label: t('filter.bucket.online'), count: s.online },
+    { bucket: 'active', tone: '', label: t('filter.bucket.active'), count: s.active },
+    { bucket: 'depleting', tone: 'warn', label: t('filter.bucket.depleting'), count: s.depleting },
+    { bucket: 'exhausted', tone: 'bad', label: t('filter.bucket.exhausted'), count: s.exhausted },
+    { bucket: 'expired', tone: 'bad', label: t('filter.bucket.expired'), count: s.expired },
+    { bucket: 'disabled', tone: '', label: t('filter.bucket.disabled'), count: s.disabled },
+  ]
+})
+function setBucket(bucket) {
+  filters.value = { ...filters.value, buckets: bucket ? [bucket] : [] }
+}
+
 // Their chips: one per active filter, each closable on its own.
 const filterChips = computed(() => chipsFor(filters.value, interfaces.value, t))
 function clearChip(chip) {
@@ -286,6 +306,13 @@ function openSubLinks() {
 // Time or traffic for the selection: its own dialog, which works out what
 // will happen before anything does.
 const extendFor = ref(null)
+
+// The same for one customer, from their expanded row: the dialog works on
+// the selection, so the selection becomes that one customer first.
+function extendOne(c, kind) {
+  selected.value = new Set([c.id])
+  extendFor.value = { kind }
+}
 function extendDone() {
   extendFor.value = null
   clearSelection()
@@ -338,12 +365,40 @@ async function submitForm(input) {
     @close="filterOpen = false"
   />
 
-  <div class="antpage clients">
+  <div class="antpage clients cs">
+  <div class="ph">
+    <div>
+      <h2>{{ t('nav.clients') }}</h2>
+      <p>{{ t('client.lede') }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn" @click="bulkOpen = true">{{ t('client.menu.bulk') }}</button>
+      <button class="btn primary" :disabled="!interfaces.length" :title="interfaces.length ? '' : t('interface.noneYet')" @click="formFor = {}">{{ t('client.menu.addClients') }}</button>
+    </div>
+  </div>
+
   <!-- A reseller's own account: what they bought and how much of it is left. -->
   <AccountCard v-if="reseller" :account="account || store.admin" />
 
-  <!-- Their summary Card: size="small", six Statistics with a coloured dot. -->
+  <!-- The summary: six stat cards with a coloured dot. -->
   <ClientStats v-if="stats" :stats="stats" />
+
+  <!-- The status chips: the drawer's buckets, one at a time. -->
+  <div v-if="stats" class="chips mb">
+    <button type="button" class="fchip" :class="{ on: !filters.buckets.length }" @click="setBucket('')">
+      {{ t('common.all') }}<span class="n">{{ nf(stats.clients) }}</span>
+    </button>
+    <button
+      v-for="chip in statusChips"
+      :key="chip.bucket"
+      type="button"
+      class="fchip"
+      :class="[chip.tone, { on: filters.buckets.length === 1 && filters.buckets[0] === chip.bucket }]"
+      @click="setBucket(chip.bucket)"
+    >
+      {{ chip.label }}<span class="n">{{ nf(chip.count) }}</span>
+    </button>
+  </div>
 
   <div v-if="!interfaces.length" class="aalert warning">
     <AntIcon name="ExclamationCircleFilled" />
@@ -353,97 +408,92 @@ async function submitForm(input) {
     </div>
   </div>
 
-  <!-- Their list Card: size="small", the title a toolbar of Add Clients (or
-       the selection count), More, and -- with rows picked -- Delete at the end. -->
-  <div class="acard small">
-    <div class="acard-head">
-      <div class="card-toolbar">
-        <button v-if="!selected.size" class="abtn primary" :disabled="!interfaces.length" :title="interfaces.length ? '' : t('interface.noneYet')" @click="formFor = {}">
-          <AntIcon name="PlusOutlined" /><span v-if="!isMobile">{{ t('client.menu.addClients') }}</span>
+  <!-- The list card: one toolbar over the table — Add Clients (or the
+       selection bar), More, search, Filter with its badge, Sort, Clear
+       all, and how many of the total are shown. -->
+  <div class="card calm">
+    <div class="toolbar">
+      <button v-if="!selected.size" class="btn primary" :disabled="!interfaces.length" :title="interfaces.length ? '' : t('interface.noneYet')" @click="formFor = {}">
+        <AntIcon name="PlusOutlined" /><span v-if="!isMobile">{{ t('client.menu.addClients') }}</span>
+      </button>
+      <span v-else class="selbar">
+        {{ t('client.menu.selectedCount', { count: selected.size }) }}
+        <button type="button" :aria-label="t('action.cancel')" @click="selected = new Set()"><AntIcon name="CloseOutlined" /></button>
+      </span>
+      <MoreMenu :items="moreItems" :compact="isMobile" button-class="btn" :label="t('outbound.more')" @pick="pick" />
+      <button v-if="selected.size" class="btn danger" @click="bulk('delete')">
+        <AntIcon name="DeleteOutlined" /><span v-if="!isMobile">{{ t('action.delete') }}</span>
+      </button>
+      <label class="ainput search-in" :class="{ small: isMobile }">
+        <span class="ainput-prefix"><AntIcon name="SearchOutlined" /></span>
+        <input v-model="search" type="text" :placeholder="t('client.menu.searchPlaceholder')" :aria-label="t('action.search')" />
+        <button v-if="search" type="button" class="ainput-clear" :aria-label="t('action.cancel')" @click="search = ''"><AntIcon name="CloseCircleFilled" /></button>
+      </label>
+      <span class="abadge-wrap">
+        <button class="btn" :class="{ primary: filterCount > 0 }" @click="filterOpen = true">
+          <AntIcon name="FilterOutlined" /><span v-if="!isMobile">{{ t('filter.button') }}</span>
         </button>
-        <span v-else class="atag blue closable" style="padding: 4px 8px; font-size: 13px">
-          {{ t('client.menu.selectedCount').replace('{count}', nf(selected.size)) }}
-          <button type="button" class="atag-close" :aria-label="t('action.cancel')" @click="selected = new Set()"><AntIcon name="CloseOutlined" /></button>
-        </span>
-        <MoreMenu :items="moreItems" :compact="isMobile" @pick="pick" />
-        <button v-if="selected.size" class="abtn danger" style="margin-inline-start: auto" @click="bulk('delete')">
-          <AntIcon name="DeleteOutlined" /><span v-if="!isMobile">{{ t('action.delete') }}</span>
-        </button>
+        <sup v-if="filterCount" class="abadge">{{ filterCount }}</sup>
+      </span>
+      <div class="aselect sort-select" :class="{ small: isMobile }" :style="{ minWidth: (isMobile ? 130 : 200) + 'px' }">
+        <select v-model="sort" :aria-label="t('client.sort.label')">
+          <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ t(o.key) }}</option>
+        </select>
+        <span class="aselect-suffix"><AntIcon name="SortAscendingOutlined" /></span>
       </div>
+      <button v-if="filterCount || search || statusFilter || groupFilter" class="btn ghost danger" @click="clearFilters">{{ t('client.menu.clearAllFilters') }}</button>
+      <span v-if="page" class="faint small spacer">
+        {{ t('client.menu.showingCount', { shown: page.total, total: stats?.clients ?? page.total }) }}
+      </span>
     </div>
 
-    <div class="acard-body">
-      <!-- Their filter bar: search, Filter with its badge, Sort, Clear all,
-           and how many of the total are shown. -->
-      <div class="filter-bar" :class="{ mobile: isMobile }">
-        <label class="ainput" :class="{ small: isMobile }" :style="isMobile ? 'max-width: 200px; width: 100%' : 'max-width: 320px; width: 100%'">
-          <span class="ainput-prefix"><AntIcon name="SearchOutlined" /></span>
-          <input v-model="search" type="text" :placeholder="t('client.menu.searchPlaceholder')" :aria-label="t('action.search')" />
-          <button v-if="search" type="button" class="ainput-clear" :aria-label="t('action.cancel')" @click="search = ''"><AntIcon name="CloseCircleFilled" /></button>
-        </label>
-        <span class="abadge-wrap">
-          <button class="abtn" :class="{ primary: filterCount > 0 }" @click="filterOpen = true">
-            <AntIcon name="FilterOutlined" /><span v-if="!isMobile">{{ t('filter.button') }}</span>
-          </button>
-          <sup v-if="filterCount" class="abadge">{{ filterCount }}</sup>
-        </span>
-        <div class="aselect sort-select" :class="{ small: isMobile }" :style="{ minWidth: (isMobile ? 130 : 200) + 'px' }">
-          <select v-model="sort" :aria-label="t('client.sort.label')">
-            <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">{{ t(o.key) }}</option>
-          </select>
-          <span class="aselect-suffix"><AntIcon name="SortAscendingOutlined" /></span>
-        </div>
-        <button v-if="filterCount || search || statusFilter || groupFilter" class="abtn" @click="clearFilters">{{ t('client.menu.clearAllFilters') }}</button>
-        <span v-if="page && (filterCount || search || statusFilter || groupFilter)" class="filter-count">
-          {{ t('client.menu.showingCount').replace('{shown}', nf(page.total)).replace('{total}', nf(stats?.clients ?? page.total)) }}
-        </span>
-      </div>
+    <div v-if="filterChips.length" class="rchip-row">
+      <span v-for="(chip, i) in filterChips" :key="i" class="rchip">
+        {{ chip.text }}
+        <button type="button" :aria-label="t('action.remove')" @click="clearChip(chip)"><AntIcon name="CloseOutlined" /></button>
+      </span>
+    </div>
 
-      <!-- Every customer the filter matches, across the pages: offered once
-           the page is ticked, said once it is chosen. -->
-      <div v-if="offerAllMatching || allMatching" class="sel-bar" role="status">
-        <template v-if="allMatching">
-          <span>{{ t(filtering ? 'client.sel.allFilteredSelected' : 'client.sel.allSelected', { n: selected.size }) }}</span>
-          <button type="button" class="linkbtn" @click="clearSelection">{{ t('client.sel.clear') }}</button>
-        </template>
-        <template v-else>
-          <span>{{ t('client.sel.page', { n: page.items.length }) }}</span>
-          <button type="button" class="linkbtn" :disabled="matchingBusy" @click="selectAllMatching">
-            <span v-if="matchingBusy" class="spin sm"></span>
-            {{ t(filtering ? 'client.sel.selectAllFiltered' : 'client.sel.selectAll', { n: page.total }) }}
-          </button>
-        </template>
-      </div>
-      <div v-if="filterChips.length" class="filter-chips">
-        <span v-for="(chip, i) in filterChips" :key="i" class="atag closable" :class="chip.color">
-          {{ chip.text }}
-          <button type="button" class="atag-close" :aria-label="t('action.remove')" @click="clearChip(chip)"><AntIcon name="CloseOutlined" /></button>
-        </span>
-      </div>
+    <!-- Every customer the filter matches, across the pages: offered once
+         the page is ticked, said once it is chosen. -->
+    <div v-if="offerAllMatching || allMatching" class="selnote" role="status">
+      <template v-if="allMatching">
+        <span>{{ t(filtering ? 'client.sel.allFilteredSelected' : 'client.sel.allSelected', { n: selected.size }) }}</span>
+        <button type="button" class="linkbtn" @click="clearSelection">{{ t('client.sel.clear') }}</button>
+      </template>
+      <template v-else>
+        <span>{{ t('client.sel.page', { n: page.items.length }) }}</span>
+        <button type="button" class="linkbtn" :disabled="matchingBusy" @click="selectAllMatching">
+          <span v-if="matchingBusy" class="spin sm"></span>
+          {{ t(filtering ? 'client.sel.selectAllFiltered' : 'client.sel.selectAll', { n: page.total }) }}
+        </button>
+      </template>
+    </div>
 
-      <PageSpin v-if="showSkeleton" />
-      <div v-else-if="loading && !page" class="empty"></div>
+    <PageSpin v-if="showSkeleton" />
+    <div v-else-if="loading && !page" class="empty"></div>
 
-      <ClientCards
-        v-else-if="isMobile"
+    <ClientCards
+      v-else-if="isMobile"
+      :items="page?.items || []" :selected="selected" :all-selected="allSelected" :pending="pending" :interfaces="interfaces" :operators="operators"
+      @toggle="toggleOne" @toggle-all="toggleAll" @qr="(c) => (shareFor = c)" @info="(c) => (infoFor = c)"
+      @rotate="rotateKeysFor" @reset="resetOne" @edit="(c) => (formFor = { client: c })" @remove="removeOne"
+      @enable="setEnabled" @group="(g) => (groupFilter = g)"
+      :total="page?.total || 0" :page="currentPage" :page-size="pageSize" :stale="refiltering" @go="goPage"
+    />
+
+    <template v-else>
+      <ClientsTable
         :items="page?.items || []" :selected="selected" :all-selected="allSelected" :pending="pending" :interfaces="interfaces" :operators="operators"
         @toggle="toggleOne" @toggle-all="toggleAll" @qr="(c) => (shareFor = c)" @info="(c) => (infoFor = c)"
         @rotate="rotateKeysFor" @reset="resetOne" @edit="(c) => (formFor = { client: c })" @remove="removeOne"
-        @enable="setEnabled" @group="(g) => (groupFilter = g)"
-        :total="page?.total || 0" :page="currentPage" :page-size="pageSize" :stale="refiltering" @go="goPage"
+        @enable="setEnabled" @group="(g) => (groupFilter = g)" @extend="extendOne"
+        :has-groups="hasGroups" :group-filter="groupFilter" :stale="refiltering"
       />
-
-      <template v-else>
-        <ClientsTable
-          :items="page?.items || []" :selected="selected" :all-selected="allSelected" :pending="pending" :interfaces="interfaces" :operators="operators"
-          @toggle="toggleOne" @toggle-all="toggleAll" @qr="(c) => (shareFor = c)" @info="(c) => (infoFor = c)"
-          @rotate="rotateKeysFor" @reset="resetOne" @edit="(c) => (formFor = { client: c })" @remove="removeOne"
-          @enable="setEnabled" @group="(g) => (groupFilter = g)"
-          :has-groups="hasGroups" :group-filter="groupFilter" :stale="refiltering"
-        />
-        <Pager v-if="page && page.total > pageSize" :total="page.total" :page="currentPage" :page-size="pageSize" :sizes="PAGE_SIZES" @go="goPage" @size="setPageSize" />
-      </template>
-    </div>
+      <div v-if="page && page.total > pageSize" class="pager-bar">
+        <Pager :total="page.total" :page="currentPage" :page-size="pageSize" :sizes="PAGE_SIZES" @go="goPage" @size="setPageSize" />
+      </div>
+    </template>
   </div>
   </div>
 
@@ -495,14 +545,14 @@ async function submitForm(input) {
 
 .clients .acard.small .acard-head { min-height: 38px; padding: 0 12px; }
 .clients .acard.small .acard-body { padding: 12px; }
-.clients .card-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; padding: 6px 0; }
-.clients .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-.clients .filter-count { margin-inline-start: auto; color: var(--muted); font-size: 13px; white-space: nowrap; }
-.clients .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; padding: 6px 8px; background: var(--surface-2); border-radius: 8px; }
-.clients .filter-chips .atag { margin: 0; }
+/* The active filters, one closable chip each, in a quiet band under the
+   toolbar — the design's rchip row. */
+.clients .rchip-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line-soft); }
+.clients .pager-bar { padding: 10px 14px; border-top: 1px solid var(--line-soft); }
+.clients .client-cards { padding: 12px; }
 .clients .abadge-wrap { position: relative; display: inline-block; }
 .clients .abadge { position: absolute; top: 4px; inset-inline-end: 4px; transform: translate(50%, -50%); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--bad); color: #fff; font-size: 12px; line-height: 16px; text-align: center; box-shadow: 0 0 0 1px var(--surface); }
-.clients .filter-bar .sort-select { width: auto; }
+.clients .sort-select { width: auto; }
 .clients .sort-select .aselect-suffix { position: absolute; inset-inline-end: 11px; top: 50%; transform: translateY(-50%); color: var(--faint); font-size: 12px; pointer-events: none; }
 .clients .sort-select::after { display: none; }
 .clients .sort-select select { padding-inline-end: 28px; }
@@ -528,26 +578,6 @@ async function submitForm(input) {
 
 .clients .clients-empty .anticon { display: block; margin: 0 auto 8px; }
 
-/* Every match, across the pages: offered and said in one quiet line. */
-.clients .sel-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 4px 10px;
-  margin: 8px 0 0;
-  padding: 7px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--ink);
-  font-size: var(--t-sm);
-}
-.clients .sel-bar .linkbtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-}
 .clients .apagination-total { align-items: center; height: 32px; color: var(--ink); font-size: 14px; }
 .clients .apagination.small .apagination-total { height: 24px; }
 .clients .apage.jump { border-color: transparent; background: transparent; letter-spacing: 2px; color: var(--faint); }

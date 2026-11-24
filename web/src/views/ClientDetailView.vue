@@ -7,6 +7,7 @@ import { api, saveFile } from '../lib/api.js'
 import { store, t, tn, notify } from '../lib/store.js'
 import { bytes, dateTime, relative, percent, isOnline } from '../lib/format.js'
 import Icon from '../components/Icon.vue'
+import RingGauge from '../components/RingGauge.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import DeviceSetup from '../components/DeviceSetup.vue'
 
@@ -27,6 +28,33 @@ const newDevice = ref('')
 const busy = ref(false)
 const downloading = ref(false)
 
+// The tunnels, to name a device's server beside it and to head the
+// usage table's columns. Read in the background: a failure leaves the
+// ids showing as numbers rather than failing the page.
+const interfaces = ref([])
+const ifaceName = (id) => interfaces.value.find((i) => i.id === id)?.name || `#${id}`
+
+// The subscription link and its code, read the way the share dialog
+// reads them: the link is the customer's own address, and it exists
+// only while subscriptions are switched on.
+const subLink = ref('')
+const subQr = ref('')
+const subQrSize = ref(340)
+async function loadSub() {
+  try {
+    const sub = await api.get('/api/subscription', { background: true }).catch(() => null)
+    if (sub?.enabled === false) return
+    const res = await api.get(`/api/clients/${props.id}/subscription`, { background: true })
+    if (!res?.link) return
+    subLink.value = res.link
+    const code = await makeQR(res.link)
+    subQr.value = code.dataUrl
+    subQrSize.value = code.size
+  } catch {
+    /* no link: the card says so instead of failing the page */
+  }
+}
+
 // Devices, not accounts. A customer on three servers holds three accounts
 // per device, and showing the row count against the device limit would read
 // as 6 / 2 for somebody who has two devices.
@@ -39,6 +67,55 @@ const deviceCount = computed(
 const serverCount = computed(
   () => new Set((client.value?.accounts || []).map((a) => a.interfaceId)).size,
 )
+
+// The header's status: online while any device has handshaken lately,
+// the plan's own state otherwise.
+const statusTag = computed(() => {
+  const c = client.value
+  if (!c) return { tone: '', label: '' }
+  if ((c.accounts || []).some((a) => isOnline(a.lastHandshake)) && c.status === 'active') {
+    return { tone: 'ok', label: t('status.online'), dot: true }
+  }
+  if (c.status === 'active') return { tone: 'acc', label: t('status.active') }
+  if (c.status === 'disabled') return { tone: 'gray', label: t('status.disabled') }
+  return { tone: 'bad', label: t(`status.${c.status}`) }
+})
+
+// The line under the name: what the operator wrote, when the customer
+// was made, and how much of the device allowance is in use.
+const metaLine = computed(() => {
+  const c = client.value
+  if (!c) return ''
+  const parts = []
+  if (c.note) parts.push(c.note)
+  if (c.createdAt) parts.push(`${t('iface.col.createdAt')} ${dateTime(c.createdAt, store.locale)}`)
+  parts.push(`${deviceCount.value} / ${c.deviceLimit || '∞'} ${t('device.title')}`)
+  if (serverCount.value > 1) parts.push(tn('client.acrossServers', serverCount.value))
+  return parts.join(' · ')
+})
+
+// Usage split by device and tunnel, from the accounts themselves: a
+// device's row is its files one per tunnel, and the columns add up to
+// the customer's total because the accounts are all there is.
+const usageMatrix = computed(() => {
+  const accounts = client.value?.accounts || []
+  const devices = []
+  const ifaceIds = []
+  for (const a of accounts) {
+    if (!devices.includes(a.deviceName)) devices.push(a.deviceName)
+    if (!ifaceIds.includes(a.interfaceId)) ifaceIds.push(a.interfaceId)
+  }
+  const cell = (device, ifaceId) => {
+    const a = accounts.find((x) => x.deviceName === device && x.interfaceId === ifaceId)
+    return a ? (a.upBytes || 0) + (a.downBytes || 0) : null
+  }
+  const rows = devices.map((device) => {
+    const cells = ifaceIds.map((id) => cell(device, id))
+    return { device, cells, total: cells.reduce((s, v) => s + (v || 0), 0) }
+  })
+  const colTotals = ifaceIds.map((_, i) => rows.reduce((s, r) => s + (r.cells[i] || 0), 0))
+  return { devices: rows, ifaceIds, colTotals, grand: rows.reduce((s, r) => s + r.total, 0) }
+})
 
 // Every device's configuration in one archive.
 //
@@ -81,7 +158,11 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadSub()
+  api.interfaces({ background: true }).then((list) => (interfaces.value = list || [])).catch(() => {})
+})
 
 async function showProfile(account) {
   try {
@@ -221,165 +302,238 @@ const isL2TP = (p) => /-(l2tp|pptp)\.txt$/.test(p.filename || '')
   </template>
 
   <template v-else-if="client">
-    <div class="page-head">
-      <div>
-        <RouterLink to="/clients" class="back small muted">
-          ‹ {{ t('nav.clients') }}
-        </RouterLink>
-        <h1>{{ client.name }}</h1>
-        <p class="row">
-          <span class="tag proto">{{ client.protocol }}</span>
-          <span class="tag" :class="client.status">
-            <i v-if="client.status === 'active'" class="dot"></i>
-            {{ t(`status.${client.status}`) }}
+    <div class="cs">
+      <div class="row mb">
+        <RouterLink to="/clients" class="btn ghost sm">‹ {{ t('nav.clients') }}</RouterLink>
+      </div>
+
+      <!-- The header: who this is, how their plan stands, and the three
+           things that can be done to the whole customer at once. -->
+      <div class="card mb2">
+        <div class="cb row" style="gap: 18px">
+          <span class="avatar" style="width: 56px; height: 56px; font-size: 22px; border-radius: 16px">
+            {{ (client.name || '?').slice(0, 1) }}
           </span>
-          <span v-if="client.note" class="muted">{{ client.note }}</span>
-        </p>
+          <div class="col">
+            <div class="row tight">
+              <h2 style="font-size: 24px; font-weight: 800">{{ client.name }}</h2>
+              <span class="dtag" :class="statusTag.tone">
+                <span v-if="statusTag.dot" class="d"></span>{{ statusTag.label }}
+              </span>
+              <span v-if="client.group" class="dtag acc">{{ client.group }}</span>
+              <span class="dtag gray">{{ client.protocol }}</span>
+            </div>
+            <span class="faint small">{{ metaLine }}</span>
+          </div>
+          <div class="row tight spacer">
+            <button v-if="client.status === 'active'" class="btn sm" @click="setStatus('disabled')">
+              <Icon name="power" :size="13" />{{ t('action.disable') }}
+            </button>
+            <button v-else class="btn sm" @click="setStatus('active')">
+              <Icon name="power" :size="13" />{{ t('action.enable') }}
+            </button>
+            <button class="btn sm" @click="resetTraffic">
+              <Icon name="refresh" :size="13" />{{ t('action.resetTraffic') }}
+            </button>
+            <button class="btn sm danger" @click="remove">
+              <Icon name="trash" :size="13" />{{ t('action.delete') }}
+            </button>
+          </div>
+        </div>
       </div>
-      <div class="spacer row">
-        <button v-if="client.status === 'active'" class="btn sm" @click="setStatus('disabled')">
-          <Icon name="power" :size="13" />{{ t('action.disable') }}
-        </button>
-        <button v-else class="btn sm" @click="setStatus('active')">
-          <Icon name="power" :size="13" />{{ t('action.enable') }}
-        </button>
-        <button class="btn sm" @click="resetTraffic">
-          <Icon name="refresh" :size="13" />{{ t('action.resetTraffic') }}
-        </button>
-        <button class="btn sm danger" @click="remove">
-          <Icon name="trash" :size="13" />{{ t('action.delete') }}
-        </button>
-      </div>
-    </div>
 
-    <div class="card" style="margin-bottom: 16px">
-      <dl class="metrics">
-        <div class="metric">
-          <dt>{{ t('client.used') }}</dt>
-          <dd>{{ bytes(client.usedBytes, store.locale) }}</dd>
-          <!-- Shown only once there is a split to show. The enforcer that
-               cannot tell the directions apart leaves both at zero, and
-               "↓ 0 B ↑ 0 B" under a real total reads as a fault. -->
-          <dd v-if="client.downBytes || client.upBytes" class="muted small num ltr">
-            ↓ {{ bytes(client.downBytes, store.locale) }}
-            ↑ {{ bytes(client.upBytes, store.locale) }}
-          </dd>
-        </div>
-        <div class="metric">
-          <dt>{{ t('client.quota') }}</dt>
-          <dd>{{ client.quotaBytes ? bytes(client.quotaBytes, store.locale) : t('client.unlimited') }}</dd>
-        </div>
-        <div class="metric">
-          <dt>{{ t('client.expires') }}</dt>
-          <!-- A plan waiting for its first connection has no date yet. Saying
-               "never expires" here would be the opposite of the truth about a
-               plan with a fixed length. -->
-          <dd v-if="!client.expiresAt && client.startOnFirstUse && client.durationDays > 0">
-            <span class="tag blue ltr">{{ client.durationDays }}d</span>
-            <span class="muted small">{{ t('client.notStartedHint') }}</span>
-          </dd>
-          <dd v-else>
-            {{ client.expiresAt ? relative(client.expiresAt, store.locale) : t('client.neverExpires') }}
-          </dd>
-        </div>
-        <div class="metric">
-          <dt>{{ t('client.deviceLimit') }}</dt>
-          <dd class="ltr">
-            {{ deviceCount }} / {{ client.deviceLimit || '∞' }}
-            <span v-if="serverCount > 1" class="muted small">
-              · {{ tn('client.acrossServers', serverCount) }}
+      <div class="grid g12">
+        <!-- The plan: the ring is the allowance, the figures beside it
+             are what is left of it and of the time. -->
+        <section class="card s5">
+          <div class="ch">
+            <h3>{{ t('client.plan') }}</h3>
+            <span class="dtag spacer" :class="statusTag.tone">{{ statusTag.label }}</span>
+          </div>
+          <div class="cb row nowrap" style="gap: 24px">
+            <RingGauge :percent="percent(client.usedBytes, client.quotaBytes) ?? 0" :size="148" :thickness="10" />
+            <dl class="kv" style="flex: 1">
+              <dt>{{ t('client.used') }}</dt>
+              <dd>{{ bytes(client.usedBytes, store.locale) }}</dd>
+              <dt>{{ t('client.quota') }}</dt>
+              <dd>{{ client.quotaBytes ? bytes(client.quotaBytes, store.locale) : t('client.unlimited') }}</dd>
+              <dt v-if="client.quotaBytes">{{ t('client.remaining') }}</dt>
+              <dd v-if="client.quotaBytes" class="ok-t">
+                <b>{{ bytes(Math.max(0, client.quotaBytes - client.usedBytes), store.locale) }}</b>
+              </dd>
+              <dt>{{ t('client.timeLeft') }}</dt>
+              <!-- A plan waiting for its first connection has no date yet. Saying
+                   "never expires" here would be the opposite of the truth about a
+                   plan with a fixed length. -->
+              <dd v-if="!client.expiresAt && client.startOnFirstUse && client.durationDays > 0">
+                <span class="dtag info ltr">{{ client.durationDays }}d</span>
+                <span class="muted small">{{ t('client.notStartedHint') }}</span>
+              </dd>
+              <dd v-else>{{ client.expiresAt ? relative(client.expiresAt, store.locale) : '∞' }}</dd>
+              <dt v-if="client.expiresAt">{{ t('client.expires') }}</dt>
+              <dd v-if="client.expiresAt">{{ dateTime(client.expiresAt, store.locale) }}</dd>
+              <dt>{{ t('client.resetCycle') }}</dt>
+              <dd>{{ t(`reset.${client.resetCycle}`) }}</dd>
+              <dt>{{ t('client.deviceLimit') }}</dt>
+              <dd class="ltr">{{ deviceCount }} / {{ client.deviceLimit || '∞' }}</dd>
+              <!-- Shown only once there is a split to show. The enforcer that
+                   cannot tell the directions apart leaves both at zero, and
+                   "↓ 0 B ↑ 0 B" under a real total reads as a fault. -->
+              <dt v-if="client.downBytes || client.upBytes">{{ t('overview.upload') }} / {{ t('overview.download') }}</dt>
+              <dd v-if="client.downBytes || client.upBytes" class="mono">
+                ↑ {{ bytes(client.upBytes, store.locale) }} · ↓ {{ bytes(client.downBytes, store.locale) }}
+              </dd>
+            </dl>
+          </div>
+        </section>
+
+        <!-- The one link that carries every server, with its code. -->
+        <section class="card s7">
+          <div class="ch">
+            <h3>{{ t('client.subscription') }}</h3>
+            <span class="sub">{{ t('client.subLine') }}</span>
+          </div>
+          <div class="cb row nowrap" style="gap: 22px; align-items: flex-start">
+            <div v-if="subQr" class="qrbox">
+              <img :src="subQr" :alt="t('client.subscription')" :width="subQrSize" :height="subQrSize" />
+            </div>
+            <div class="col" style="flex: 1; gap: 12px">
+              <div v-if="subLink" class="link-box">
+                <span>{{ subLink }}</span>
+                <button class="btn xs" @click="copy(subLink)">{{ t('action.copy') }}</button>
+                <a class="btn xs" :href="subLink" target="_blank" rel="noopener">{{ t('overview.openPage') }}</a>
+              </div>
+              <p v-else class="muted small">{{ t('client.subUnavailable') }}</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- The files, one row per account: a device on three tunnels is
+             three files, and each is configured and removed on its own. -->
+        <section class="card calm s12">
+          <div class="ch">
+            <h3>{{ t('device.title') }}</h3>
+            <span class="sub">
+              {{ (client.accounts || []).length }} {{ t('device.filesWord') }} · {{ deviceCount }} / {{ client.deviceLimit || '∞' }}
             </span>
-          </dd>
-        </div>
-        <div class="metric">
-          <dt>{{ t('client.resetCycle') }}</dt>
-          <dd>{{ t(`reset.${client.resetCycle}`) }}</dd>
-        </div>
-      </dl>
-      <div v-if="client.quotaBytes" class="quota-bar">
-        <div class="meter">
-          <span
-            :class="percent(client.usedBytes, client.quotaBytes) >= 95 ? 'bad' : percent(client.usedBytes, client.quotaBytes) >= 80 ? 'warn' : ''"
-            :style="{ width: (percent(client.usedBytes, client.quotaBytes) ?? 0) + '%' }"
-          ></span>
-        </div>
-      </div>
-    </div>
+            <div class="row tight spacer">
+              <input
+                v-model="newDevice"
+                :placeholder="t('device.namePlaceholder')"
+                style="max-width: 170px"
+                @keyup.enter="addDevice"
+              />
+              <button
+                class="btn sm primary"
+                :disabled="deviceCount >= 64"
+                :title="deviceCount >= 64 ? t('error.deviceLimitReached') : ''"
+                @click="addDevice"
+              >
+                <Icon name="plus" :size="13" />{{ t('device.add') }}
+              </button>
+              <!-- A .conf holds one [Interface], so several devices cannot be one
+                   file. Shown only when there is more than one to collect. -->
+              <button
+                v-if="(client.accounts?.length ?? 0) > 1"
+                class="btn sm"
+                :title="t('device.downloadAllHint')"
+                :disabled="downloading"
+                @click="downloadAll"
+              >
+                <span v-if="downloading" class="spin sm"></span>
+                <Icon v-else name="download" :size="13" />{{ t('device.downloadAll') }}
+              </button>
+            </div>
+          </div>
 
-    <div class="card">
-      <div class="card-head">
-        <h2>{{ t('device.title') }}</h2>
-        <div class="spacer row">
-          <input
-            v-model="newDevice"
-            :placeholder="t('device.namePlaceholder')"
-            style="max-width: 170px"
-            @keyup.enter="addDevice"
-          />
-          <button
-            class="btn sm primary"
-            :disabled="deviceCount >= 64"
-            :title="deviceCount >= 64 ? t('error.deviceLimitReached') : ''"
-            @click="addDevice"
-          >
-            <Icon name="plus" :size="13" />{{ t('device.add') }}
-          </button>
-          <!-- A .conf holds one [Interface], so several devices cannot be one
-               file. Shown only when there is more than one to collect. -->
-          <button
-            v-if="(client.accounts?.length ?? 0) > 1"
-            class="btn sm"
-            :title="t('device.downloadAllHint')"
-            :disabled="downloading"
-            @click="downloadAll"
-          >
-            <span v-if="downloading" class="spin sm"></span>
-            <Icon v-else name="download" :size="13" />{{ t('device.downloadAll') }}
-          </button>
-        </div>
-      </div>
+          <div v-if="!client.accounts?.length" class="dempty">{{ t('device.none') }}</div>
 
-      <div v-if="!client.accounts?.length" class="empty">{{ t('device.none') }}</div>
+          <div v-else class="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{ t('device.name') }}</th>
+                  <th>{{ t('nav.interfaces') }}</th>
+                  <th>{{ t('device.address') }}</th>
+                  <th>{{ t('client.status') }}</th>
+                  <th>{{ t('client.used') }}</th>
+                  <th>{{ t('device.lastSeen') }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="acc in client.accounts" :key="acc.id">
+                  <td>
+                    <div class="col">
+                      <b class="mono">{{ acc.deviceName }}</b>
+                      <span v-if="acc.username" class="faint xs">{{ acc.username }}</span>
+                    </div>
+                  </td>
+                  <td><span class="dtag sq gold">{{ ifaceName(acc.interfaceId) }}</span></td>
+                  <td class="mono">{{ acc.ip }}</td>
+                  <td>
+                    <span class="dtag" :class="isOnline(acc.lastHandshake) ? 'ok' : 'gray'">
+                      <span v-if="isOnline(acc.lastHandshake)" class="d"></span>
+                      {{ isOnline(acc.lastHandshake) ? t('status.online') : t('status.offline') }}
+                    </span>
+                  </td>
+                  <td class="mono">{{ bytes((acc.upBytes || 0) + (acc.downBytes || 0), store.locale) }}</td>
+                  <td class="small muted">
+                    {{ acc.lastHandshake ? relative(acc.lastHandshake, store.locale) : t('node.never') }}
+                  </td>
+                  <td class="w0">
+                    <div class="acts">
+                      <button class="act" :title="t('device.config')" :aria-label="t('device.config')" @click="showProfile(acc)">
+                        <Icon name="qr" :size="15" />
+                      </button>
+                      <button
+                        class="act danger"
+                        :title="t('action.delete')"
+                        :aria-label="t('action.delete')"
+                        @click="removeDevice(acc)"
+                      >
+                        <Icon name="trash" :size="15" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-      <div v-else class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>{{ t('device.name') }}</th>
-              <th>{{ t('device.address') }}</th>
-              <th>{{ t('client.status') }}</th>
-              <th>{{ t('device.lastSeen') }}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="acc in client.accounts" :key="acc.id">
-              <td>{{ acc.deviceName }}</td>
-              <td class="mono small">{{ acc.ip }}</td>
-              <td>
-                <span class="tag" :class="isOnline(acc.lastHandshake) ? 'active' : 'disabled'">
-                  <i v-if="isOnline(acc.lastHandshake)" class="dot"></i>
-                  {{ isOnline(acc.lastHandshake) ? t('status.online') : t('status.offline') }}
-                </span>
-              </td>
-              <td class="small muted">{{ dateTime(acc.lastHandshake, store.locale) }}</td>
-              <td>
-                <div class="row" style="justify-content: flex-end; flex-wrap: nowrap">
-                  <button class="btn sm" @click="showProfile(acc)">
-                    <Icon name="qr" :size="13" />{{ t('device.config') }}
-                  </button>
-                  <button
-                    class="btn sm icon danger"
-                    :aria-label="t('action.delete')"
-                    @click="removeDevice(acc)"
-                  >
-                    <Icon name="trash" :size="13" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- What each device moved on each tunnel, from the accounts:
+             the rows and columns add up to the plan's total. -->
+        <section v-if="(client.accounts || []).length" class="card calm s12">
+          <div class="ch">
+            <h3>{{ t('client.usageByTunnel') }}</h3>
+          </div>
+          <div class="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{ t('device.name') }}</th>
+                  <th v-for="id in usageMatrix.ifaceIds" :key="id">{{ ifaceName(id) }}</th>
+                  <th>{{ t('overview.totalData') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in usageMatrix.devices" :key="row.device">
+                  <td class="mono">{{ row.device }}</td>
+                  <td v-for="(v, i) in row.cells" :key="i" class="mono">
+                    {{ v === null ? '—' : bytes(v, store.locale) }}
+                  </td>
+                  <td class="mono"><b>{{ bytes(row.total, store.locale) }}</b></td>
+                </tr>
+                <tr>
+                  <td><b>{{ t('overview.totalData') }}</b></td>
+                  <td v-for="(v, i) in usageMatrix.colTotals" :key="i" class="mono"><b>{{ bytes(v, store.locale) }}</b></td>
+                  <td class="mono"><b class="accent-t">{{ bytes(usageMatrix.grand, store.locale) }}</b></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -465,16 +619,6 @@ const isL2TP = (p) => /-(l2tp|pptp)\.txt$/.test(p.filename || '')
 </template>
 
 <style scoped>
-.back {
-  display: inline-block;
-  margin-bottom: 4px;
-}
-.back:hover {
-  color: var(--accent-hover);
-}
-.quota-bar {
-  padding: 0 16px 14px;
-}
 .card-body {
   display: flex;
   flex-direction: column;
@@ -524,8 +668,5 @@ const isL2TP = (p) => /-(l2tp|pptp)\.txt$/.test(p.filename || '')
   padding: 6px 9px;
   overflow-x: auto;
   white-space: nowrap;
-}
-.page-head p.row {
-  gap: 6px;
 }
 </style>

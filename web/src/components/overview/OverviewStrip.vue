@@ -1,6 +1,9 @@
 <script setup>
-// The strip the overview closes with: uptime, the panel, and the server's
-// addresses, hidden until asked for.
+// The two small cards the overview's side stack closes with: how long
+// things have been up (the panel, the host, and what the panel itself
+// holds), and the server's addresses, blurred until asked for. Split
+// from the one strip they used to share so each sits in the stack the
+// design puts beside the throughput chart.
 import { computed, ref } from 'vue'
 import { store, t } from '../../lib/store.js'
 import { bytes } from '../../lib/format.js'
@@ -24,142 +27,50 @@ function duration(sec) {
   return `${m}m`
 }
 
-const ipv4 = computed(() => (sys.value?.ipv4 || [])[0] || '\u2014')
+const ipv4 = computed(() => (sys.value?.ipv4 || [])[0] || '—')
 const ipv6 = computed(() => (sys.value?.ipv6 || [])[0] || '—')
 </script>
 
 <template>
-  <article class="card ov-strip">
-    <div class="ov-strip-grid">
-      <div class="ov-strip-cell">
-        <div class="ov-strip-head">
-          <Icon name="clock" :size="15" /><span class="ov-kicker">{{ t('overview.uptime') }}</span>
-        </div>
-        <div class="ov-strip-pair">
-          <div>
-            <span class="ov-kicker">{{ t('overview.panelUptime') }}</span>
-            <span class="ov-strip-value ltr">{{ duration(panel.uptimeSec) }}</span>
-          </div>
-          <div>
-            <span class="ov-kicker">{{ t('overview.hostUptime') }}</span>
-            <span class="ov-strip-value ltr">{{ duration(sys.host.uptimeSec) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="ov-strip-cell">
-        <div class="ov-strip-head">
-          <Icon name="database" :size="15" /><span class="ov-kicker">W-UI</span>
-        </div>
-        <div class="ov-strip-pair">
-          <div>
-            <span class="ov-kicker">RAM</span>
-            <span class="ov-strip-value">{{ bytes(sys.panel.memoryBytes, store.locale) }}</span>
-          </div>
-          <div>
-            <span class="ov-kicker">{{ t('overview.goroutines') }}</span>
-            <span class="ov-strip-value">{{ nf(sys.panel.goroutines) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="ov-strip-cell">
-        <div class="ov-strip-head">
-          <Icon name="globe" :size="15" />
-          <span class="ov-kicker">{{ t('overview.addresses') }}</span>
-          <button
-            class="ov-eye"
-            :aria-label="t('overview.toggleAddresses')"
-            :aria-pressed="showIp"
-            @click="showIp = !showIp"
-          >
-            <Icon :name="showIp ? 'eyeOff' : 'eye'" :size="14" />
-          </button>
-        </div>
-        <div class="ov-strip-pair ov-ip" :class="{ 'ip-hidden': !showIp }">
-          <div>
-            <span class="ov-kicker">IPv4</span>
-            <span class="ov-strip-value ov-mono">{{ ipv4 }}</span>
-          </div>
-          <div>
-            <span class="ov-kicker">IPv6</span>
-            <span class="ov-strip-value ov-mono ov-ip-v6">{{ ipv6 }}</span>
-          </div>
-        </div>
-      </div>
+  <section class="card">
+    <div class="ch">
+      <h3>{{ t('overview.uptime') }}</h3>
     </div>
-  </article>
-</template>
+    <div class="cb tight">
+      <dl class="kv">
+        <dt>{{ t('overview.panelUptime') }}</dt>
+        <dd class="ltr">{{ duration(panel.uptimeSec) }}</dd>
+        <dt>{{ t('overview.hostUptime') }}</dt>
+        <dd class="ltr">{{ duration(sys.host.uptimeSec) }}</dd>
+        <dt>{{ t('overview.panelMemory') }}</dt>
+        <dd>{{ bytes(sys.panel.memoryBytes, store.locale) }}</dd>
+        <dt>{{ t('overview.goroutines') }}</dt>
+        <dd>{{ nf(sys.panel.goroutines) }}</dd>
+      </dl>
+    </div>
+  </section>
 
-<style scoped>
-/* ---------- strip ---------- */
-.ov-strip-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1px;
-  background: var(--line-soft);
-}
-@media (max-width: 1100px) {
-  .ov-strip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 560px) {
-  .ov-strip-grid { grid-template-columns: minmax(0, 1fr); }
-}
-.ov-strip-cell {
-  background: var(--surface);
-  padding: 16px 18px;
-}
-.ov-strip-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.ov-strip-head svg {
-  color: var(--muted);
-}
-.ov-strip-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-.ov-strip-pair > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.ov-strip-value {
-  font-size: var(--t-base);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.ov-mono {
-  font-family: var(--mono);
-  font-size: var(--t-xs);
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-.ov-ip.ip-hidden .ov-strip-value {
-  /* Blurred rather than replaced: the shape stays, the value does not, which
-     is what an overview shown on a shared screen needs. */
-  filter: blur(5px);
-  user-select: none;
-}
-.ov-eye {
-  margin-inline-start: auto;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.ov-eye:hover {
-  background: var(--surface-3);
-  color: var(--ink);
-}
-</style>
+  <section class="card">
+    <div class="ch">
+      <h3>{{ t('overview.addresses') }}</h3>
+      <button
+        class="act spacer"
+        :aria-label="t('overview.toggleAddresses')"
+        :aria-pressed="showIp"
+        @click="showIp = !showIp"
+      >
+        <Icon :name="showIp ? 'eyeOff' : 'eye'" :size="15" />
+      </button>
+    </div>
+    <div class="cb tight">
+      <dl class="kv">
+        <dt>IPv4</dt>
+        <!-- Blurred rather than replaced: the shape stays, the value does
+             not, which is what an overview shown on a shared screen needs. -->
+        <dd class="mono blur" :class="{ shown: showIp }" style="text-align: end">{{ ipv4 }}</dd>
+        <dt>IPv6</dt>
+        <dd class="mono blur" :class="{ shown: showIp }" style="text-align: end">{{ ipv6 }}</dd>
+      </dl>
+    </div>
+  </section>
+</template>
