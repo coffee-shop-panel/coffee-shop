@@ -65,11 +65,17 @@ const servers = computed(() => {
   const by = new Map()
   for (const i of interfaces.value) {
     const id = String(i.nodeId)
-    if (!by.has(id)) by.set(id, { id, local: !!i.nodeLocal, name: i.nodeName, up: i.nodeUp !== false, count: 0 })
-    by.get(id).count++
+    if (!by.has(id)) by.set(id, { id, local: !!i.nodeLocal, name: i.nodeName, up: i.nodeUp !== false, count: 0, panel: false })
+    const s = by.get(id)
+    s.count++
+    // A 3x-ui or Pasarguard node's entries are another panel's inbounds,
+    // not this panel's tunnels; their tab says so and sits apart.
+    if (i.protocol === 'xray') s.panel = true
   }
   return [...by.values()].sort((a, b) => (a.local !== b.local ? (a.local ? -1 : 1) : cmpText(a.name, b.name)))
 })
+const panelServers = computed(() => servers.value.filter((s) => s.panel))
+const plainServers = computed(() => servers.value.filter((s) => !s.panel))
 const serverLabel = (s) => (s.local ? t('iface.server.local') : s.name || `#${s.id}`)
 // A node removed while its tab was picked leaves nothing to show; go back to All.
 watch(servers, (list) => {
@@ -345,7 +351,11 @@ async function submitForm(input) {
         <button class="atab" role="tab" :class="{ active: server === 'all' }" :aria-selected="server === 'all'" @click="server = 'all'">
           <AntIcon name="BarsOutlined" /><span>{{ t('iface.server.all') }}</span><span class="atag count">{{ nf(interfaces.length) }}</span>
         </button>
-        <button v-for="s in servers" :key="s.id" class="atab" role="tab" :class="{ active: server === s.id }" :aria-selected="server === s.id" @click="server = s.id">
+        <button v-for="s in panelServers" :key="s.id" class="atab" role="tab" :class="{ active: server === s.id }" :aria-selected="server === s.id" @click="server = s.id">
+          <AntIcon name="ApiOutlined" /><span>{{ s.name }} · {{ t('iface.server.xui') }}</span>
+          <span class="atag count" :class="{ red: !s.up }">{{ nf(s.count) }}</span>
+        </button>
+        <button v-for="s in plainServers" :key="s.id" class="atab" role="tab" :class="{ active: server === s.id }" :aria-selected="server === s.id" @click="server = s.id">
           <AntIcon :name="s.local ? 'DesktopOutlined' : 'CloudServerOutlined'" /><span>{{ serverLabel(s) }}</span>
           <span class="atag count" :class="{ red: !s.up }">{{ nf(s.count) }}</span>
         </button>

@@ -66,13 +66,35 @@ onMounted(async () => {
 })
 
 const serverOptions = computed(() =>
-  props.interfaces.map((i) => ({
-    value: i.id,
-    label: i.name,
-    tags: [{ text: t(`protocol.${i.protocol}`), kind: 'proto' }, ...(i.mode === 'amnezia' ? [{ text: 'AmneziaWG' }] : [])],
-    note: i.capacity ? (i.capacity - i.allocated).toLocaleString() : '',
-  })),
+  props.interfaces
+    .filter((i) => i.protocol !== 'xray')
+    .map((i) => ({
+      value: i.id,
+      label: i.name,
+      tags: [{ text: t(`protocol.${i.protocol}`), kind: 'proto' }, ...(i.mode === 'amnezia' ? [{ text: 'AmneziaWG' }] : [])],
+      note: i.capacity ? (i.capacity - i.allocated).toLocaleString() : '',
+    })),
 )
+
+// As in the single-customer form: a 3x-ui or Pasarguard panel's inbounds
+// (protocol xray) are not listed one by one; one switch per panel puts
+// all of its inbounds on the batch or takes them off again.
+const panelGroups = computed(() => {
+  const by = new Map()
+  for (const i of props.interfaces) {
+    if (i.protocol !== 'xray') continue
+    const key = String(i.nodeId ?? i.nodeName ?? 'xui')
+    if (!by.has(key)) by.set(key, { key, name: i.nodeName || '', ids: [] })
+    by.get(key).ids.push(i.id)
+  }
+  return [...by.values()]
+})
+const groupChosen = (g) => g.ids.filter((id) => form.value.interfaceIds.includes(id)).length
+function toggleGroup(g, on) {
+  form.value.interfaceIds = on
+    ? [...new Set([...form.value.interfaceIds, ...g.ids])]
+    : form.value.interfaceIds.filter((id) => !g.ids.includes(id))
+}
 const chosen = computed(() => props.interfaces.filter((i) => form.value.interfaceIds.includes(i.id)))
 // The tightest pool among the chosen servers, against how many are asked for.
 const poolLeft = computed(() => {
@@ -201,6 +223,11 @@ async function submit() {
             <MultiSelect v-model="form.interfaceIds" :options="serverOptions" :placeholder="t('client.selectServers')" :invalid="!!fieldError.servers" />
             <p v-if="fieldError.servers" class="field-error">{{ fieldError.servers }}</p>
             <p v-else-if="poolLeft !== null" class="hint" :class="{ warn: tooMany }">{{ t('interface.addressesLeft') }}: <span class="ltr">{{ poolLeft.toLocaleString() }}</span></p>
+            <div v-for="g in panelGroups" :key="g.key" class="enabled-line">
+              <Toggle :model-value="groupChosen(g) === g.ids.length" :label="t('client.allPanelInbounds', { name: g.name || t('client.xuiPanel'), count: g.ids.length })" @update:model-value="(v) => toggleGroup(g, v)" />
+              <span class="enabled-text">{{ t('client.allPanelInbounds', { name: g.name || t('client.xuiPanel'), count: g.ids.length }) }}</span>
+              <span v-if="groupChosen(g) > 0 && groupChosen(g) < g.ids.length" class="hint">{{ t('client.panelPartial', { chosen: groupChosen(g), count: g.ids.length }) }}</span>
+            </div>
           </div>
 
           <div class="arow16">
@@ -278,6 +305,8 @@ async function submit() {
 </template>
 
 <style scoped>
+.enabled-line { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.enabled-text { font-size: 14px; color: var(--ink); }
 .amodal.w720 { width: min(720px, calc(100vw - 32px)); }
 /* The rows pull 8px past the body's edges for their gutter; the body
    is widened by the same so a scroll container has nothing to scroll

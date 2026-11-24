@@ -282,16 +282,43 @@ function chooseNone() {
 }
 
 const serverOptions = computed(() =>
-  props.interfaces.map((i) => ({
-    value: i.id,
-    label: i.name,
-    tags: [
-      { text: t(`protocol.${i.protocol}`), kind: 'proto' },
-      ...(i.mode === 'amnezia' ? [{ text: 'AmneziaWG' }] : []),
-    ],
-    note: i.capacity ? (i.capacity - i.allocated).toLocaleString() : '',
-  })),
+  props.interfaces
+    .filter((i) => i.protocol !== 'xray')
+    .map((i) => ({
+      value: i.id,
+      label: i.name,
+      tags: [
+        { text: t(`protocol.${i.protocol}`), kind: 'proto' },
+        ...(i.mode === 'amnezia' ? [{ text: 'AmneziaWG' }] : []),
+      ],
+      note: i.capacity ? (i.capacity - i.allocated).toLocaleString() : '',
+    })),
 )
+
+// Inbounds adopted from a 3x-ui or Pasarguard panel (protocol xray) are
+// not listed one by one in the picker: a panel brings a page of them and
+// buries the tunnels the customer is actually being picked from. They
+// are given as a panel or not at all -- one switch per panel, under the
+// picker, that puts all of its inbounds on the customer or takes them
+// off again. The switch deals in the real ids, so the rest of the form
+// (and the API) sees no difference, and a reseller filling this form in
+// gets the same switch over whatever of the panel they are allowed.
+const panelGroups = computed(() => {
+  const by = new Map()
+  for (const i of props.interfaces) {
+    if (i.protocol !== 'xray') continue
+    const key = String(i.nodeId ?? i.nodeName ?? 'xui')
+    if (!by.has(key)) by.set(key, { key, name: i.nodeName || '', ids: [] })
+    by.get(key).ids.push(i.id)
+  }
+  return [...by.values()]
+})
+const groupChosen = (g) => g.ids.filter((id) => form.value.interfaceIds.includes(id)).length
+function toggleGroup(g, on) {
+  form.value.interfaceIds = on
+    ? [...new Set([...form.value.interfaceIds, ...g.ids])]
+    : form.value.interfaceIds.filter((id) => !g.ids.includes(id))
+}
 
 // The tightest pool among the chosen servers, because that is the one that
 // runs out first and stops the whole customer being created.
@@ -504,6 +531,11 @@ async function submit() {
               <MultiSelect v-model="form.interfaceIds" :options="serverOptions" :placeholder="t('client.selectServers')" :invalid="!!fieldError.servers" />
               <p v-if="fieldError.servers" class="field-error">{{ fieldError.servers }}</p>
               <p v-else-if="poolLeft !== null" class="hint">{{ t('interface.addressesLeft') }}: <span class="ltr">{{ poolLeft.toLocaleString() }}</span></p>
+              <div v-for="g in panelGroups" :key="g.key" class="enabled-line">
+                <Toggle :model-value="groupChosen(g) === g.ids.length" :label="t('client.allPanelInbounds', { name: g.name || t('client.xuiPanel'), count: g.ids.length })" @update:model-value="(v) => toggleGroup(g, v)" />
+                <span class="enabled-text">{{ t('client.allPanelInbounds', { name: g.name || t('client.xuiPanel'), count: g.ids.length }) }}</span>
+                <span v-if="groupChosen(g) > 0 && groupChosen(g) < g.ids.length" class="hint">{{ t('client.panelPartial', { chosen: groupChosen(g), count: g.ids.length }) }}</span>
+              </div>
             </div>
 
             <div class="aform-item enabled-line">
