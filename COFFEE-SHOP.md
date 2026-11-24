@@ -82,6 +82,14 @@ can still be merged in.
   tunnels, and a stats screen totals their book against their
   customer cap.
 
+- v3.6.2 — the management bot's add-customer wizard no longer lists
+  every tunnel as a toggle (five rows all named wg0, then eighteen
+  Sanaei inbounds). Its second step is now the same section choice the
+  sales bot and the panel's client form use: WireGuard, V2ray, or
+  both — one tap gives the customer every tunnel of that kind the
+  operator may give, and the summary names the section and its count
+  instead of the tunnels.
+
 ## Releasing
 
 Builds are made with the version and the signing public key compiled in:

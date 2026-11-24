@@ -367,9 +367,10 @@ func TestTheResellersListShowsOnlyTheirOwn(t *testing.T) {
 	}
 }
 
-// The wizard end to end: a name, one tunnel, twenty gigabytes, thirty
-// days, one device — and the customer that lands in the database is
-// the reseller's, on those terms, with a token to hand over.
+// The wizard end to end: a name, the WireGuard section, twenty
+// gigabytes, thirty days, one device — and the customer that lands in
+// the database is the reseller's, on those terms, with a token to
+// hand over.
 func TestTheWizardBuildsACustomer(t *testing.T) {
 	fx := newFlowFixture(t)
 	fake := newFakeAdminTG(t)
@@ -381,11 +382,10 @@ func TestTheWizardBuildsACustomer(t *testing.T) {
 		t.Fatal("the wizard did not ask for a name")
 	}
 	b.handle(ctx, msgUpd(ownerChat, ownerChat, "مشتری تستی"))
-	if !fake.said("wg0") {
-		t.Fatal("the wizard did not offer the tunnels")
+	if !fake.said("کدام بخش") {
+		t.Fatal("the wizard did not offer the sections")
 	}
-	b.handle(ctx, cbUpd(ownerChat, ownerChat, 500, fmt.Sprintf("wzif:%d", fx.wg.ID)))
-	b.handle(ctx, cbUpd(ownerChat, ownerChat, 500, "wznext"))
+	b.handle(ctx, cbUpd(ownerChat, ownerChat, 500, "wzsec:wireguard"))
 	if !fake.said("حجم اشتراک") {
 		t.Fatal("the wizard did not ask for a volume")
 	}
@@ -556,5 +556,49 @@ func TestStatsRenderWithAndWithoutCustomers(t *testing.T) {
 	freshBot.handle(ctx, cbUpd(ownerChat, ownerChat, 500, "stats"))
 	if !fake.said(fmt.Sprintf(txtStatsTotal, faNum(0))) {
 		t.Fatal("the empty book's stats did not render at zero")
+	}
+}
+
+// The wizard's «both» section: one tap gives the customer every
+// tunnel of both kinds the operator may give — here the WireGuard
+// tunnel and the adopted V2ray inbound alike.
+func TestTheWizardBothSectionsGiveEveryTunnel(t *testing.T) {
+	fx := newFlowFixture(t)
+	fake := newFakeAdminTG(t)
+	ctx := context.Background()
+	b := fx.bot(t, int64(fx.seller.ID), ownerChat)
+
+	b.handle(ctx, cbUpd(ownerChat, ownerChat, 500, "add"))
+	b.handle(ctx, msgUpd(ownerChat, ownerChat, "مشتری هر دو"))
+	b.handle(ctx, cbUpd(ownerChat, ownerChat, 500, "wzsec:both"))
+	b.handle(ctx, cbUpd(ownerChat, ownerChat, 500, "wzq:20"))
+	b.handle(ctx, cbUpd(ownerChat, ownerChat, 500, "wzd:30"))
+	b.handle(ctx, cbUpd(ownerChat, ownerChat, 500, "wzv:1"))
+	if !fake.said("هر دو بخش") {
+		t.Fatal("the summary does not name the both-sections choice")
+	}
+	b.handle(ctx, cbUpd(ownerChat, ownerChat, 500, "wzmake"))
+
+	opCtx, err := fx.shop.OperatorCtx(ctx, fx.seller.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := fx.clients.List(opCtx, service.ListFilter{Search: "هر دو"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 1 {
+		t.Fatalf("the wizard made %d customers, want 1", page.Total)
+	}
+	c, err := fx.clients.Get(opCtx, page.Items[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[uint]bool{}
+	for _, a := range c.Accounts {
+		got[a.InterfaceID] = true
+	}
+	if len(c.Accounts) != 2 || !got[fx.wg.ID] || !got[fx.xray.ID] {
+		t.Fatalf("the customer sits on %+v, want one account on each of wg0 and the V2ray inbound", c.Accounts)
 	}
 }

@@ -58,8 +58,11 @@ const (
 type session struct {
 	await awaitKind
 
-	// The add wizard's draft.
+	// The add wizard's draft. The section is the wizard's second
+	// step — WireGuard, V2ray, or both — and picked is the tunnel set
+	// that section resolved to when it was chosen.
 	name    string
+	section string
 	picked  map[uint]bool
 	quota   uint64
 	days    int
@@ -79,6 +82,7 @@ func (s *session) reset() { *s = session{listPage: 1} }
 // startWizard clears the draft for a fresh run through the wizard.
 func (s *session) startWizard() {
 	s.name = ""
+	s.section = ""
 	s.picked = map[uint]bool{}
 	s.quota, s.days, s.devices = 0, 0, 0
 }
@@ -279,21 +283,12 @@ func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {
 		sess.startWizard()
 		sess.await = awaitWizardName
 		b.editOrSend(ctx, cb, txtWizardAskName, cancelKeyboard())
-	case "wzif":
-		if id, ok := cbID(parts); ok {
-			b.toggleTunnel(ctx, cb, sess, id)
+	case "wzsec":
+		if len(parts) > 1 && (parts[1] == "wireguard" || parts[1] == "v2ray" || parts[1] == "both") {
+			b.pickWizardSection(ctx, cb, sess, parts[1])
 		} else {
 			b.answer(ctx, cb, "")
 		}
-	case "wznext":
-		if len(sess.picked) == 0 {
-			// The one press that is answered with words instead of a
-			// screen: there is no next step to show yet.
-			b.answer(ctx, cb, txtWizardNeedTunnel, true)
-			return
-		}
-		b.answer(ctx, cb, "")
-		b.editOrSend(ctx, cb, txtWizardAskQuota, wizardQuotaKeyboard())
 	case "wzq":
 		if gb, ok := cbAmount(parts); ok {
 			b.answer(ctx, cb, "")
@@ -1021,10 +1016,13 @@ func (b *bot) wizardTunnels(ctx context.Context) ([]model.Interface, error) {
 	return out, nil
 }
 
-// wizardTunnelsScreen is the wizard's second step: the tunnels as
-// toggles, the ones already chosen marked. A nil keyboard says there
-// are no tunnels to offer, which the caller answers with its own
-// words.
+// wizardTunnelsScreen is the wizard's second step: not a list of
+// tunnels — the operator picks a section and the customer gets every
+// tunnel of that kind they are allowed to give, the way the panel's
+// own client form and the sales bot already work. A section with no
+// tunnels in the operator's set is not offered; «both» is offered
+// only when both kinds exist. A nil keyboard says there are no
+// tunnels to offer, which the caller answers with its own words.
 func (b *bot) wizardTunnelsScreen(ctx context.Context, sess *session) (string, tgKeyboard, error) {
 	rows, err := b.wizardTunnels(ctx)
 	if err != nil {
@@ -1033,56 +1031,78 @@ func (b *bot) wizardTunnelsScreen(ctx context.Context, sess *session) (string, t
 	if len(rows) == 0 {
 		return txtWizardNoTunnels, nil, nil
 	}
-	kb := tgKeyboard{}
+	wg, xr := 0, 0
 	for i := range rows {
-		mark := "⬜ "
-		if sess.picked[rows[i].ID] {
-			mark = "✅ "
+		switch rows[i].Protocol {
+		case model.ProtocolWireGuard:
+			wg++
+		case model.ProtocolXray:
+			xr++
 		}
+	}
+	kb := tgKeyboard{}
+	if wg > 0 {
 		kb = append(kb, []tgButton{{
-			Text: mark + rows[i].Name,
-			Data: "wzif:" + strconv.FormatUint(uint64(rows[i].ID), 10),
+			Text: fmt.Sprintf(btnWzSectionWG, faNum(int64(wg))),
+			Data: "wzsec:wireguard",
 		}})
 	}
-	kb = append(kb,
-		[]tgButton{{Text: btnWizardNext, Data: "wznext"}},
-		[]tgButton{{Text: btnCancel, Data: "menu"}},
-	)
+	if xr > 0 {
+		kb = append(kb, []tgButton{{
+			Text: fmt.Sprintf(btnWzSectionV2, faNum(int64(xr))),
+			Data: "wzsec:v2ray",
+		}})
+	}
+	if wg > 0 && xr > 0 {
+		kb = append(kb, []tgButton{{
+			Text: fmt.Sprintf(btnWzSectionBo, faNum(int64(wg+xr))),
+			Data: "wzsec:both",
+		}})
+	}
+	kb = append(kb, []tgButton{{Text: btnCancel, Data: "menu"}})
 	return txtWizardPickTunnels, kb, nil
 }
 
-// toggleTunnel flips one tunnel in the wizard's draft and redraws the
-// step. A tunnel outside the operator's allowed set is not toggled:
-// the buttons offered are already narrowed to it, so an id outside it
-// arrived by hand and is ignored the same way.
-func (b *bot) toggleTunnel(ctx context.Context, cb *tgCallback, sess *session, id uint) {
+// pickWizardSection answers the wizard's second step: the section the
+// operator tapped becomes every allowed tunnel of that kind in the
+// draft — nobody picks twenty-three tunnels one by one.
+func (b *bot) pickWizardSection(ctx context.Context, cb *tgCallback, sess *session, section string) {
 	b.answer(ctx, cb, "")
-	opCtx, err := b.opCtx(ctx)
+	rows, err := b.wizardTunnels(ctx)
 	if err != nil {
 		b.editOrSend(ctx, cb, failText(err), backToMenuKeyboard())
 		return
 	}
-	if !service.ScopeOf(opCtx).Allows(id) {
-		return
+	sess.picked = map[uint]bool{}
+	for i := range rows {
+		match := section == "both" ||
+			(section == "wireguard" && rows[i].Protocol == model.ProtocolWireGuard) ||
+			(section == "v2ray" && rows[i].Protocol == model.ProtocolXray)
+		if match {
+			sess.picked[rows[i].ID] = true
+		}
 	}
-	if sess.picked == nil {
-		sess.picked = map[uint]bool{}
-	}
-	if sess.picked[id] {
-		delete(sess.picked, id)
-	} else {
-		sess.picked[id] = true
-	}
-	text, kb, err := b.wizardTunnelsScreen(ctx, sess)
-	if err != nil {
-		b.editOrSend(ctx, cb, failText(err), backToMenuKeyboard())
-		return
-	}
-	if kb == nil {
+	if len(sess.picked) == 0 {
 		b.editOrSend(ctx, cb, txtWizardNoTunnels, backToMenuKeyboard())
 		return
 	}
-	b.editOrSend(ctx, cb, text, kb)
+	sess.section = section
+	b.editOrSend(ctx, cb, txtWizardAskQuota, wizardQuotaKeyboard())
+}
+
+// wizardSectionText reads the wizard's choice back for the summary:
+// the section's name with how many tunnels it resolved to, never the
+// tunnels themselves — with a full panel behind a section, the list
+// was the wall of text the step exists to avoid.
+func wizardSectionText(section string, n int) string {
+	switch section {
+	case "v2ray":
+		return fmt.Sprintf("V2ray (%s اینباند)", faNum(int64(n)))
+	case "both":
+		return fmt.Sprintf("هر دو بخش (%s تونل و اینباند)", faNum(int64(n)))
+	default:
+		return fmt.Sprintf("وایرگارد (%s تونل)", faNum(int64(n)))
+	}
 }
 
 func wizardQuotaKeyboard() tgKeyboard {
@@ -1144,45 +1164,17 @@ func (b *bot) showWizardSummary(ctx context.Context, cb *tgCallback, sess *sessi
 		b.editOrSend(ctx, cb, txtMenuTitle, menuKeyboard())
 		return
 	}
-	names := b.pickedNames(ctx, sess)
 	devices := txtUnlimitedWd
 	if sess.devices > 0 {
 		devices = faNum(int64(sess.devices))
 	}
 	text := fmt.Sprintf(txtWizardSummary,
-		escapeHTML(sess.name), escapeHTML(strings.Join(names, "، ")),
+		escapeHTML(sess.name), wizardSectionText(sess.section, len(sess.picked)),
 		formatBytes(sess.quota), formatDays(sess.days), devices)
 	b.editOrSend(ctx, cb, text, tgKeyboard{
 		{{Text: btnWizardMake, Data: "wzmake"}},
 		{{Text: btnCancel, Data: "menu"}},
 	})
-}
-
-// pickedNames names the wizard's chosen tunnels, in id order.
-func (b *bot) pickedNames(ctx context.Context, sess *session) []string {
-	ids := make([]uint, 0, len(sess.picked))
-	for id := range sess.picked {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	if len(ids) == 0 {
-		return nil
-	}
-	var rows []model.Interface
-	if err := b.mgr.db.WithContext(ctx).Select("id", "name").
-		Where("id IN ?", ids).Find(&rows).Error; err != nil {
-		b.log.Warn("management bot could not name the tunnels", "error", err)
-		return nil
-	}
-	byID := make(map[uint]string, len(rows))
-	for i := range rows {
-		byID[rows[i].ID] = rows[i].Name
-	}
-	out := make([]string, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, byID[id])
-	}
-	return out
 }
 
 // makeClient is the wizard's last tap: the customer is created under
