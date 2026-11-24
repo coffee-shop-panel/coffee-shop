@@ -26,7 +26,7 @@ can still be merged in.
   again once more credentials than the limit allows have each run
   without a break for over three minutes.
 - **feat(update):** self-update fetches this fork's releases
-  (`update.Repo = "ali-coffee/coffee-shop"`), signed with this fork's own
+  (`update.Repo = "coffee-shop-panel/coffee-shop"`), signed with this fork's own
   Ed25519 key.
 
 ## Releasing

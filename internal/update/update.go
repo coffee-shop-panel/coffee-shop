@@ -43,10 +43,10 @@ var PublicKey = ""
 
 // Repo is the project the release is fetched from. This fork fetches
 // its own: the Coffee-shop builds are published there and signed with
-// this fork's own key, so the panel updates from ali-coffee/coffee-shop and
+// this fork's own key, so the panel updates from coffee-shop-panel/coffee-shop and
 // never from upstream (an upstream release would not verify anyway --
 // and would wipe this fork's changes if it somehow did).
-const Repo = "ali-coffee/coffee-shop"
+const Repo = "coffee-shop-panel/coffee-shop"
 
 var (
 	// ErrNoKey is a build with no signing key configured.
