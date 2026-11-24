@@ -107,7 +107,6 @@ function setSortKey(key) {
 function flipSortDir() {
   sort.value = { key: sort.value.key, dir: sort.value.dir === 'asc' ? 'desc' : 'asc' }
 }
-const hasNodes = computed(() => interfaces.value.some((i) => i.nodeName && !i.nodeLocal))
 
 // The order the headers set, and the pages: the size from the settings
 // page, and no bar at all when everything fits on one page.
