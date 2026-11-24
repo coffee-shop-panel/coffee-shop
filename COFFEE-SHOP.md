@@ -31,6 +31,13 @@ can still be merged in.
 - **fix(api):** a machine (node) token reaches only the node protocol
   (v3.2.5 audit) — the six `/api/node/*` routes, the probe, the node
   list and the managed update — not every owner-gated route.
+- **feat(v3.3.0):** an owner-only activity log (every operator change
+  and sign-in, persisted and browsable in the panel); the coffee
+  subscription page shows each node's real reachability and a renew
+  banner when a plan is nearly out of time or data; a per-customer
+  connection check (plan, devices, nodes, last handshakes); an
+  "expiring soon" customer filter; and moving every customer of one
+  WireGuard tunnel onto another in one action.
 - **fix(audit, v3.2.5):** the same-address exemption compares hosts,
   not ports; traffic resets respect the caller's scope; hand-down
   checks the client limit; a node's note survives its list toggle;
