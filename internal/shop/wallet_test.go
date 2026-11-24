@@ -313,8 +313,11 @@ func TestCashbackLandsOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 90 list, 10 taken off by a code: 80 paid, a tenth of it is 8.
+	// The order's price is the final total payable: 80 net, with the
+	// 10 a code took off riding along as information only. A tenth of
+	// the 80 is 8 -- the discount must not come off a second time.
 	o := paidOrder(seller.ID, 111, KindNew)
+	o.PriceToman = 80
 	o.DiscountToman = 10
 	if err := f.shop.CreateOrder(ctx, o); err != nil {
 		t.Fatal(err)
@@ -323,13 +326,42 @@ func TestCashbackLandsOnce(t *testing.T) {
 		t.Fatalf("Fulfill: %v", err)
 	}
 	if got := balanceOf(t, f, seller.ID, 222); got != 8 {
-		t.Errorf("the referrer holds %d, want 8 (10%% of the 80 paid)", got)
+		t.Errorf("the referrer holds %d, want 8 (10%% of the net 80)", got)
 	}
 	if _, err := f.shop.Fulfill(ctx, o.ID); err != nil {
 		t.Fatalf("Fulfill again: %v", err)
 	}
 	if got := balanceOf(t, f, seller.ID, 222); got != 8 {
 		t.Errorf("the referrer holds %d after a second delivery, want 8 still", got)
+	}
+
+	// A bot-shaped order: three units whose final total is 108,000,
+	// the 12,000 a code took off recorded beside it. The cashback is
+	// a tenth of the total as it stands -- 10,800, not a tenth of
+	// 96,000, and not three tenths of anything -- and it lands once
+	// however many times the delivery is repeated.
+	if err := f.shop.BindReferral(ctx, seller.ID, 333, 222); err != nil {
+		t.Fatal(err)
+	}
+	bulk := paidOrder(seller.ID, 333, KindNew)
+	bulk.PriceToman = 108000
+	bulk.DiscountToman = 12000
+	bulk.Quantity = 3
+	if err := f.shop.CreateOrder(ctx, bulk); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.shop.Fulfill(ctx, bulk.ID); err != nil {
+		t.Fatalf("Fulfill bulk: %v", err)
+	}
+	if got := balanceOf(t, f, seller.ID, 222); got != 8+10800 {
+		t.Errorf("the referrer holds %d, want %d (8 + 10%% of 108000)", got, 8+10800)
+	}
+	if _, err := f.shop.Fulfill(ctx, bulk.ID); err != nil {
+		t.Fatalf("Fulfill bulk again: %v", err)
+	}
+	if got := balanceOf(t, f, seller.ID, 222); got != 8+10800 {
+		t.Errorf("the referrer holds %d after a second bulk delivery, want %d still",
+			got, 8+10800)
 	}
 
 	// A top-up from the same buyer is money moving, not a sale.
@@ -344,8 +376,9 @@ func TestCashbackLandsOnce(t *testing.T) {
 	if _, err := f.shop.Fulfill(ctx, top.ID); err != nil {
 		t.Fatalf("Fulfill top-up: %v", err)
 	}
-	if got := balanceOf(t, f, seller.ID, 222); got != 8 {
-		t.Errorf("the referrer holds %d after the buyer's top-up, want 8 still", got)
+	if got := balanceOf(t, f, seller.ID, 222); got != 8+10800 {
+		t.Errorf("the referrer holds %d after the buyer's top-up, want %d still (a top-up earns no cashback)",
+			got, 8+10800)
 	}
 	if got := balanceOf(t, f, seller.ID, 111); got != 100 {
 		t.Errorf("the buyer holds %d, want their top-up's 100", got)

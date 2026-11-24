@@ -269,8 +269,15 @@ func (s *Shop) clientCounter(ctx context.Context, opCtx context.Context) int {
 
 // payCashback lands a delivered sale's cashback in the wallet of the
 // buyer who referred its purchaser: the shop's configured percent of
-// what was actually paid -- the price less its discount, for every
-// unit bought.
+// the order's price.
+//
+// The convention, stated once and kept everywhere: an order's
+// PriceToman is the final total payable for the whole order -- net of
+// any discount, all units included -- so it is taken exactly as it
+// stands. DiscountToman rides on the order as information (what the
+// code took off) and must NOT be subtracted again here, and Quantity
+// must NOT multiply again: either one would pay cashback on money
+// that was never the sale's price.
 //
 // It is called by Fulfill's settle, in the one call that turned the
 // order fulfilled, which is what makes it land once. A top-up earns
@@ -299,15 +306,9 @@ func (s *Shop) payCashback(ctx context.Context, cfg *Config, order *Order) {
 	if !ok || w.ReferrerTGID == 0 {
 		return
 	}
-	qty := order.Quantity
-	if qty < 1 {
-		qty = 1
-	}
-	paid := (order.PriceToman - order.DiscountToman) * int64(qty)
-	if paid <= 0 {
-		return
-	}
-	amount := paid * int64(cfg.CashbackPercent) / 100
+	// The price as it stands (see the convention above): no second
+	// discount, no second quantity.
+	amount := order.PriceToman * int64(cfg.CashbackPercent) / 100
 	if amount <= 0 {
 		return
 	}
