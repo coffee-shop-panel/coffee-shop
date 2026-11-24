@@ -143,6 +143,16 @@ v5 rather than a version per feature.
 - **feat(shopbot):** tutorial and FAQ texts the seller writes on
   their shop page, offered as menu buttons in the bot only when
   written.
+- **feat(api,shopbot):** a Telegram Mini App storefront per shop —
+  the bot's menu gains a «فروشگاه» web_app button when the panel's
+  public base is set, opening a page on the subscription listener
+  whose every call is signed initData checked against that
+  operator's bot token (internal/shop's ValidateInitData). State,
+  purchase (card / ZarinPal / wallet, with quantities and codes),
+  wallet top-ups, gift redemption, the trial and the wheel all run
+  through the one API under the operator's own scope; the page's
+  script is externalised like the coffee page's, so the listener's
+  CSP is untouched.
 
 ## Releasing
 
