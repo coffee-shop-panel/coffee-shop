@@ -80,6 +80,7 @@ const nav = [
   { to: '/nodes', key: 'nav.nodes', icon: 'ClusterOutlined' },
   { to: '/hosts', key: 'nav.hosts', icon: 'GlobalOutlined' },
   { to: '/shop', key: 'nav.shop', icon: 'SendOutlined', sells: true },
+  { to: '/admin-bot', key: 'nav.adminBot', icon: 'TeamOutlined', sells: true },
   { to: '/activity', key: 'nav.activity', icon: 'FileTextOutlined' },
   { to: '/outbounds', key: 'nav.outbounds', icon: 'ExportOutlined' },
   { to: '/routing', key: 'nav.routing', icon: 'SwapOutlined' },

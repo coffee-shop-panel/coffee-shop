@@ -467,6 +467,13 @@ export const api = {
   shopBuyers: () => request('GET', '/api/shop/buyers'),
   shopAnnounce: (body) => request('POST', '/api/shop/announce', body),
 
+  // The operator's own Telegram management bot: a second bot beside the
+  // sales one, with its own token, from which the operator runs the
+  // customers they already have. Same keep-the-token rule as the shop's:
+  // a token left out of the body keeps the one on file.
+  adminBotConfig: () => request('GET', '/api/admin-bot/config'),
+  adminBotConfigSave: (body) => request('PUT', '/api/admin-bot/config', body),
+
   interfaces: (opts) => request('GET', '/api/interfaces', undefined, opts),
   createInterface: (input) => request('POST', '/api/interfaces', input),
   updateInterface: (id, input) => request('PATCH', `/api/interfaces/${id}`, input),

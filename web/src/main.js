@@ -42,6 +42,7 @@ const NodesView = () => import('./views/NodesView.vue')
 const ActivityView = () => import('./views/ActivityView.vue')
 const HostsView = () => import('./views/HostsView.vue')
 const ShopView = () => import('./views/ShopView.vue')
+const AdminBotView = () => import('./views/AdminBotView.vue')
 const OutboundsView = () => import('./views/OutboundsView.vue')
 const RoutingView = () => import('./views/RoutingView.vue')
 const ConfigsView = () => import('./views/ConfigsView.vue')
@@ -74,6 +75,10 @@ const router = createRouter({
     // The sales bot is the operator's own shop, so a reseller has the page
     // too -- their bot, their plans, their orders, and nobody else's.
     { path: '/shop', name: 'shop', component: ShopView, meta: { sells: true } },
+    // The management bot is the sales bot's sibling, not its section: a
+    // second bot with its own token, for running the customers an operator
+    // already has rather than selling to new ones. Same gate as the shop.
+    { path: '/admin-bot', name: 'admin-bot', component: AdminBotView, meta: { sells: true } },
     { path: '/outbounds', name: 'outbounds', component: OutboundsView },
     { path: '/routing', name: 'routing', component: RoutingView },
     { path: '/sharing', name: 'sharing', component: SharingView },
