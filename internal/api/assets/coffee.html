@@ -664,6 +664,16 @@ function toWgUri(txt, name) {
   return 'wireguard://' + encodeURIComponent(c.i.privatekey) + '@' + m[1] + ':' + m[2] + '?' + qs.join('&') + '#' + encodeURIComponent(name);
 }
 
+/* A config that is already a link — an Xray inbound hands out a bare
+   vless:// link, not a file — has no wireguard:// form to convert to, and
+   is handed to the app as it is. A file (a WireGuard conf, an OpenVPN
+   profile) has newlines, so it never matches. */
+function linkUri(txt) {
+  var t = String(txt || '').trim();
+  if (!t || t.indexOf('\n') > -1 || t.indexOf('\r') > -1) return null;
+  return /^[a-z0-9+.-]+:\/\//i.test(t) ? t : null;
+}
+
 /* ---------- helpers: ui ---------- */
 var toastT;
 function toast(msg) {
@@ -939,7 +949,7 @@ function withNode(btn, fn) {
 function openV2(uri) {
   doCopy(uri, t('v2boxTip')).then(function () { location.href = uri; });
 }
-function nodeUri(txt, n, i) { return toWgUri(txt, (S.info && S.info.label ? S.info.label + ' ' : '') + (n.name || ('#' + (i + 1)))); }
+function nodeUri(txt, n, i) { return toWgUri(txt, (S.info && S.info.label ? S.info.label + ' ' : '') + (n.name || ('#' + (i + 1)))) || linkUri(txt); }
 function recNode() {
   var idx = -1; S.nodes.forEach(function (n, i) { if (n.recommended && idx < 0) idx = i; });
   if (idx < 0) idx = 0;
@@ -962,7 +972,10 @@ function onClick(e) {
     case 'app': openApps(b.getAttribute('data-p')); break;
     case 'node-dl': withNode(b, function (txt, n, i) {
       var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' }), a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = cfgFileName(n, i);
+      a.href = URL.createObjectURL(blob);
+      // A link is not a WireGuard file: saving it as one would hand the
+      // customer a .conf that no app can read as one.
+      a.download = linkUri(txt) ? cfgFileName(n, i).replace(/\.conf$/, '.txt') : cfgFileName(n, i);
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); toast(t('dled'));
     }); break;

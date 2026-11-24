@@ -807,6 +807,8 @@ type SubPage struct {
 	UpBytes    uint64
 	DownBytes  uint64
 	ExpiresAt  *time.Time
+	// DeviceLimit is how many devices the plan is for: 0 is no limit.
+	DeviceLimit int
 	// LastOnline is the freshest handshake on any of the customer's devices.
 	LastOnline *time.Time
 
@@ -847,6 +849,10 @@ type SubPageDevice struct {
 	// customer's current period, for the usage table: who spent what, and
 	// where. Every file's count adds up to the customer's usage.
 	UsedBytes uint64
+	// LastHandshake is when this device last connected, if it ever has.
+	// WireGuard reads it from the kernel; an Xray file has none, so its
+	// traffic is the sign it has been used.
+	LastHandshake *time.Time
 	// The host this entry was written for, when it was written for one.
 	HostID          uint
 	HostName        string
@@ -962,13 +968,14 @@ func (s *Subscriptions) StatusFor(ctx context.Context, token string) (*SubPage, 
 		return nil, err
 	}
 	page := &SubPage{
-		Name:       c.Name,
-		Status:     s.statusShown(ctx, c),
-		Protocol:   string(c.Protocol),
-		UpdatedAt:  time.Now().UTC(),
-		QuotaBytes: c.QuotaBytes,
-		UsedBytes:  c.UsedBytes,
-		ExpiresAt:  c.ExpiresAt,
+		Name:        c.Name,
+		Status:      s.statusShown(ctx, c),
+		Protocol:    string(c.Protocol),
+		UpdatedAt:   time.Now().UTC(),
+		QuotaBytes:  c.QuotaBytes,
+		UsedBytes:   c.UsedBytes,
+		ExpiresAt:   c.ExpiresAt,
+		DeviceLimit: c.DeviceLimit,
 	}
 	page.UpBytes, page.DownBytes = c.UpDown()
 	for _, a := range c.Accounts {
@@ -976,7 +983,7 @@ func (s *Subscriptions) StatusFor(ctx context.Context, token string) (*SubPage, 
 			t := *hs
 			page.LastOnline = &t
 		}
-		page.Devices = append(page.Devices, SubPageDevice{ID: a.ID, Name: a.DeviceName, Address: a.IP})
+		page.Devices = append(page.Devices, SubPageDevice{ID: a.ID, Name: a.DeviceName, Address: a.IP, LastHandshake: a.LastHandshake})
 	}
 	page.Rev = s.revision(ctx, c)
 	return page, nil
@@ -1019,18 +1026,19 @@ func (s *Subscriptions) PageFor(ctx context.Context, token, subURL string) (*Sub
 	}
 
 	page := &SubPage{
-		Rev:        s.revision(ctx, c),
-		Title:      cfg.Title,
-		Template:   cfg.Template,
-		Name:       c.Name,
-		Status:     s.statusShown(ctx, c),
-		Protocol:   string(c.Protocol),
-		UpdatedAt:  time.Now().UTC(),
-		QuotaBytes: c.QuotaBytes,
-		UsedBytes:  c.UsedBytes,
-		ExpiresAt:  c.ExpiresAt,
-		SubURL:     subURL,
-		FilesSince: s.filesSince(ctx, c),
+		Rev:         s.revision(ctx, c),
+		Title:       cfg.Title,
+		Template:    cfg.Template,
+		Name:        c.Name,
+		Status:      s.statusShown(ctx, c),
+		Protocol:    string(c.Protocol),
+		UpdatedAt:   time.Now().UTC(),
+		QuotaBytes:  c.QuotaBytes,
+		UsedBytes:   c.UsedBytes,
+		ExpiresAt:   c.ExpiresAt,
+		DeviceLimit: c.DeviceLimit,
+		SubURL:      subURL,
+		FilesSince:  s.filesSince(ctx, c),
 	}
 	page.UpBytes, page.DownBytes = c.UpDown()
 	several := len(deviceNames(c.Accounts)) > 1
@@ -1058,17 +1066,18 @@ func (s *Subscriptions) PageFor(ctx context.Context, token, subURL string) (*Sub
 			user = nth[d.Account.InterfaceID]
 		}
 		dev := SubPageDevice{
-			ID:        d.Account.ID,
-			Name:      d.Account.DeviceName,
-			Address:   d.Account.IP,
-			Filename:  d.Profile.Filename,
-			Config:    string(d.Profile.Body),
-			Protocol:  string(byID[d.Account.InterfaceID].Protocol),
-			Label:     label,
-			Tunnel:    tunnel,
-			User:      user,
-			Username:  d.Account.Username,
-			UsedBytes: d.Account.UpBytes + d.Account.DownBytes,
+			ID:            d.Account.ID,
+			Name:          d.Account.DeviceName,
+			Address:       d.Account.IP,
+			Filename:      d.Profile.Filename,
+			Config:        string(d.Profile.Body),
+			Protocol:      string(byID[d.Account.InterfaceID].Protocol),
+			Label:         label,
+			Tunnel:        tunnel,
+			User:          user,
+			Username:      d.Account.Username,
+			UsedBytes:     d.Account.UpBytes + d.Account.DownBytes,
+			LastHandshake: d.Account.LastHandshake,
 		}
 		// The local node is up by definition: this code is running on it.
 		// Any other node is up when it last answered. A device whose node

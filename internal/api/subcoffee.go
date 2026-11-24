@@ -176,9 +176,19 @@ func coffeeInfo(cfg service.SubSettings, page *service.SubPage, nodes []map[stri
 		lastHandshake = page.LastOnline.UTC().Format(time.RFC3339)
 	}
 	seen := map[uint]bool{}
+	active := 0
 	hasLinks := false
 	for _, d := range page.Devices {
-		seen[d.ID] = true
+		if !seen[d.ID] {
+			seen[d.ID] = true
+			// "Active" is a device that has been used: a handshake, or
+			// traffic in this period for the files that have no handshake
+			// to read. A file that was never connected is not a device in
+			// use, however many files the plan holds.
+			if d.LastHandshake != nil || d.UsedBytes > 0 {
+				active++
+			}
+		}
 		// Link-form configs are the proxy apps' food: an Xray tunnel's
 		// links, or a plain WireGuard one's. An AmneziaWG file has no
 		// link form -- the panel's own link list skips it too -- so it
@@ -195,8 +205,8 @@ func coffeeInfo(cfg service.SubSettings, page *service.SubPage, nodes []map[stri
 		"data_used_bytes":   page.UsedBytes,
 		"expiry_at":         expiry,
 		"days_left":         daysLeft,
-		"device_limit":      0,
-		"devices_active":    len(seen),
+		"device_limit":      page.DeviceLimit,
+		"devices_active":    active,
 		"last_handshake_at": lastHandshake,
 		"support_contact":   cfg.SupportURL,
 		"has_links":         hasLinks,
