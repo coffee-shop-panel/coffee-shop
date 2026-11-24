@@ -58,6 +58,18 @@ can still be merged in.
   the Interfaces page has exactly two tabs (WireGuard / the 3x-ui
   panel) and the client form gives a panel's inbounds as one switch.
 
+- `feat(v3.5.0)` the shop splits in two: at «خرید اشتراک» the buyer first
+  picks **WireGuard** or **V2ray**; plans carry a section, an order
+  snapshots it, and fulfillment delivers only that section's tunnels —
+  a later purchase of the other section attaches to the same customer
+  instead of creating a second one. Delivery and «اشتراک من» are
+  per-section too (the V2ray side hands over the `?format=base64` links
+  bundle for V2Box/v2rayNG). Card receipts are also stored in the
+  panel (`shop_receipts`), so the seller reviews and approves them
+  from the orders list; a buyers list and an announce composer (one
+  buyer or broadcast, sent through the seller's own bot) round out
+  the shop page.
+
 ## Releasing
 
 Builds are made with the version and the signing public key compiled in:
