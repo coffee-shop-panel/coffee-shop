@@ -54,8 +54,12 @@ type shopConfigView struct {
 	CardHolder    string `json:"cardHolder"`
 	ZarinpalMerch string `json:"zarinpalMerchant"`
 	Welcome       string `json:"welcome"`
-	InterfaceIDs  []uint `json:"interfaceIds"`
-	BotUsername   string `json:"botUsername"`
+	// The shop's teaching words ride along with the rest: the bot
+	// offers each under its own button when it is written.
+	TutorialText string `json:"tutorialText"`
+	FaqText      string `json:"faqText"`
+	InterfaceIDs []uint `json:"interfaceIds"`
+	BotUsername  string `json:"botUsername"`
 	BotRunning    bool   `json:"botRunning"`
 	// The shop's growth settings ride along so the page can show and
 	// save them with the rest of the bot's configuration: the trial it
@@ -100,6 +104,8 @@ func (s *Server) shopConfig(w http.ResponseWriter, r *http.Request, op *model.Ad
 		CardHolder:         cfg.CardHolder,
 		ZarinpalMerch:      cfg.ZarinpalMerchant,
 		Welcome:            cfg.Welcome,
+		TutorialText:       cfg.TutorialText,
+		FaqText:            cfg.FaqText,
 		InterfaceIDs:       cfg.InterfaceIDs,
 		TrialEnabled:       cfg.TrialEnabled,
 		TrialBytes:         cfg.TrialBytes,
@@ -140,6 +146,8 @@ type shopConfigBody struct {
 	CardHolder    string  `json:"cardHolder"`
 	ZarinpalMerch string  `json:"zarinpalMerchant"`
 	Welcome       string  `json:"welcome"`
+	TutorialText  string  `json:"tutorialText"`
+	FaqText       string  `json:"faqText"`
 	InterfaceIDs  []uint  `json:"interfaceIds"`
 	PublicBase    *string `json:"publicBase"`
 
@@ -195,6 +203,8 @@ func (s *Server) handleShopConfigSave(w http.ResponseWriter, r *http.Request) {
 	cfg.CardHolder = body.CardHolder
 	cfg.ZarinpalMerchant = body.ZarinpalMerch
 	cfg.Welcome = body.Welcome
+	cfg.TutorialText = body.TutorialText
+	cfg.FaqText = body.FaqText
 	cfg.InterfaceIDs = body.InterfaceIDs
 	cfg.TrialEnabled = body.TrialEnabled
 	cfg.TrialBytes = body.TrialBytes
@@ -414,9 +424,16 @@ func (s *Server) handleShopOrderApprove(w http.ResponseWriter, r *http.Request) 
 		fail(w, s.log, err)
 		return
 	}
+	// A top-up delivers money, not a customer: Fulfill hands back no
+	// client for one, and the answer says so rather than reaching
+	// through the empty hand.
+	var clientID uint
+	if client != nil {
+		clientID = client.ID
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"order":    orderView(done),
-		"clientId": client.ID,
+		"clientId": clientID,
 		"subLink":  s.shop.SubLink(r.Context(), client),
 	})
 }
