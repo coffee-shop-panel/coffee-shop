@@ -75,10 +75,10 @@ describe('the list', () => {
     expect(names(shownRows(rows, { sort: 'newest' }, NOW)).slice(0, 3)).toEqual(['alice', 'bob', 'carol'])
   })
 
-  it('totals resellers alone, but counts everyone', () => {
+  it('totals the rows it is given, of either kind', () => {
     const s = summarize(rows, NOW)
     expect(s.total).toBe(4)
-    expect(s.active).toBe(1)
+    expect(s.active).toBe(2)
     expect(s.soon).toBe(1)
     expect(s.stopped).toBe(1)
     expect(s.traffic).toBe(15)

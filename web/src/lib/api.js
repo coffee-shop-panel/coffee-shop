@@ -142,8 +142,6 @@ async function send(method, path, body) {
       0,
       'network',
     )
-  } finally {
-    clearTimeout(timer)
   }
 
   if (res.status === 401 && !path.endsWith('/auth/login')) {
@@ -153,12 +151,33 @@ async function send(method, path, body) {
     // whichever message won the race.
     setToken(null)
     window.dispatchEvent(new CustomEvent('wui:unauthorized'))
+    clearTimeout(timer)
     throw new ApiError('', 401, 'session')
   }
 
-  if (res.status === 204) return null
+  if (res.status === 204) {
+    clearTimeout(timer)
+    return null
+  }
 
-  const text = await res.text()
+  // The timer stays armed until the body has arrived: a server that sends
+  // its headers and then stalls is the same timeout as one that never
+  // answers at all, and is reported the same way.
+  let text
+  try {
+    text = await res.text()
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new ApiError(
+        'The server did not answer in time. It may be busy or restarting.',
+        0,
+        'timeout',
+      )
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
   let payload = null
   if (text) {
     try {

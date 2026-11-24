@@ -23,7 +23,7 @@ onMounted(() => {
 })
 
 // ── security: credentials ────────────────────────────────────────────────────
-const user = ref({ oldUsername: '', oldPassword: '', newUsername: '', newPassword: '' })
+const user = ref({ oldPassword: '', newUsername: '', newPassword: '' })
 const updating = ref(false)
 async function updateUser() {
   const u = user.value
@@ -181,10 +181,6 @@ async function saveMtlsTrust() {
     </div></div>
 
     <template v-if="inner === '1'">
-      <div class="setting-list-item"><div class="arow">
-        <div class="acol"><div class="setting-list-meta"><div class="setting-list-title">{{ t('set.oldUsername') }}</div></div></div>
-        <div class="acol"><label class="ainput block"><input v-model="user.oldUsername" autocomplete="username" /></label></div>
-      </div></div>
       <div class="setting-list-item"><div class="arow">
         <div class="acol"><div class="setting-list-meta"><div class="setting-list-title">{{ t('set.currentPassword') }}</div></div></div>
         <div class="acol"><label class="ainput block"><input v-model="user.oldPassword" :type="showSecret.old ? 'text' : 'password'" autocomplete="current-password" /><button type="button" class="ainput-clear" @click="showSecret.old = !showSecret.old"><AntIcon :name="showSecret.old ? 'EyeOutlined' : 'EyeInvisibleOutlined'" /></button></label></div>

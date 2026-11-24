@@ -102,10 +102,13 @@ export function shownRows(rows, { search = '', status = '', server = '', sort = 
   return [...list].sort((x, y) => by(x, y) || x.username.localeCompare(y.username))
 }
 
-// The figures across the top: every row is counted, but only resellers are
-// split by standing and summed, an administrator having no allowance.
+// The figures across the top: the rows given are split by standing and
+// summed. The caller passes one kind at a time -- the admins page its
+// administrators, the resellers page its resellers -- so the figures
+// describe those rows; an administrator's standing is only ever active
+// or off, having no allowance to run into.
 export function summarize(rows, now = Date.now()) {
-  const list = rows.filter((a) => a.role === 'reseller')
+  const list = rows
   const by = (key) => list.filter((a) => standing(a, now).key === key).length
   return {
     total: rows.length,

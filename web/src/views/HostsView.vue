@@ -284,7 +284,7 @@ function ifaceLabel(id) {
                   <span v-if="!g.interfaceIds.length" class="host-muted">—</span>
                   <template v-else>
                     <span class="atag" :class="PROTO_COLOR[ifaceById[g.interfaceIds[0]]?.protocol] || 'default'" style="margin: 2px" :title="ifaceLabel(g.interfaceIds[0])">{{ ifaceLabel(g.interfaceIds[0]) }}</span>
-                    <span v-if="g.interfaceIds.length > 1" class="atag default" style="margin: 2px; cursor: pointer" @click="showMore(`i-${g.groupId}`, g.interfaceIds.slice(1).map(ifaceLabel), $event)">+{{ g.interfaceIds.length - 1 }}</span>
+                    <span v-if="g.interfaceIds.length > 1" class="atag default" style="margin: 2px; cursor: pointer" @click="showMore(`i-${g.groupId}`, g.interfaceIds.map(ifaceLabel), $event)">+{{ g.interfaceIds.length - 1 }}</span>
                   </template>
                 </td>
                 <td>
