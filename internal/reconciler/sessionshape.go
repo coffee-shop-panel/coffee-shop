@@ -83,7 +83,10 @@ func (r *Reconciler) shapeSessions(ctx context.Context, d *desired) {
 			continue
 		}
 		// A new link carries nothing of ours; one with no rate needs nothing.
-		if want.rate == 0 && (!had || prev.since != want.since || prev.rate == 0) {
+		// A removal that failed is not nothing: the stored rate is already
+		// zero, so without the failed check this branch would swallow the
+		// retry and the old limit would stay on the device for good.
+		if want.rate == 0 && (!had || prev.since != want.since || (prev.rate == 0 && prev.failed.IsZero())) {
 			r.sessions.by[dev] = want
 			continue
 		}

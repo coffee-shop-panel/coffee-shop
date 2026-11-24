@@ -79,8 +79,13 @@ func CreateXrayInbound(ctx context.Context, node model.Node, in service.XrayInbo
 // change, and says why it did not.
 func (x *xuiAPI) xrayRunsAfter(ctx context.Context) error {
 	var last xuiStatus
+	var lastErr error
 	for i := 0; i < 8; i++ {
-		time.Sleep(xuiSettle)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(xuiSettle):
+		}
 		st, err := x.status(ctx)
 		if err == nil && (st.Xray.State == "running" || st.Xray.State == "") {
 			if i >= 2 {
@@ -89,10 +94,17 @@ func (x *xuiAPI) xrayRunsAfter(ctx context.Context) error {
 			continue
 		}
 		last = st
+		lastErr = err
 	}
 	msg := last.Xray.Error
 	if msg == "" {
 		msg = last.Xray.State
+	}
+	if msg == "" && lastErr != nil {
+		msg = lastErr.Error()
+	}
+	if msg == "" {
+		msg = "xray did not come up"
 	}
 	return fmt.Errorf("%s", msg)
 }

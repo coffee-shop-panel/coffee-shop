@@ -131,6 +131,16 @@ func (p *Prober) ProbeOne(ctx context.Context, node model.Node) Snapshot {
 			msg = msg[:240]
 		}
 		updates["last_error"] = msg
+		// Nothing else about the node is known any more: the last version
+		// and counts would otherwise stay on the row, looking live beside
+		// a red "unreachable".
+		updates["version"] = ""
+		updates["clients"] = 0
+		updates["interfaces"] = 0
+		updates["uptime_sec"] = 0
+		updates["cpu_percent"] = 0
+		updates["mem_percent"] = 0
+		updates["enforcement"] = ""
 	} else {
 		updates["last_error"] = ""
 		updates["last_seen_at"] = now

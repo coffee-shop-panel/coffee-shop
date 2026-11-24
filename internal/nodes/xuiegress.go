@@ -252,7 +252,11 @@ func (s *Syncer) xuiEgress(ctx context.Context, api *xuiAPI, node model.Node, ro
 	}
 	next := withEgress(cfg, egress, route)
 	if reflect.DeepEqual(normalJSON(next), normalJSON(cfg)) {
-		return egressErr
+		// Already what it should be — including when the top outbound is
+		// OpenVPN and "what it should be" is leaving directly. That is the
+		// intended state, not a failure, and returning the outbound's error
+		// here failed the round forever for a configuration the code chose.
+		return nil
 	}
 	if err := api.saveXrayTemplate(ctx, next); err != nil {
 		return fmt.Errorf("putting the outbound in its xray: %w", err)
@@ -263,7 +267,9 @@ func (s *Syncer) xuiEgress(ctx context.Context, api *xuiAPI, node model.Node, ro
 		time.Sleep(xuiSettle)
 		if st, err = api.status(ctx); err == nil && st.Xray.State == "running" {
 			s.log.Info("the outbound is in a 3x-ui node's xray", "node", node.Name, "outbound", tag)
-			return egressErr
+			// In place and running, on the direct egress included: the
+			// outbound's error is not a failure of this round.
+			return nil
 		}
 	}
 	// Put back as it was: that panel's own users must not lose their service

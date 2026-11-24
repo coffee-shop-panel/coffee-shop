@@ -350,8 +350,14 @@ func (a *activity) connections(now time.Time) int {
 		return 0
 	}
 	n := 1
-	if a.flips >= 2 && now.Sub(a.flipAt) < activeWindow && len(a.addrs) > 1 {
-		n = len(a.addrs)
+	if a.flips >= 2 && now.Sub(a.flipAt) < activeWindow {
+		// Only the addresses seen within the window: the map is pruned
+		// when the credential moves, so an idle one still holds the
+		// addresses it has left behind, and counting them would hold a
+		// device off for connections it no longer has.
+		if live := len(a.liveAddrs(now)); live > 1 {
+			n = live
+		}
 	}
 	if m := a.overlapping(now); m > n {
 		n = m

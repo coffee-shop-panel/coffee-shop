@@ -385,6 +385,22 @@ func (s *Nodes) validate(in *NodeInput, needToken bool) error {
 		return fault.Field("resetDay",
 			"the allowance can start again on day 1 to 28 of the month, or 0 to never reset")
 	}
+
+	// The coefficient is a price, and the same bound holds on create as on
+	// edit: zero would give service away, and more than a hundred times
+	// what was used is a typo, not a price.
+	if in.UsageCoefficient != nil {
+		if *in.UsageCoefficient <= 0 {
+			return fault.Field("usageCoefficient",
+				"a coefficient of %g would charge nothing for traffic through this server",
+				*in.UsageCoefficient)
+		}
+		if *in.UsageCoefficient > 100 {
+			return fault.Field("usageCoefficient",
+				"a coefficient of %g charges a hundred times what the customer used",
+				*in.UsageCoefficient)
+		}
+	}
 	return nil
 }
 
@@ -449,8 +465,12 @@ func (s *Nodes) ListTokens(ctx context.Context) ([]model.APIToken, error) {
 
 // RevokeToken deletes one.
 func (s *Nodes) RevokeToken(ctx context.Context, id uint) error {
-	if err := s.db.WithContext(ctx).Delete(&model.APIToken{}, id).Error; err != nil {
-		return fmt.Errorf("service: revoke token: %w", err)
+	res := s.db.WithContext(ctx).Delete(&model.APIToken{}, id)
+	if res.Error != nil {
+		return fmt.Errorf("service: revoke token: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return fault.ErrNotFound
 	}
 	return nil
 }

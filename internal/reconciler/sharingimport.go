@@ -81,7 +81,8 @@ func (r *Reconciler) ImportSharingFromLog(ctx context.Context) SharingImport {
 	accounts, err := r.accountsByName(ctx)
 	if err != nil {
 		res.State, res.Error = "failed", err.Error()
-		r.saveImport(res)
+		// Not noted as done: a transient failure must not disable the
+		// backfill for good, and the next start tries again.
 		return res
 	}
 
@@ -123,6 +124,11 @@ func (r *Reconciler) ImportSharingFromLog(ctx context.Context) SharingImport {
 				res.Shared++
 			}
 		}
+	}
+	if res.State == "failed" {
+		// A transient failure is not noted as done: the next start tries
+		// again, or the backfill stays disabled for a failure nobody saw.
+		return res
 	}
 	r.saveImport(res)
 	return res
@@ -203,7 +209,10 @@ func sharedFromConnects(client, device string, seen []sighting) []model.SharingE
 		}
 		addrs := map[string]bool{}
 		for _, s := range seen[start : end+1] {
-			addrs[s.addr] = true
+			// The address as the live report counts it: the host, not the
+			// endpoint. A device reconnecting from one IP on a new source
+			// port is one address, not a device shared three ways.
+			addrs[hostOf(s.addr)] = true
 		}
 		if len(addrs) < sharingThreshold {
 			continue

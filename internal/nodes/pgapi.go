@@ -355,19 +355,30 @@ func (p *pgAPI) usersNamed(ctx context.Context, names []string) ([]pgUser, error
 	}
 	var out []pgUser
 	const chunk = 50
-	for i := 0; i < len(names); i += chunk {
+	for i := 0; i < len(names) && len(want) > 0; i += chunk {
 		part := names[i:min(i+chunk, len(names))]
-		q := url.Values{"username": part, "limit": {fmt.Sprint(len(part))}}
-		var page struct {
-			Users []pgUser `json:"users"`
-		}
-		if err := p.do(ctx, http.MethodGet, "/api/users?"+q.Encode(), nil, &page); err != nil {
-			return nil, err
-		}
-		for _, u := range page.Users {
-			if want[u.Username] {
-				out = append(out, u)
-				delete(want, u.Username)
+		// A panel that ignores the username filter answers with its users
+		// in order, so the wanted ones may be pages in: keep reading while
+		// any are still missing, as users() does. The cap is the page, not
+		// the names asked for.
+		const page = 500
+		for offset := 0; ; offset += page {
+			q := url.Values{"username": part, "limit": {fmt.Sprint(page)}, "offset": {fmt.Sprint(offset)}}
+			var listed struct {
+				Users []pgUser `json:"users"`
+				Total int      `json:"total"`
+			}
+			if err := p.do(ctx, http.MethodGet, "/api/users?"+q.Encode(), nil, &listed); err != nil {
+				return nil, err
+			}
+			for _, u := range listed.Users {
+				if want[u.Username] {
+					out = append(out, u)
+					delete(want, u.Username)
+				}
+			}
+			if len(want) == 0 || len(listed.Users) < page || offset+page >= listed.Total {
+				break
 			}
 		}
 	}

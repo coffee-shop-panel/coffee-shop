@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -34,9 +35,12 @@ func RecordNodeTraffic(ctx context.Context, db *gorm.DB, nodeID uint, raw uint64
 
 	var node model.Node
 	if err := db.WithContext(ctx).First(&node, nodeID).Error; err != nil {
-		// A node deleted while a round was in flight is not an error worth
-		// failing a tick for.
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// A node deleted while a round was in flight is not an error worth
+			// failing a tick for.
+			return nil
+		}
+		return fmt.Errorf("service: read node for traffic: %w", err)
 	}
 
 	updates := map[string]any{}

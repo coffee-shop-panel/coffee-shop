@@ -119,6 +119,13 @@ func newXUIAPI(ctx context.Context, node model.Node) (*xuiAPI, error) {
 		return nil, err
 	}
 	switch {
+	case x.gen == xuiGenOld && !x.session && x.token:
+		// The token was given but the panel never answered with it: it may
+		// be refused, or the panel may be too old for tokens at all. Say
+		// that, rather than sending the operator to fetch credentials that
+		// are not the problem — or, on an old panel, hiding that a sign-in
+		// is the way in.
+		return nil, errors.New("the panel did not accept the API token: check it is still valid, or give the panel's username and password (3x-ui before 2.8 has no API token)")
 	case x.gen == xuiGenOld && !x.session:
 		return nil, errors.New("3x-ui before 2.8 has no API token: give it the panel's username and password")
 	case x.gen == xuiGenNew && !x.token:
