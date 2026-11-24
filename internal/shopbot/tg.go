@@ -272,6 +272,60 @@ func (c *tgClient) copyMessage(ctx context.Context, toChat, fromChat, msgID int6
 	return &sent, nil
 }
 
+// tgFile is where Telegram says a file lives: the path the download
+// below is fetched from, handed out one file id at a time.
+type tgFile struct {
+	FilePath string `json:"file_path"`
+}
+
+// getFile asks Telegram for the path of a file the bot was shown -- a
+// receipt photo, named in the message by its file id alone.
+func (c *tgClient) getFile(ctx context.Context, fileID string) (string, error) {
+	var f tgFile
+	if err := c.call(ctx, "getFile", map[string]any{"file_id": fileID}, &f); err != nil {
+		return "", err
+	}
+	return f.FilePath, nil
+}
+
+// maxFileDownload is the largest file the bot pulls down. It matches
+// the panel's own ceiling for a kept receipt: a bigger "photo" is not
+// one, and a store that takes anything fills with whatever a chat can
+// be made to send.
+const maxFileDownload = 8 << 20
+
+// downloadFile fetches a file getFile named. File downloads do not live
+// under the method URL -- they hang off /file/bot<token>/ -- and what
+// comes back is the file itself rather than JSON, so this is its own
+// small call instead of call() bent out of shape. The read stops a byte
+// past the limit, so an oversized file is known and refused whole
+// rather than kept cut in half.
+func (c *tgClient) downloadFile(ctx context.Context, filePath string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		APIBase+"/file/bot"+url.PathEscape(c.token)+"/"+filePath, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("telegram file download: %s", resp.Status)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxFileDownload+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxFileDownload {
+		return nil, fmt.Errorf("telegram file download: larger than %d bytes", maxFileDownload)
+	}
+	return data, nil
+}
+
 // escapeHTML makes a user-derived string safe to sit inside the bot's
 // HTML: a buyer's name is theirs to choose, and an unescaped one could
 // break the message's formatting or forge its links.

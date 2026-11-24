@@ -26,6 +26,13 @@ type session struct {
 	step    string
 	planID  uint
 	orderID uint
+	// section is the shop section whose plans are on screen, and
+	// sectionChoice says the buyer was asked which section they
+	// wanted on the way in -- which is what the plan list's back
+	// button points at: the question again, or the menu when there
+	// was no question to go back to.
+	section       string
+	sectionChoice bool
 }
 
 func (s *session) reset() { *s = session{} }
@@ -130,7 +137,23 @@ func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {
 	switch {
 	case data == "buy" || data == "renew":
 		b.answer(ctx, cb, "")
-		b.showPlans(ctx, cb)
+		b.showSections(ctx, cb, sess)
+	case data == "plans":
+		// Back from the payment choices: the plan list of the section
+		// being browsed, or the section question when the session has
+		// lost it (a restart between the two taps).
+		b.answer(ctx, cb, "")
+		if sess.section == "" {
+			b.showSections(ctx, cb, sess)
+		} else {
+			b.showPlans(ctx, cb, sess, sess.section)
+		}
+	case data == "sec:wireguard":
+		b.answer(ctx, cb, "")
+		b.showPlans(ctx, cb, sess, shop.SectionWireGuard)
+	case data == "sec:v2ray":
+		b.answer(ctx, cb, "")
+		b.showPlans(ctx, cb, sess, shop.SectionV2ray)
 	case data == "mine":
 		b.answer(ctx, cb, "")
 		text, kb := b.mine(ctx, cb.From.ID)
@@ -226,24 +249,102 @@ func (b *bot) editOrSend(ctx context.Context, cb *tgCallback, text string, kb tg
 	b.send(ctx, chatID, text, kb)
 }
 
-// showPlans lists what this operator sells.
-func (b *bot) showPlans(ctx context.Context, cb *tgCallback) {
+// sellableSections is the sections this shop can actually sell right
+// now, in the order they are offered: a section counts when it has an
+// enabled plan of its own and at least one of the seller's tunnels
+// belongs to it. A plan alone is not sellable -- fulfillment delivers
+// on the section's tunnels, and a section with none would take the
+// money and have nothing to hand over.
+func (b *bot) sellableSections(ctx context.Context) ([]string, error) {
+	plans, err := b.mgr.shop.PlansFor(ctx, b.cfg().OperatorID, true)
+	if err != nil {
+		return nil, err
+	}
+	cfg := b.cfg()
+	out := []string{}
+	for _, section := range []string{shop.SectionWireGuard, shop.SectionV2ray} {
+		hasPlan := false
+		for i := range plans {
+			if shop.NormalizeSection(plans[i].Section) == section {
+				hasPlan = true
+				break
+			}
+		}
+		if !hasPlan {
+			continue
+		}
+		ids, err := b.mgr.shop.SectionInterfaces(ctx, &cfg, section)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) > 0 {
+			out = append(out, section)
+		}
+	}
+	return out, nil
+}
+
+// showSections opens a purchase. With two sections to sell, the buyer
+// chooses one first -- the two are different products, in different
+// apps, and a mixed plan list sells the wrong one to somebody every
+// day. With one, the question would be a tap that answers itself, so
+// it is skipped and the plans open directly.
+func (b *bot) showSections(ctx context.Context, cb *tgCallback, sess *session) {
+	sellable, err := b.sellableSections(ctx)
+	if err != nil {
+		b.log.Warn("shop bot could not work out what it can sell", "error", err)
+		b.editOrSend(ctx, cb, txtError, backKeyboard())
+		return
+	}
+	switch len(sellable) {
+	case 0:
+		sess.sectionChoice = false
+		b.editOrSend(ctx, cb, txtNoPlans, backKeyboard())
+	case 1:
+		sess.sectionChoice = false
+		b.showPlans(ctx, cb, sess, sellable[0])
+	default:
+		sess.sectionChoice = true
+		kb := tgKeyboard{}
+		for _, section := range sellable {
+			kb = append(kb, []tgButton{{Text: sectionName(section), Data: "sec:" + section}})
+		}
+		kb = append(kb, []tgButton{{Text: btnBack, Data: "menu"}})
+		b.editOrSend(ctx, cb, txtChooseSection, kb)
+	}
+}
+
+// showPlans lists what this operator sells in one section: only that
+// section's plans, under a header that names it.
+func (b *bot) showPlans(ctx context.Context, cb *tgCallback, sess *session, section string) {
+	section = shop.NormalizeSection(section)
 	plans, err := b.mgr.shop.PlansFor(ctx, b.cfg().OperatorID, true)
 	if err != nil {
 		b.log.Warn("shop bot could not read the plans", "error", err)
 		b.editOrSend(ctx, cb, txtError, backKeyboard())
 		return
 	}
-	if len(plans) == 0 {
+	var own []shop.Plan
+	for i := range plans {
+		if shop.NormalizeSection(plans[i].Section) == section {
+			own = append(own, plans[i])
+		}
+	}
+	if len(own) == 0 {
 		b.editOrSend(ctx, cb, txtNoPlans, backKeyboard())
 		return
 	}
+	sess.section = section
 	kb := tgKeyboard{}
-	for i := range plans {
-		kb = append(kb, []tgButton{{Text: planButtonText(&plans[i]), Data: fmt.Sprintf("plan:%d", plans[i].ID)}})
+	for i := range own {
+		kb = append(kb, []tgButton{{Text: planButtonText(&own[i]), Data: fmt.Sprintf("plan:%d", own[i].ID)}})
 	}
-	kb = append(kb, []tgButton{{Text: btnBack, Data: "menu"}})
-	b.editOrSend(ctx, cb, txtChoosePlan, kb)
+	back := "menu"
+	if sess.sectionChoice {
+		back = "buy"
+	}
+	kb = append(kb, []tgButton{{Text: btnBack, Data: back}})
+	b.editOrSend(ctx, cb, fmt.Sprintf(txtChoosePlanSection, sectionName(section)), kb)
 }
 
 // plan finds one enabled plan by id, re-read at the moment of the tap:
@@ -294,13 +395,15 @@ func (b *bot) showPayments(ctx context.Context, cb *tgCallback, sess *session, p
 		b.editOrSend(ctx, cb, txtPayNotConfigured, backKeyboard())
 		return
 	}
-	kb = append(kb, []tgButton{{Text: btnBack, Data: "buy"}})
+	kb = append(kb, []tgButton{{Text: btnBack, Data: "plans"}})
 	b.editOrSend(ctx, cb, txtChoosePay+"\n\n"+planButtonText(plan), kb)
 }
 
 // newOrder records a purchase at the moment the buyer commits to a way
 // of paying, with the plan's terms copied onto it: what was sold is what
-// the order says, even if the plan is edited tomorrow.
+// the order says, even if the plan is edited tomorrow. The plan's
+// section is copied with the rest, because the section is what delivery
+// hands over -- the tunnels of that half of the shop, and no other.
 //
 // Kind is always "new" here, deliberately: whether this purchase creates
 // a customer or renews the one the buyer already has is decided by
@@ -314,6 +417,7 @@ func (b *bot) newOrder(ctx context.Context, from *tgUser, plan *shop.Plan, metho
 		BuyerName:   buyerName(from),
 		PlanID:      plan.ID,
 		PlanName:    plan.Name,
+		Section:     shop.NormalizeSection(plan.Section),
 		QuotaBytes:  plan.QuotaBytes,
 		Days:        plan.Days,
 		PriceToman:  plan.PriceToman,
@@ -383,6 +487,48 @@ func (b *bot) takeReceipt(ctx context.Context, m *tgMessage, sess *session) {
 			b.log.Warn("shop bot could not send the receipt to the seller", "error", err)
 		}
 	}
+
+	// The panel keeps its own copy of the picture, so the seller can
+	// approve from their page as well as from this chat, against the
+	// same receipt. Strictly best effort: the seller already holds the
+	// copy above, and a picture the panel could not fetch must not cost
+	// the buyer the sale it belongs to.
+	b.keepReceipt(ctx, m, o.ID)
+}
+
+// keepReceipt downloads the receipt photo the buyer just sent and files
+// it with the shop for the panel. Every failure is a log line and
+// nothing more -- see takeReceipt for why.
+func (b *bot) keepReceipt(ctx context.Context, m *tgMessage, orderID uint) {
+	fileID := m.photoFileID()
+	if fileID == "" {
+		return
+	}
+	path, err := b.api.getFile(ctx, fileID)
+	if err != nil || path == "" {
+		b.log.Warn("shop bot could not locate the receipt photo", "order", orderID, "error", err)
+		return
+	}
+	data, err := b.api.downloadFile(ctx, path)
+	if err != nil {
+		b.log.Warn("shop bot could not download the receipt photo", "order", orderID, "error", err)
+		return
+	}
+	if err := b.mgr.shop.SaveReceipt(ctx, orderID, receiptContentType(path), data); err != nil {
+		b.log.Warn("shop bot could not keep the receipt for the panel", "order", orderID, "error", err)
+	}
+}
+
+// receiptContentType names a downloaded receipt's kind from the name
+// Telegram gave the file: camera photos arrive as JPEG, screenshots
+// sometimes as PNG, and anything unrecognised is called JPEG -- the
+// panel serves the bytes back under this name, and a picture named
+// slightly wrong still opens.
+func receiptContentType(path string) string {
+	if strings.HasSuffix(strings.ToLower(path), ".png") {
+		return "image/png"
+	}
+	return "image/jpeg"
 }
 
 // startZarinpalOrder opens an online payment and hands the buyer its
@@ -516,6 +662,15 @@ func (b *bot) deliver(ctx context.Context, o *shop.Order) error {
 	}
 	if link := b.mgr.shop.SubLink(ctx, client); link != "" {
 		sb.WriteString("\n\n" + fmt.Sprintf(txtDeliverLink, link))
+		// What the link is opened with is the section's own business:
+		// a WireGuard buyer is told which apps speak it, and a V2ray
+		// buyer gets the direct bundle link as well, because that --
+		// not the subscription page -- is what their apps import.
+		if shop.NormalizeSection(o.Section) == shop.SectionV2ray {
+			sb.WriteString("\n\n" + fmt.Sprintf(txtDeliverV2rayLink, link+"?format=base64"))
+		} else {
+			sb.WriteString("\n\n" + txtDeliverWireGuardGuide)
+		}
 	} else {
 		// No public address is configured, so no link can be built. The
 		// buyer gets the token that identifies their subscription, and
@@ -565,7 +720,27 @@ func (b *bot) mine(ctx context.Context, buyerID int64) (string, tgKeyboard) {
 			block += "\n" + txtMineNoExpiry
 		}
 		if link := b.mgr.shop.SubLink(ctx, c); link != "" {
-			block += "\n" + fmt.Sprintf(txtMineLink, link)
+			// One block per section the customer actually holds, each
+			// with the link that section is used through: a customer
+			// who bought both halves sees both, named, instead of one
+			// link and a guess about which app it belongs in. A
+			// customer holding neither -- an account on some other
+			// kind of tunnel -- gets the plain link, as before.
+			wg, xray, serr := b.mgr.shop.ClientSections(ctx, c)
+			if serr != nil {
+				b.log.Warn("shop bot could not read the customer's sections", "error", serr)
+			}
+			switch {
+			case serr == nil && wg:
+				block += "\n" + fmt.Sprintf(txtMineWireGuard, link)
+				if xray {
+					block += "\n" + fmt.Sprintf(txtMineV2ray, link+"?format=base64")
+				}
+			case serr == nil && xray:
+				block += "\n" + fmt.Sprintf(txtMineV2ray, link+"?format=base64")
+			default:
+				block += "\n" + fmt.Sprintf(txtMineLink, link)
+			}
 		} else if c.SubToken != "" {
 			block += "\n" + fmt.Sprintf(txtMineToken, escapeHTML(c.SubToken))
 		}

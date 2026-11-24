@@ -111,6 +111,57 @@ func (m *Manager) BotInfo(operatorID uint) (username string, running bool) {
 	return name, true
 }
 
+// SendAnnouncement carries one operator's message to their buyers
+// through their own bot: to the one buyer buyerTGID names, or — at
+// zero, which is nobody's Telegram id — to every buyer the operator
+// has. It returns how many buyers the message reached.
+//
+// The bot that sends it is the running one, and there is no queue to
+// fall back on: an announcement is the operator speaking now, so a bot
+// that is switched off is a refusal with the reason on it, not a
+// message saved for later. A broadcast walks its buyers one at a time,
+// a breath apart — a bot that fires a hundred messages in one instant
+// is a bot Telegram rate-limits, and one buyer's dead chat (they
+// blocked the bot, as buyers do) is logged and passed over, never a
+// reason the rest hear nothing.
+func (m *Manager) SendAnnouncement(ctx context.Context, operatorID uint, buyerTGID int64, text string) (int, error) {
+	m.mu.Lock()
+	b := m.bots[operatorID]
+	m.mu.Unlock()
+	if b == nil {
+		return 0, errAnnounceBotOff
+	}
+	msg := txtAnnouncePrefix + text
+
+	if buyerTGID != 0 {
+		if _, err := b.api.sendMessage(ctx, buyerTGID, msg, nil); err != nil {
+			return 0, err
+		}
+		return 1, nil
+	}
+
+	buyers, err := m.shop.BuyersFor(ctx, operatorID)
+	if err != nil {
+		return 0, err
+	}
+	if len(buyers) == 0 {
+		return 0, errAnnounceNoBuyers
+	}
+	sent := 0
+	for i := range buyers {
+		if i > 0 && !sleepCtx(ctx, 60*time.Millisecond) {
+			break
+		}
+		if _, err := b.api.sendMessage(ctx, buyers[i].TelegramID, msg, nil); err != nil {
+			m.log.Warn("shop bot could not deliver an announcement",
+				"operator", operatorID, "buyer", buyers[i].TelegramID, "error", err)
+			continue
+		}
+		sent++
+	}
+	return sent, nil
+}
+
 func (m *Manager) rootCtx() context.Context {
 	m.mu.Lock()
 	defer m.mu.Unlock()

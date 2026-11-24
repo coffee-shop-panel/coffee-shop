@@ -1,6 +1,7 @@
 package shopbot
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -44,6 +45,30 @@ const (
 	txtOrderFailed      = "ساختن سفارش انجام نشد. لطفاً دوباره تلاش کنید."
 )
 
+// Sections. The shop sells two different products -- the panel's own
+// WireGuard tunnels and the 3x-ui inbounds -- and the buyer picks which
+// one they are shopping for before they see a single plan, because the
+// two live in different apps and a plan list mixing them reads as one
+// product with two names.
+const (
+	btnSectionWireGuard = "🛡 وایرگارد"
+	btnSectionV2ray     = "🚀 V2ray"
+	txtChooseSection    = "اشتراک کدام بخش را می‌خواهید؟"
+)
+
+// txtChoosePlanSection heads a section's plan list, naming the section
+// the buyer just chose, so the list never has to be guessed at.
+const txtChoosePlanSection = "📦 بخش %s\n\n" + txtChoosePlan
+
+// sectionName is a section's name as the buyer sees it -- the same
+// words on the choice button and at the head of its plan list.
+func sectionName(section string) string {
+	if shop.NormalizeSection(section) == shop.SectionV2ray {
+		return btnSectionV2ray
+	}
+	return btnSectionWireGuard
+}
+
 // Card payment.
 const txtCardInstructions = "برای پرداخت، مبلغ زیر را به این شماره کارت واریز کنید و سپس <b>عکس رسید</b> را همین‌جا بفرستید:\n\n" +
 	"💳 شماره کارت:\n<code>%s</code>\n" +
@@ -84,6 +109,15 @@ const (
 	txtSellerLinkNote      = "ℹ️ خریدار «%s» اشتراک خرید، اما لینک عمومی پنل تنظیم نیست و فقط کد اشتراک برایش رفت:\n<code>%s</code>\nلینک کامل را دستی برایش بفرستید."
 )
 
+// What a delivery says beyond the link depends on the section, because
+// the two are opened in different apps: a WireGuard buyer is pointed at
+// the apps that speak it, and a V2ray buyer is handed the bundle link
+// their apps import directly, so neither has to know the other's way.
+const (
+	txtDeliverWireGuardGuide = "🛡 کانفیگ‌های وایرگاردتان داخل همین لینک اشتراک است؛ آن را با هیدیفای یا برنامهٔ وایرگارد باز کنید."
+	txtDeliverV2rayLink      = "🚀 لینک مستقیم کانفیگ‌ها (برای V2Box و v2rayNG):\n%s"
+)
+
 // "Mine".
 const (
 	txtMineEmpty    = "شما هنوز اشتراکی ندارید. از دکمهٔ زیر می‌توانید اولین اشتراکتان را بخرید."
@@ -95,6 +129,25 @@ const (
 	txtMineNoExpiry = "انقضا: ندارد"
 	txtMineLink     = "🔗 لینک اشتراک:\n%s"
 	txtMineToken    = "🔑 کد اشتراک: <code>%s</code>"
+)
+
+// "Mine" names each section the customer holds with the link that
+// section is used through -- the subscription page for WireGuard, the
+// direct bundle for the V2ray apps -- rather than one bare link the
+// buyer has to guess the app for.
+const (
+	txtMineWireGuard = "🛡 وایرگارد — لینک اشتراک:\n%s"
+	txtMineV2ray     = "🚀 V2ray — لینک مستقیم کانفیگ‌ها (V2Box و v2rayNG):\n%s"
+)
+
+// Announcements. The prefix is on every one, so a message that arrives
+// out of the blue is known for what it is; the refusals are the
+// operator's sentences, which the panel shows them as written.
+const txtAnnouncePrefix = "📣 پیام فروشنده:\n\n"
+
+var (
+	errAnnounceBotOff   = errors.New("بات فروش روشن نیست؛ اول از صفحه «بات فروش» پنل بات را روشن کنید")
+	errAnnounceNoBuyers = errors.New("هنوز هیچ مشتری‌ای از بات خرید نکرده است")
 )
 
 // Support.
