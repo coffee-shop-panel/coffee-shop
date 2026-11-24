@@ -106,6 +106,44 @@ can still be merged in.
   test purchase completes in one conversation. /start returns to the
   seller panel.
 
+### v5 (in development)
+
+Staged on the branch, not yet released: the batch ships together as
+v5 rather than a version per feature.
+
+- **feat(shop):** a per-buyer wallet at every shop — top-ups through
+  the ordinary card/ZarinPal roads credit it, plans can be paid from
+  it in one tap, and a failed wallet delivery refunds it.
+- **feat(shop):** discount and gift codes per operator: percent or
+  fixed off at checkout (priced, never recorded, until delivery
+  records the use), gift codes redeemed straight into the wallet;
+  one use per buyer is a fact of the schema.
+- **feat(shop):** referral and cashback — a buyer's invitation link
+  binds who brought them, and a delivered sale pays the shop's
+  configured percent of the order's price into the referrer's wallet,
+  once.
+- **feat(shop):** free trial accounts — one per buyer per shop, ever,
+  on the trial section's tunnels for the configured allowance and
+  length, claimed atomically on the wallet.
+- **feat(shopbot):** bulk purchase — a quantity step at checkout (a
+  renewal stays one), every unit delivered as its own customer and
+  counted on the order, so a retried delivery makes only the units
+  still missing.
+- **feat(shop):** a per-shop customer name format (`{name}`, `{id}`,
+  `{rand}`, `{n}`) applied to every customer a sale or a trial makes.
+- **feat(shopbot):** buyer reminders — a half-hourly scan under each
+  operator's own scope warns a customer whose plan ends within three
+  days, within one day, has ended, or is nine-tenths spent, once per
+  occasion (the notices table is the dedupe; a renewal is a new
+  occasion).
+- **feat(shopbot):** the wheel of fortune (one spin a day; discount
+  codes or volume added to the buyer's plan) and a seller-run lottery
+  over the last thirty days' buyers, the cheapest plan's price paid
+  into the winner's wallet.
+- **feat(shopbot):** tutorial and FAQ texts the seller writes on
+  their shop page, offered as menu buttons in the bot only when
+  written.
+
 ## Releasing
 
 Builds are made with the version and the signing public key compiled in:
