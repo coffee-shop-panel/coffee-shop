@@ -106,7 +106,7 @@ can still be merged in.
   test purchase completes in one conversation. /start returns to the
   seller panel.
 
-### v5 (in development)
+### The v5 batch (shipped as 3.7.2)
 
 Staged on the branch, not yet released: the batch ships together as
 v5 rather than a version per feature.
