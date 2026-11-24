@@ -41,8 +41,12 @@ import (
 // that will not update.
 var PublicKey = ""
 
-// Repo is the project the release is fetched from.
-const Repo = "AbolfazlTafakori/w-ui"
+// Repo is the project the release is fetched from. This fork fetches
+// its own: the Coffee-shop builds are published there and signed with
+// this fork's own key, so the panel updates from AliAhmad-lab/w-ui and
+// never from upstream (an upstream release would not verify anyway --
+// and would wipe this fork's changes if it somehow did).
+const Repo = "AliAhmad-lab/w-ui"
 
 var (
 	// ErrNoKey is a build with no signing key configured.
