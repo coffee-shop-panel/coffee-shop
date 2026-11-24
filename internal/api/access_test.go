@@ -62,8 +62,8 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		"GET /api/devices/{id}/profiles",
 		"DELETE /api/devices/{id}",
 
-		// Their own sales bot: its settings, plans and orders, each
-		// narrowed to the caller in the handler.
+		// Their own sales bot: its settings, plans, codes and orders,
+		// each narrowed to the caller in the handler.
 		"GET /api/shop/config",
 		"PUT /api/shop/config",
 		"GET /api/admin-bot/config",
@@ -71,6 +71,9 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		"GET /api/shop/plans",
 		"POST /api/shop/plans",
 		"DELETE /api/shop/plans/{id}",
+		"GET /api/shop/codes",
+		"POST /api/shop/codes",
+		"DELETE /api/shop/codes/{id}",
 		"GET /api/shop/orders",
 		"POST /api/shop/orders/{id}/approve",
 		"POST /api/shop/orders/{id}/reject",

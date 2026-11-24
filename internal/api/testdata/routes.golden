@@ -136,6 +136,9 @@ PUT    /api/shop/config                               Shop           auth=true  
 GET    /api/shop/plans                                Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 POST   /api/shop/plans                                Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 DELETE /api/shop/plans/{id}                           Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+GET    /api/shop/codes                                Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+POST   /api/shop/codes                                Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+DELETE /api/shop/codes/{id}                           Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 GET    /api/shop/orders                               Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 POST   /api/shop/orders/{id}/approve                  Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 POST   /api/shop/orders/{id}/reject                   Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
