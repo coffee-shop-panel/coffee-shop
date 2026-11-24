@@ -153,6 +153,15 @@ v5 rather than a version per feature.
   through the one API under the operator's own scope; the page's
   script is externalised like the coffee page's, so the listener's
   CSP is untouched.
+- **fix(audit):** nightly audit fixes, staged on this branch for the
+  next release — session tokens must satisfy binding and epoch
+  (retires the legacy bypasses); backup downloads abort on a stall;
+  the coffee page reports the real device limit and only devices in
+  use, hands Xray links to V2Box as-is and downloads them as `.txt`;
+  the manual update points at this fork; operator scope, ceilings
+  and hand-downs are enforced; node traffic and counters are no
+  longer dropped or over-counted; and deleting an operator keeps
+  their resellers and customers.
 
 ### The coffee-shop design port (in progress, unreleased)
 
