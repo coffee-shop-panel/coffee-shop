@@ -57,6 +57,17 @@ type shopConfigView struct {
 	InterfaceIDs  []uint `json:"interfaceIds"`
 	BotUsername   string `json:"botUsername"`
 	BotRunning    bool   `json:"botRunning"`
+	// The shop's growth settings ride along so the page can show and
+	// save them with the rest of the bot's configuration: the trial it
+	// offers, how its customers are named, the cashback it pays, and
+	// the wheel's switch.
+	TrialEnabled    bool   `json:"trialEnabled"`
+	TrialBytes      uint64 `json:"trialBytes"`
+	TrialDays       int    `json:"trialDays"`
+	TrialSection    string `json:"trialSection"`
+	NameFormat      string `json:"nameFormat"`
+	CashbackPercent int    `json:"cashbackPercent"`
+	WheelEnabled    bool   `json:"wheelEnabled"`
 	// PublicBase is where subscription links live, panel-wide rather
 	// than per operator: the bots are each seller's own, but there is
 	// one subscription listener for all of them. Only the owner may move
@@ -90,6 +101,13 @@ func (s *Server) shopConfig(w http.ResponseWriter, r *http.Request, op *model.Ad
 		ZarinpalMerch:      cfg.ZarinpalMerchant,
 		Welcome:            cfg.Welcome,
 		InterfaceIDs:       cfg.InterfaceIDs,
+		TrialEnabled:       cfg.TrialEnabled,
+		TrialBytes:         cfg.TrialBytes,
+		TrialDays:          cfg.TrialDays,
+		TrialSection:       cfg.TrialSection,
+		NameFormat:         cfg.NameFormat,
+		CashbackPercent:    cfg.CashbackPercent,
+		WheelEnabled:       cfg.WheelEnabled,
 		PublicBase:         base,
 		PublicBaseEditable: op.Role == model.RoleOwner,
 	}
@@ -124,6 +142,14 @@ type shopConfigBody struct {
 	Welcome       string  `json:"welcome"`
 	InterfaceIDs  []uint  `json:"interfaceIds"`
 	PublicBase    *string `json:"publicBase"`
+
+	TrialEnabled    bool   `json:"trialEnabled"`
+	TrialBytes      uint64 `json:"trialBytes"`
+	TrialDays       int    `json:"trialDays"`
+	TrialSection    string `json:"trialSection"`
+	NameFormat      string `json:"nameFormat"`
+	CashbackPercent int    `json:"cashbackPercent"`
+	WheelEnabled    bool   `json:"wheelEnabled"`
 }
 
 func (s *Server) handleShopConfigSave(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +196,13 @@ func (s *Server) handleShopConfigSave(w http.ResponseWriter, r *http.Request) {
 	cfg.ZarinpalMerchant = body.ZarinpalMerch
 	cfg.Welcome = body.Welcome
 	cfg.InterfaceIDs = body.InterfaceIDs
+	cfg.TrialEnabled = body.TrialEnabled
+	cfg.TrialBytes = body.TrialBytes
+	cfg.TrialDays = body.TrialDays
+	cfg.TrialSection = body.TrialSection
+	cfg.NameFormat = body.NameFormat
+	cfg.CashbackPercent = body.CashbackPercent
+	cfg.WheelEnabled = body.WheelEnabled
 	// An absent or empty token keeps the one on file: the page never
 	// holds the value (it is only ever told one is set), so what it
 	// sends back on an ordinary save is "no change", and treating that
