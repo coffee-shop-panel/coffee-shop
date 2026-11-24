@@ -993,6 +993,32 @@ type ShopBot struct {
 	// be machinery for nothing.
 	InterfaceIDs string `gorm:"type:text" json:"interfaceIds"`
 
+	// The trial this shop offers, if it offers one: a small free service
+	// a buyer may claim once, on the trial section's tunnels, to learn
+	// whether the shop's service works for them before money moves.
+	TrialEnabled bool   `gorm:"not null;default:false" json:"trialEnabled"`
+	TrialBytes   uint64 `gorm:"not null;default:0" json:"trialBytes"`
+	TrialDays    int    `gorm:"not null;default:0" json:"trialDays"`
+	// TrialSection is the section the trial is delivered on, in the
+	// shop's own spellings; empty is WireGuard, as everywhere a section
+	// is read.
+	TrialSection string `gorm:"size:16" json:"trialSection"`
+
+	// NameFormat is how a new customer's name is made from the buyer,
+	// with the placeholders the shop package substitutes ({name}, {id},
+	// {rand}, {n}). Empty keeps the buyer's own name, as before.
+	NameFormat string `gorm:"size:128" json:"nameFormat"`
+
+	// CashbackPercent is the share of a sale that lands in the wallet
+	// of the buyer who referred the purchaser, when they have one.
+	// Zero is no cashback.
+	CashbackPercent int `gorm:"not null;default:0" json:"cashbackPercent"`
+
+	// WheelEnabled switches the shop's wheel of fortune on. The wheel
+	// itself is a later addition; the switch rides with the rest of the
+	// shop's settings so the row is written once.
+	WheelEnabled bool `gorm:"not null;default:false" json:"wheelEnabled"`
+
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -1051,17 +1077,33 @@ type ShopOrder struct {
 	PriceToman  int64  `gorm:"not null;default:0" json:"priceToman"`
 	DeviceLimit int    `gorm:"not null;default:0" json:"deviceLimit"`
 
-	// Kind is "new" for a first purchase and "renew" for more of the same
-	// customer's plan. It records what the buyer asked for; delivery
-	// renews an existing customer of the seller's either way, because one
-	// Telegram account holding two customers under one seller is a
-	// bookkeeping error, not a product.
+	// Quantity is how many of the plan this order buys. One is the
+	// ordinary sale; more is a bulk purchase, delivered as one renewal
+	// or first customer plus an additional customer per extra unit.
+	Quantity int `gorm:"not null;default:1" json:"quantity"`
+	// Code is the discount or gift code the buyer named at checkout,
+	// copied onto the order like the plan's terms: a code the operator
+	// edits or deletes afterwards must not rewrite what this sale used.
+	Code string `gorm:"size:64" json:"code"`
+	// DiscountToman is what the code took off the price, worked out at
+	// checkout and kept here so the delivered sale's money adds up
+	// without the code still existing to ask.
+	DiscountToman int64 `gorm:"not null;default:0" json:"discountToman"`
+
+	// Kind is "new" for a first purchase, "renew" for more of the same
+	// customer's plan, and "topup" for money into the buyer's wallet
+	// rather than a service at all. It records what the buyer asked
+	// for; delivery renews an existing customer of the seller's either
+	// way for the service kinds, because one Telegram account holding
+	// two customers under one seller is a bookkeeping error, not a
+	// product.
 	Kind string `gorm:"size:8;not null" json:"kind"`
 	// ClientID is the customer the sale was delivered as, once it has been.
 	ClientID uint `gorm:"not null;default:0" json:"clientId"`
 
-	// Method is "card" (a transfer the operator approves by hand) or
-	// "zarinpal" (the gateway, which approves itself).
+	// Method is "card" (a transfer the operator approves by hand),
+	// "zarinpal" (the gateway, which approves itself), or "wallet"
+	// (the buyer's own balance, which needs nobody's approval).
 	Method string `gorm:"size:16;not null" json:"method"`
 	// Status is where the sale stands: unpaid, awaiting_receipt,
 	// pending_review, paid, fulfilled, rejected, expired, failed.
@@ -1101,6 +1143,88 @@ type ShopReceipt struct {
 	ContentType string    `gorm:"size:128" json:"contentType"`
 	Data        []byte    `json:"-"`
 	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// ShopWallet is one buyer's money at one operator's shop: the balance
+// they can top up and spend from, who referred them, and the one-time
+// doors they have already walked through.
+//
+// One row per (operator, buyer) pair -- the composite unique index is
+// that sentence in the schema. A wallet is a shop's own till, not a
+// panel-wide purse: money held at Hussain's shop is Hussain's to honour,
+// and the same Telegram account buying from another seller starts at
+// zero there.
+type ShopWallet struct {
+	ID         uint  `gorm:"primaryKey" json:"id"`
+	OperatorID uint  `gorm:"uniqueIndex:idx_shop_wallet_owner_buyer;not null" json:"operatorId"`
+	BuyerTGID  int64 `gorm:"uniqueIndex:idx_shop_wallet_owner_buyer;not null" json:"buyerTgId"`
+
+	// BalanceToman is what the shop owes this buyer, in the currency
+	// every price in the shop is written in.
+	BalanceToman int64 `gorm:"not null;default:0" json:"balanceToman"`
+
+	// ReferrerTGID is the Telegram account whose invitation brought
+	// this buyer to the shop, and whose wallet a sale's cashback lands
+	// in. Written once, when the buyer first arrives; zero is nobody.
+	ReferrerTGID int64 `gorm:"not null;default:0" json:"referrerTgId"`
+
+	// TrialUsedAt is when the buyer claimed this shop's free trial.
+	// Nil is never: a trial is once per buyer per shop, ever, and this
+	// is the record that says so.
+	TrialUsedAt *time.Time `json:"trialUsedAt"`
+
+	// LastSpinAt is when the buyer last turned the shop's wheel of
+	// fortune. The wheel itself is a later addition; the field rides
+	// now so its row is written once.
+	LastSpinAt *time.Time `json:"lastSpinAt"`
+
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// ShopCode is one discount or gift code of one operator's shop.
+//
+// A code is the operator's own -- the composite unique index on
+// (operator, code) is what lets two sellers both offer WELCOME10
+// without either's buyers spending the other's. Kind says what the
+// code does at the till: "percent" takes Value percent off a price,
+// "fixed" takes Value Toman off, and "gift" is not a checkout code at
+// all -- redeemed on its own, it puts Value Toman in the redeemer's
+// wallet.
+type ShopCode struct {
+	ID         uint   `gorm:"primaryKey" json:"id"`
+	OperatorID uint   `gorm:"uniqueIndex:idx_shop_code_owner_code;not null" json:"operatorId"`
+	Code       string `gorm:"uniqueIndex:idx_shop_code_owner_code;size:64;not null" json:"code"`
+	Kind       string `gorm:"size:16;not null" json:"kind"`
+	// Value is a percent (1..100) for a percent code, and Toman for
+	// the other two kinds.
+	Value int64 `gorm:"not null;default:0" json:"value"`
+	// MaxUses is how many buyers may use the code in all; zero is
+	// no ceiling. UsedCount is how many have.
+	MaxUses   int        `gorm:"not null;default:0" json:"maxUses"`
+	UsedCount int        `gorm:"not null;default:0" json:"usedCount"`
+	ExpiresAt *time.Time `json:"expiresAt"`
+	Enabled   bool       `gorm:"not null;default:false" json:"enabled"`
+
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// ShopCodeUse is one buyer's one use of one code: the row that makes
+// "once per buyer" a fact of the schema (the composite unique index)
+// rather than a check somebody has to remember, and the guard that
+// makes recording a use twice impossible -- the second insert is
+// refused by the index, and the shop reads that refusal as "already
+// recorded", not as an error.
+//
+// OrderID is the order the use belongs to; zero is a gift redemption,
+// which has no order.
+type ShopCodeUse struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CodeID    uint      `gorm:"uniqueIndex:idx_shop_code_use_once;not null" json:"codeId"`
+	BuyerTGID int64     `gorm:"uniqueIndex:idx_shop_code_use_once;not null" json:"buyerTgId"`
+	OrderID   uint      `gorm:"not null;default:0" json:"orderId"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // AdminBot is one operator's own management bot: the Telegram bot an
@@ -1164,6 +1288,9 @@ func AllModels() []any {
 		&ShopPlan{},
 		&ShopOrder{},
 		&ShopReceipt{},
+		&ShopWallet{},
+		&ShopCode{},
+		&ShopCodeUse{},
 		&AdminBot{},
 	}
 }
