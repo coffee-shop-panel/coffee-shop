@@ -800,3 +800,68 @@ func TestTheSellerPanel(t *testing.T) {
 		return fake.saidTo(buyer, "فروش ویژه آخر هفته")
 	})
 }
+
+// TestTheSellerCanTestTheShop is the Mirza touch: from their panel,
+// the seller steps into the buyer's shoes and walks the whole road —
+// plans, card payment, the receipt photo, and approving their own
+// test order — without the seller's fence swallowing the buyer's
+// steps (the receipt photo above all).
+func TestTheSellerCanTestTheShop(t *testing.T) {
+	fx := newShopFixture(t)
+	fake, srv := newFakeTG(t)
+
+	oldBase := APIBase
+	APIBase = srv.URL
+	t.Cleanup(func() { APIBase = oldBase })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	mgr := New(fx.sh, fx.clients, quietLog())
+	mgr.Start(ctx)
+
+	waitFor(t, "the bot to be running", func() bool {
+		_, running := mgr.BotInfo(fx.opID)
+		return running
+	})
+
+	const seller = 999
+
+	fake.push(updText(1, seller, seller, "Seller", "/start"))
+	waitFor(t, "the seller panel", func() bool { return fake.anySaid("sp:shop") })
+
+	fake.push(updCallback(2, seller, seller, "Seller", 5002, "sp:shop"))
+	waitFor(t, "the buyer view intro", func() bool { return fake.anySaid("نمای خریدار") })
+
+	fake.push(updCallback(3, seller, seller, "Seller", 5002, "buy"))
+	waitFor(t, "the plan list", func() bool { return fake.anySaid("یک ماهه") })
+
+	fake.push(updCallback(4, seller, seller, "Seller", 5002, fmt.Sprintf("plan:%d", fx.plan.ID)))
+	waitFor(t, "the payment choices", func() bool { return fake.anySaid(btnPayCard) })
+
+	fake.push(updCallback(5, seller, seller, "Seller", 5002, fmt.Sprintf("card:%d", fx.plan.ID)))
+	waitFor(t, "the card instructions", func() bool { return fake.anySaid("6037991234567890") })
+
+	orders, err := fx.sh.OrdersFor(ctx, fx.opID, "", 10)
+	if err != nil || len(orders) != 1 {
+		t.Fatalf("orders after the test purchase: %v (%d)", err, len(orders))
+	}
+	order := orders[0]
+	if order.BuyerTGID != seller || order.Status != "awaiting_receipt" {
+		t.Fatalf("the test order is %+v", order)
+	}
+
+	// The step the seller's fence used to eat: the receipt photo.
+	fake.push(updPhoto(6, seller, seller, "Seller"))
+	waitFor(t, "the receipt to reach the seller with its buttons", func() bool {
+		return fake.copiedTo(seller, fmt.Sprintf("ok:%d", order.ID))
+	})
+
+	fake.push(updCallback(7, seller, seller, "Seller", 5002, fmt.Sprintf("ok:%d", order.ID)))
+	waitFor(t, "the test order to be fulfilled", func() bool {
+		o, err := fx.sh.OrderByID(ctx, order.ID)
+		return err == nil && o.Status == "fulfilled"
+	})
+	waitFor(t, "the delivery to reach the seller-as-buyer", func() bool {
+		return fake.saidTo(seller, "اشتراک شما آماده است")
+	})
+}

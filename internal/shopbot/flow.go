@@ -33,6 +33,12 @@ type session struct {
 	// buyer). Only ever set in the seller's own session.
 	castText string
 	castTo   int64
+	// testing is the seller walking their own shop as a buyer (the
+	// Mirza way: the owner gets the full shop menu too, to test it).
+	// While it is set, the seller's messages take the buyer's road —
+	// support texts, receipt photos and all — and /start is the way
+	// back to the panel.
+	testing bool
 	// section is the shop section whose plans are on screen, and
 	// sectionChoice says the buyer was asked which section they
 	// wanted on the way in -- which is what the plan list's back
@@ -93,9 +99,15 @@ func (b *bot) handleMessage(ctx context.Context, m *tgMessage) {
 			b.sellerTextIn(ctx, chatID, sess, text)
 			return
 		}
-		sess.reset()
-		b.sellerHome(ctx, chatID)
-		return
+		if sess.testing && text != "/start" {
+			// The seller is testing their own shop: this message
+			// belongs to the buyer's flow below, receipt photo,
+			// support text and all.
+		} else {
+			sess.reset()
+			b.sellerHome(ctx, chatID)
+			return
+		}
 	}
 	// Sales happen one-to-one. In a group the bot stays silent.
 	if chatID != m.From.ID {
@@ -192,6 +204,11 @@ func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {
 	case data == "menu":
 		b.answer(ctx, cb, "")
 		sess.reset()
+		// The buyer's menu under the seller is still a test drive:
+		// going back to it does not end the test.
+		if cfg := b.cfg(); cfg.AdminChatID != 0 && chatID == cfg.AdminChatID {
+			sess.testing = true
+		}
 		b.editOrSend(ctx, cb, txtMenuTitle, menuKeyboard())
 	case strings.HasPrefix(data, "plan:"):
 		if id, ok := parseCallbackID(data, "plan:"); ok {

@@ -39,6 +39,7 @@ func (b *bot) sellerPanel(ctx context.Context) (string, tgKeyboard) {
 		{{Text: ordersBtn, Data: "sp:orders"}},
 		{{Text: btnSpBuyers, Data: "sp:buyers"}, {Text: btnSpStats, Data: "sp:stats"}},
 		{{Text: btnSpPlans, Data: "sp:plans"}, {Text: btnSpCast, Data: "sp:cast"}},
+		{{Text: btnSpTest, Data: "sp:shop"}},
 	}
 }
 
@@ -67,6 +68,16 @@ func (b *bot) sellerPanelCallback(ctx context.Context, cb *tgCallback, sess *ses
 		sess.reset()
 		text, kb := b.sellerPanel(ctx)
 		b.editOrSend(ctx, cb, text, kb)
+	case data == "sp:shop":
+		// The Mirza touch: the owner gets the full shop menu too, to
+		// test what their buyers live through. The session flips to
+		// the buyer's road; /start (or the panel button riding under
+		// this first screen) is the way back.
+		b.answer(ctx, cb, "")
+		sess.reset()
+		sess.testing = true
+		kb := append(menuKeyboard(), []tgButton{{Text: btnSpPanel, Data: "sp:home"}})
+		b.editOrSend(ctx, cb, txtSpTestIntro, kb)
 	case data == "sp:stats":
 		b.answer(ctx, cb, "")
 		b.spStats(ctx, cb)

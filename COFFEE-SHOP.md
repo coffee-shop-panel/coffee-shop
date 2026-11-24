@@ -99,6 +99,13 @@ can still be merged in.
   list, and announcements (broadcast with a confirm step, or one
   buyer). The panel's buttons are gated to the seller's chat alone.
 
+- v3.7.1 — the seller panel gained the Mirza touch: a «shop test
+  (buyer view)» button. The seller walks their own shop exactly as a
+  buyer does — sections, plans, card payment, receipt photo — and the
+  receipt and its approve buttons land in their own chat, so a full
+  test purchase completes in one conversation. /start returns to the
+  seller panel.
+
 ## Releasing
 
 Builds are made with the version and the signing public key compiled in:
