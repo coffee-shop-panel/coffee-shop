@@ -119,6 +119,43 @@ const (
 	txtSellerHomePlain = "👋 سلام! این بات فروش شماست و فعال است.\n\n🧾 رسیدهای خرید همین‌جا برایتان می‌آید تا تأیید یا رد کنید.\n🛒 برای تستِ خرید، با یک اکانت دیگر وارد بات شوید؛ این چت فقط چتِ فروشنده است."
 )
 
+// The seller panel: the seller runs their shop from this chat, the
+// way Mirza-style bots do it — a menu of the day's work (orders
+// waiting on them, their buyers, their plans, an announcement box)
+// instead of a dead-end greeting. Every screen is one tap deep and
+// carries its way back.
+const (
+	btnSpOrders  = "🧾 سفارش‌های در انتظار"
+	btnSpBuyers  = "👥 مشتری‌های من"
+	btnSpStats   = "📊 آمار فروش"
+	btnSpPlans   = "📦 پلن‌های فروش"
+	btnSpCast    = "📣 ارسال اعلان"
+	btnSpPanel   = "🏠 پنل فروشنده"
+	btnSpMsg     = "📩 پیام به این مشتری"
+	btnSpRetry   = "🔁 تلاش دوباره برای تحویل"
+	btnSpSendAll = "📨 ارسال به همه"
+
+	txtSpStats       = "📊 آمار فروش شما\n\n🛒 فروش امروز: %s\n🧾 کل فروش‌ها: %s\n💰 کل درآمد: %s\n👥 مشتری‌ها: %s\n⏳ سفارش‌های در انتظار: %s"
+	txtSpOrdersTitle = "🧾 سفارش‌های در انتظار (%s)\n\nسفارشی را برای دیدن و تصمیم انتخاب کنید:"
+	txtSpNoOrders    = "🧾 سفارش در انتظاری ندارید. 🎉"
+	txtSpOrderDetail = "🧾 سفارش %s\n\n👤 خریدار: %s\n📦 پلن: %s\n🧩 بخش: %s\n💰 مبلغ: %s\n💳 روش: %s\n📌 وضعیت: %s\n🕐 زمان: %s"
+	txtSpBuyersTitle = "👥 مشتری‌های شما (%s)\n\nمشتری‌ای را برای دیدن انتخاب کنید:"
+	txtSpNoBuyers    = "👥 هنوز هیچ مشتری‌ای از بات نخریده است."
+	txtSpBuyerDetail = "👤 %s\n\n📌 وضعیت: %s\n📅 انقضا: %s\n📊 مصرف: %s از %s\n🧾 سفارش‌ها: %s"
+	txtSpBuyerLink   = "🔗 لینک اشتراک:\n%s"
+	txtSpBuyerToken  = "🔑 کد اشتراک:\n<code>%s</code>"
+	txtSpPlansTitle  = "📦 پلن‌های فروش شما\n\nبرای ساخت یا ویرایش پلن، از صفحهٔ «بات فروش» در پنل استفاده کنید."
+	txtSpPlanLine    = "\n\n▫️ %s\n🧩 %s · 💰 %s · 📦 %s · ⏰ %s · %s"
+	txtSpCastAsk     = "📣 متن اعلان را بنویسید؛ برای همهٔ مشتری‌هایتان می‌رود:"
+	txtSpCastConfirm = "📣 این متن برای %s مشتری می‌رود:\n\n%s"
+	txtSpCastDone    = "✅ اعلان به %s نفر رسید."
+	txtSpCastFailed  = "ارسال اعلان انجام نشد؛ بات روشن و تنظیم است؟ از پنل هم می‌توانید اعلان بفرستید."
+	txtSpMsgAsk      = "📩 پیامتان به این مشتری را بنویسید:"
+	txtSpMsgDone     = "✅ پیامتان برای مشتری رفت."
+	txtSpRetryOK     = "✅ سفارش %d این بار تحویل شد."
+	txtSpRetryFailed = "تحویل باز هم انجام نشد؛ سفارش پرداخت‌شده می‌ماند تا دوباره تلاش کنید یا از پنل دستی تحویل دهید."
+)
+
 // What a delivery says beyond the link depends on the section, because
 // the two are opened in different apps: a WireGuard buyer is pointed at
 // the apps that speak it, and a V2ray buyer is handed the bundle link

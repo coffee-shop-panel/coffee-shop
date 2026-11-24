@@ -17,15 +17,22 @@ import (
 // they are complete on their own.
 
 const (
-	stepNone    = ""
-	stepReceipt = "receipt" // the next photo is this order's receipt
-	stepSupport = "support" // the next message goes to the seller
+	stepNone       = ""
+	stepReceipt    = "receipt"    // the next photo is this order's receipt
+	stepSupport    = "support"    // the next message goes to the seller
+	stepSellerText = "sellertext" // the seller is writing at their panel's prompt
 )
 
 type session struct {
 	step    string
 	planID  uint
 	orderID uint
+	// The seller panel's writing desk: castText holds an announcement
+	// waiting for its confirming tap; castTo is the one buyer a
+	// message is addressed to (zero = the announcement goes to every
+	// buyer). Only ever set in the seller's own session.
+	castText string
+	castTo   int64
 	// section is the shop section whose plans are on screen, and
 	// sectionChoice says the buyer was asked which section they
 	// wanted on the way in -- which is what the plan list's back
@@ -65,11 +72,12 @@ func (b *bot) handleMessage(ctx context.Context, m *tgMessage) {
 	chatID := m.Chat.ID
 
 	// The seller's chat is the shop's back room: its work there is
-	// carrying a reply back to the buyer it belongs to. But a seller
-	// who writes anything else — /start above all — is answered with
-	// the seller's home, never silence: approvals happen on the
-	// receipt's buttons, and a bot that says nothing to its own seller
-	// reads as a dead one.
+	// carrying a reply back to the buyer it belongs to, and hosting
+	// the seller's own panel. A seller who writes at the panel's
+	// prompt is writing an announcement or a buyer message; anything
+	// else — /start above all — is answered with the panel itself,
+	// never silence: a bot that says nothing to its own seller reads
+	// as a dead one.
 	if cfg.AdminChatID != 0 && chatID == cfg.AdminChatID {
 		if m.ReplyTo != nil {
 			if buyer, ok := b.relay[m.ReplyTo.ID]; ok {
@@ -79,6 +87,13 @@ func (b *bot) handleMessage(ctx context.Context, m *tgMessage) {
 				return
 			}
 		}
+		sess := b.session(chatID)
+		text := strings.TrimSpace(m.Text)
+		if sess.step == stepSellerText && text != "" && !strings.HasPrefix(text, "/") {
+			b.sellerTextIn(ctx, chatID, sess, text)
+			return
+		}
+		sess.reset()
 		b.sellerHome(ctx, chatID)
 		return
 	}
@@ -127,16 +142,12 @@ func (b *bot) handleMessage(ctx context.Context, m *tgMessage) {
 	b.send(ctx, chatID, txtMenuTitle, menuKeyboard())
 }
 
-// sellerHome answers the seller in their own chat: proof the shop is
-// alive, today's count and what is still waiting on them, and where
-// the approvals land. The numbers are a courtesy — when they cannot
-// be read, the plain home goes out instead of nothing.
+// sellerHome answers the seller in their own chat with the seller
+// panel itself (seller.go): proof the shop is alive, the day's
+// numbers, and the menu of the seller's own work.
 func (b *bot) sellerHome(ctx context.Context, chatID int64) {
-	text := txtSellerHomePlain
-	if st, err := b.mgr.shop.StatsFor(ctx, b.cfg().OperatorID); err == nil {
-		text = fmt.Sprintf(txtSellerHome, st.TodaySales, st.Pending)
-	}
-	b.send(ctx, chatID, text, nil)
+	text, kb := b.sellerPanel(ctx)
+	b.send(ctx, chatID, text, kb)
 }
 
 func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {
@@ -199,6 +210,8 @@ func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {
 		if id, ok := parseCallbackID(data, "check:"); ok {
 			b.checkZarinpal(ctx, cb, id)
 		}
+	case strings.HasPrefix(data, "sp:"):
+		b.sellerPanelCallback(ctx, cb, sess, data)
 	case strings.HasPrefix(data, "ok:"):
 		if id, ok := parseCallbackID(data, "ok:"); ok {
 			b.decide(ctx, cb, id, true)

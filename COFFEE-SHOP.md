@@ -90,6 +90,15 @@ can still be merged in.
   operator may give, and the summary names the section and its count
   instead of the tunnels.
 
+- v3.7.0 — the sales bot grew a seller panel (Mirza-style) in the
+  seller's own chat: /start now opens a menu — pending orders (with
+  the waiting count on the button; open one to approve/reject through
+  the same decision path as the receipt's buttons, or retry a paid
+  delivery), my buyers (standing, expiry, usage, the subscription
+  link to re-send, and a direct message box), sales stats, the plan
+  list, and announcements (broadcast with a confirm step, or one
+  buyer). The panel's buttons are gated to the seller's chat alone.
+
 ## Releasing
 
 Builds are made with the version and the signing public key compiled in:

@@ -728,3 +728,75 @@ func TestTheSellerIsAnsweredInTheirOwnChat(t *testing.T) {
 		return fake.saidTo(buyer, "خوش آمدید")
 	})
 }
+
+// TestTheSellerPanel walks the seller's own side of the shop: /start
+// opens the Mirza-style panel, the orders queue shows what waits on
+// the seller, the decision made there delivers like the receipt's own
+// buttons, and an announcement written at the panel's prompt reaches
+// the buyers. A buyer pressing panel buttons is refused at the gate.
+func TestTheSellerPanel(t *testing.T) {
+	fx := newShopFixture(t)
+	fake, srv := newFakeTG(t)
+
+	oldBase := APIBase
+	APIBase = srv.URL
+	t.Cleanup(func() { APIBase = oldBase })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	mgr := New(fx.sh, fx.clients, quietLog())
+	mgr.Start(ctx)
+
+	waitFor(t, "the bot to be running", func() bool {
+		_, running := mgr.BotInfo(fx.opID)
+		return running
+	})
+
+	const buyer, seller = 111, 999
+
+	// An order waiting on the seller's decision, seeded directly:
+	// the panel is about the seller's queue, not the buyer's road to
+	// it — that road has its own test above.
+	order := &model.ShopOrder{
+		OperatorID: fx.opID, BuyerTGID: buyer, BuyerName: "Buyer",
+		PlanID: fx.plan.ID, PlanName: fx.plan.Name, Section: "wireguard",
+		QuotaBytes: fx.plan.QuotaBytes, Days: fx.plan.Days,
+		PriceToman: fx.plan.PriceToman, Kind: "new", Method: "card",
+		Status: "pending_review", PublicToken: "seed-token-panel",
+	}
+	if err := fx.db.Create(order).Error; err != nil {
+		t.Fatalf("seed order: %v", err)
+	}
+
+	fake.push(updText(1, seller, seller, "Seller", "/start"))
+	waitFor(t, "the seller panel menu", func() bool { return fake.anySaid("sp:orders") })
+	if !fake.saidTo(seller, "بات فروش شماست") {
+		t.Fatal("the panel home did not greet the seller")
+	}
+
+	// The gate: the same buttons in a buyer's hands open nothing.
+	fake.push(updCallback(2, buyer, buyer, "Buyer", 5001, "sp:orders"))
+	fake.push(updCallback(3, seller, seller, "Seller", 5002, "sp:orders"))
+	waitFor(t, "the orders queue", func() bool { return fake.anySaid("سفارش‌های در انتظار") })
+	if fake.saidTo(buyer, "سفارش‌های در انتظار") {
+		t.Fatal("the buyer saw the seller's order queue")
+	}
+
+	fake.push(updCallback(4, seller, seller, "Seller", 5002, fmt.Sprintf("sp:ord:%d", order.ID)))
+	waitFor(t, "the order detail", func() bool { return fake.anySaid("در انتظار تأیید شما") })
+
+	fake.push(updCallback(5, seller, seller, "Seller", 5002, fmt.Sprintf("ok:%d", order.ID)))
+	waitFor(t, "the order to be fulfilled from the panel", func() bool {
+		o, err := fx.sh.OrderByID(ctx, order.ID)
+		return err == nil && o.Status == "fulfilled"
+	})
+
+	// The announcement: prompt, write, confirm, delivered.
+	fake.push(updCallback(6, seller, seller, "Seller", 5002, "sp:cast"))
+	fake.push(updText(7, seller, seller, "Seller", "فروش ویژه آخر هفته"))
+	waitFor(t, "the broadcast confirm", func() bool { return fake.saidTo(seller, "sp:casty") })
+	fake.push(updCallback(8, seller, seller, "Seller", 5002, "sp:casty"))
+	waitFor(t, "the announcement to reach the buyer", func() bool {
+		return fake.saidTo(buyer, "فروش ویژه آخر هفته")
+	})
+}
