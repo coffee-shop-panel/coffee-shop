@@ -242,7 +242,7 @@ const uptime = computed(() => {
 </script>
 
 <template>
-  <div class="antpage settings-page">
+  <div class="antpage settings-page cs">
     <!-- Their security-warnings Alert: error, with a bold lead and the list. -->
     <div v-if="warnings.length && alertVisible" class="aalert error with-desc conf-alert">
       <AntIcon name="CloseCircleFilled" />
@@ -261,30 +261,55 @@ const uptime = computed(() => {
     <ErrorState v-else-if="loadError && !form" :error="loadError" @retry="load" />
 
     <template v-else-if="form">
-      <!-- Their header card: Save, Restart Panel, and the standing note. -->
-      <div class="acard">
-        <div class="acard-body">
-          <div class="header-row">
-            <div class="header-actions">
-              <div class="aspace">
-                <button class="abtn primary" :disabled="!dirty || busy" @click="save">{{ t('set.save') }}</button>
-                <button class="abtn primary danger-primary" :disabled="dirty || busy || restarting" @click="askRestart = true">
-                  {{ restarting ? t('set.restarting') : t('set.restartPanel') }}
-                </button>
-              </div>
-            </div>
-            <div class="header-info">
-              <div class="aalert warning">
-                <AntIcon name="ExclamationCircleFilled" />
-                <div class="aalert-body"><span class="aalert-title">{{ t('set.infoDesc') }}</span></div>
-              </div>
-            </div>
-          </div>
+      <div class="ph">
+        <div>
+          <h2>{{ t('nav.settings') }}</h2>
+          <p>{{ t('set.lede') }}</p>
+        </div>
+        <div class="actions">
+          <button class="btn" :disabled="dirty || busy || restarting" @click="askRestart = true">
+            {{ restarting ? t('set.restarting') : t('set.restartPanel') }}
+          </button>
+          <button class="btn primary" :disabled="!dirty || busy" @click="save">{{ t('set.save') }}</button>
         </div>
       </div>
 
-      <div class="acard">
-        <div class="acard-body">
+      <!-- The standing note the header card used to carry, in the
+           design's warning band. -->
+      <div class="banner warn">
+        <AntIcon name="ExclamationCircleFilled" />
+        <div>{{ t('set.infoDesc') }}</div>
+      </div>
+
+      <!-- The design draws this page with its sections across the top.
+           The sidebar reaches the same states; this bar only presents
+           them where the mockup puts them. -->
+      <div class="tabs" role="tablist">
+        <button
+          v-for="x in [
+            { key: 'general', label: 'settings.tab.general' },
+            { key: 'security', label: 'settings.tab.security' },
+            { key: 'telegram', label: 'settings.tab.notify' },
+            { key: 'bale', label: 'settings.tab.bale' },
+            { key: 'email', label: 'settings.tab.email' },
+            { key: 'subscription', label: 'settings.tab.subscription' },
+            { key: 'backups', label: 'settings.tab.backups' },
+            { key: 'engine', label: 'settings.tab.engine' },
+            { key: 'logs', label: 'settings.tab.logs' },
+          ]"
+          :key="x.key"
+          role="tab"
+          class="tab"
+          :class="{ on: active === x.key }"
+          :aria-selected="active === x.key"
+          @click="active = x.key"
+        >
+          {{ t(x.label) }}
+        </button>
+      </div>
+
+      <section class="card">
+        <div class="cb">
           <!-- ══ General ══ -->
           <template v-if="active === 'general'">
             <GeneralTab />
@@ -383,7 +408,7 @@ const uptime = computed(() => {
             </div></div>
           </template>
         </div>
-      </div>
+      </section>
     </template>
 
     <!-- ── modals ── -->

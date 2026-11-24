@@ -101,13 +101,13 @@ async function copy() {
 </script>
 
 <template>
-  <section class="view">
-    <header class="page-head">
+  <div class="cs">
+    <div class="ph">
       <div>
-        <h1>{{ t('nav.configs') }}</h1>
-        <p class="muted">{{ t('configs.lede') }}</p>
+        <h2>{{ t('nav.configs') }}</h2>
+        <p>{{ t('configs.lede') }}</p>
       </div>
-    </header>
+    </div>
 
     <div class="tabs" role="tablist">
       <button
@@ -152,8 +152,8 @@ async function copy() {
       >
         <div class="card-head">
           <h2>{{ t(`configs.engine.${p.key}`) }}</h2>
-          <span class="tag" :class="health[p.key] ? 'red' : 'green'">
-            {{ health[p.key] ? t('configs.inactive') : t('configs.active') }}
+          <span class="dtag" :class="health[p.key] ? 'bad' : 'ok'">
+            <i class="dot"></i>{{ health[p.key] ? t('configs.inactive') : t('configs.active') }}
           </span>
         </div>
         <div class="card-body">
@@ -219,12 +219,12 @@ async function copy() {
       <ol v-else class="loglist">
         <li v-for="(e, i) in logs" :key="i" :class="e.level">
           <span class="log-time ltr">{{ e.time }}</span>
-          <span class="tag" :class="{ red: e.level === 'error', orange: e.level === 'warn' }">
+          <span class="dtag" :class="e.level === 'error' ? 'bad' : e.level === 'warn' ? 'warn' : 'gray'">
             {{ e.level }}
           </span>
           <span class="log-msg">{{ e.msg }}</span>
         </li>
       </ol>
     </div>
-  </section>
+  </div>
 </template>

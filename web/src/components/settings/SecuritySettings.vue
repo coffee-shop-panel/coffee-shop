@@ -223,7 +223,7 @@ async function saveMtlsTrust() {
         <div v-for="tk in tokens" :key="tk.id" class="api-token-row" :class="{ disabled: tk.disabled }">
           <div class="api-token-row-head">
             <div class="api-token-name-wrap">
-              <span class="api-token-name">{{ tk.name }}</span>
+              <span class="api-token-name">{{ tk.name }} <span class="dtag" :class="tk.disabled ? 'gray' : 'ok'"><i class="dot"></i>{{ tk.disabled ? t('settings.tokenState.off') : t('settings.tokenState.on') }}</span></span>
               <span class="api-token-created">{{ tokenDate(tk.createdAt) }} · <code class="ltr">{{ tk.prefix }}…</code> · {{ tk.lastUsedAt ? relative(tk.lastUsedAt, store.locale) : t('settings.tokenNeverUsed') }}</span>
             </div>
             <div class="api-token-actions">
@@ -266,8 +266,8 @@ async function saveMtlsTrust() {
         <div class="amodal-head"><h2 class="amodal-title">{{ t('set.security.apiTokenCreatedTitle') }}</h2><button type="button" class="amodal-close" :aria-label="t('common.close')" @click="createdToken = null"><AntIcon name="CloseOutlined" /></button></div>
         <div class="amodal-body">
           <p class="api-token-created-notice">{{ t('set.security.apiTokenCreatedNotice') }}</p>
-          <div class="api-token-value-wrap">
-            <code class="api-token-value ltr">{{ createdToken.token }}</code>
+          <pre class="code ltr" style="margin: 0">{{ createdToken.token }}</pre>
+          <div class="api-token-value-wrap" style="margin-top: 10px">
             <button class="abtn primary sm" @click="copyText(createdToken.token)">{{ t('set.copy') }}</button>
           </div>
         </div>
@@ -312,7 +312,7 @@ async function saveMtlsTrust() {
 .api-token-section { padding: 8px 20px 16px; display: flex; flex-direction: column; gap: 12px; }
 .api-token-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .api-token-hint { margin: 0; font-size: 12.5px; opacity: 0.7; flex: 1; min-width: 200px; }
-.api-token-row { border: 1px solid var(--line-soft); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; transition: opacity 0.15s; }
+.api-token-row { border: 1px solid var(--line-soft); border-radius: var(--r); background: var(--surface-2); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; transition: opacity 0.15s; }
 .api-token-row.disabled { opacity: 0.55; }
 .api-token-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .api-token-name-wrap { display: flex; flex-direction: column; gap: 2px; }

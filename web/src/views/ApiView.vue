@@ -85,15 +85,17 @@ async function copy(text, id) {
   }
 }
 
+// The design colours an HTTP method by what it does to the server.
 const methodTone = (m) =>
-  ({ GET: 'green', POST: 'blue', PUT: 'orange', PATCH: 'orange', DELETE: 'red' })[m] || 'grey'
+  ({ GET: 'ok', POST: 'info', PUT: 'warn', PATCH: 'warn', DELETE: 'bad' })[m] || 'gray'
 </script>
 
 <template>
-  <div class="page-head api-docs">
+  <div class="cs">
+  <div class="ph">
     <div>
-      <h1>{{ t('nav.api') }}</h1>
-      <p class="lede">{{ t('api.lede') }}</p>
+      <h2>{{ t('nav.api') }}</h2>
+      <p>{{ t('api.lede') }}</p>
     </div>
   </div>
 
@@ -125,13 +127,13 @@ const methodTone = (m) =>
         <strong>{{ t('api.authTitle') }}</strong>
       </div>
       <p>{{ docs.auth }}</p>
-      <pre class="api-code ltr"><code>{{ `curl -X POST '${docs.baseUrl}/api/auth/login' \\
+      <pre class="api-code code ltr"><code>{{ `curl -X POST '${docs.baseUrl}/api/auth/login' \\
   -H 'Content-Type: application/json' \\
   -d '{"username":"admin","password":"…"}'` }}</code></pre>
     </section>
 
     <section class="card api-search">
-      <span class="control">
+      <span class="inp-ico">
         <Icon name="search" :size="15" />
         <input v-model="query" type="search" :placeholder="t('api.search')" />
       </span>
@@ -144,15 +146,15 @@ const methodTone = (m) =>
       <button class="api-group-head" :aria-expanded="isOpen(g.name)" @click="toggle(g.name)">
         <Icon name="chevronDown" :size="15" :class="{ turned: !isOpen(g.name) }" />
         <span class="api-group-name">{{ g.name }}</span>
-        <span class="muted small ltr">{{ g.routes.length }}</span>
+        <span class="badge acc">{{ g.routes.length }}</span>
       </button>
 
       <ul v-if="isOpen(g.name)" class="api-routes">
         <li v-for="r in g.routes" :key="r.method + r.path" class="api-route">
           <div class="api-route-head">
-            <span class="tag ltr" :class="methodTone(r.method)">{{ r.method }}</span>
+            <span class="dtag" dir="ltr" :class="methodTone(r.method)">{{ r.method }}</span>
             <code class="api-path ltr">{{ r.path }}</code>
-            <span v-if="!r.auth" class="tag grey">{{ t('api.noToken') }}</span>
+            <span v-if="!r.auth" class="dtag gray">{{ t('api.noToken') }}</span>
             <button
               class="linkbtn"
               :title="t('api.copyCurl')"
@@ -167,9 +169,10 @@ const methodTone = (m) =>
             <Icon name="info" :size="13" />
             <span>{{ r.note }}</span>
           </p>
-          <pre v-if="r.body" class="api-code ltr"><code>{{ r.body }}</code></pre>
+          <pre v-if="r.body" class="api-code code ltr"><code>{{ r.body }}</code></pre>
         </li>
       </ul>
     </section>
   </template>
+  </div>
 </template>

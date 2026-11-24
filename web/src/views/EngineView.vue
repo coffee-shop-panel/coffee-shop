@@ -10,7 +10,7 @@ import { useLeaveGuard } from '../lib/leaveGuard.js'
 import { t, notify } from '../lib/store.js'
 import { ADV, useTemplateDoc } from '../lib/engine/template.js'
 import { provideEngine } from '../components/engine/context.js'
-import AntIcon from '../components/AntIcon.vue'
+import Icon from '../components/Icon.vue'
 import ErrorState from '../components/ErrorState.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import LeaveDialog from '../components/LeaveDialog.vue'
@@ -132,33 +132,53 @@ onUnmounted(() => window.removeEventListener('hashchange', onHash))
 </script>
 
 <template>
-  <div class="antpage engine-page">
+  <div class="antpage engine-page cs">
     <PageSpin v-if="showWait" />
     <div v-else-if="loading" class="empty"></div>
     <ErrorState v-else-if="loadError && !form" :error="loadError" @retry="load" />
 
     <template v-else-if="form">
-      <!-- Their header card: Save, and the standing note. -->
-      <div class="acard">
-        <div class="acard-body">
-          <div class="header-row wide">
-            <div class="header-actions">
-              <div class="aspace">
-                <button class="abtn primary" :disabled="saveDisabled" @click="onSave">{{ t('eng.save') }}</button>
-              </div>
-            </div>
-            <div class="header-info">
-              <div class="aalert warning">
-                <AntIcon name="ExclamationCircleFilled" />
-                <div class="aalert-body"><span class="aalert-title">{{ t('eng.infoDesc') }}</span></div>
-              </div>
-            </div>
-          </div>
+      <div class="ph">
+        <div>
+          <h2>{{ t('nav.engine') }}</h2>
+          <p>{{ t('eng.lede') }}</p>
+        </div>
+        <div class="actions">
+          <button class="btn primary" :disabled="saveDisabled" @click="onSave">{{ t('eng.save') }}</button>
         </div>
       </div>
 
-      <div class="acard">
-        <div class="acard-body">
+      <!-- The standing note the header card used to carry, in the
+           design's warning band. -->
+      <div class="banner warn">
+        <Icon name="alert" :size="16" />
+        <div>{{ t('eng.infoDesc') }}</div>
+      </div>
+
+      <!-- The design draws this page with its sections as tabs. The
+           sidebar reaches the same four states; this bar only presents
+           them where the mockup puts them. -->
+      <div class="tabs" role="tablist">
+        <button
+          v-for="x in [
+            { key: 'basic', label: 'eng.basicTemplate' },
+            { key: 'balancer', label: 'eng.balancers' },
+            { key: 'dns', label: 'eng.dnsMenu' },
+            { key: 'advanced', label: 'eng.advancedTemplate' },
+          ]"
+          :key="x.key"
+          role="tab"
+          class="tab"
+          :class="{ on: active === x.key }"
+          :aria-selected="active === x.key"
+          @click="active = x.key"
+        >
+          {{ t(x.label) }}
+        </button>
+      </div>
+
+      <section class="card">
+        <div class="cb">
           <BasicTab v-if="active === 'basic'" :busy="busy" @reset="askReset = true" />
           <BalancersTab v-else-if="active === 'balancer'" />
           <DnsTab v-else-if="active === 'dns'" />
@@ -169,14 +189,14 @@ onUnmounted(() => window.removeEventListener('hashchange', onHash))
               <h4>{{ t('eng.template') }}</h4>
               <p>{{ t('eng.templateDesc') }}</p>
             </div>
-            <div class="aradio-group" style="margin: 12px 0">
-              <button v-for="k in ADV" :key="k" class="aradio-btn" :class="{ active: adv === k }" @click="adv = k">{{ t(`eng.adv.${k}`) }}</button>
+            <div class="seg" role="group" style="margin: 12px 0">
+              <button v-for="k in ADV" :key="k" class="seg-btn" :class="{ on: adv === k }" @click="adv = k">{{ t(`eng.adv.${k}`) }}</button>
             </div>
             <textarea class="atextarea json" :value="tpl.text.value" :readonly="adv === 'programs'" spellcheck="false" @input="tpl.onInput($event.target.value)"></textarea>
             <p v-if="tpl.error.value" class="json-error ltr">{{ tpl.error.value }}</p>
           </template>
         </div>
-      </div>
+      </section>
     </template>
 
     <ConfirmDialog
