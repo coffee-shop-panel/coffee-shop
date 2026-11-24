@@ -18,7 +18,6 @@ import Icon from '../components/Icon.vue'
 
 const loading = ref(true)
 const loadError = ref(null)
-const showSkeleton = useDelayed(computed(() => loading.value && !cfg.value))
 
 // The config as the server last stated it (whether the bot is actually
 // running, its username, whether the public address may be edited) and the
@@ -26,6 +25,9 @@ const showSkeleton = useDelayed(computed(() => loading.value && !cfg.value))
 // only whether one is on file, and the form's token field starts empty --
 // empty means "keep it", which is the only thing it can mean.
 const cfg = ref(null)
+// After cfg on purpose: useDelayed reads its source once when the watch
+// is set up, so the computed may only name refs that already exist.
+const showSkeleton = useDelayed(computed(() => loading.value && !cfg.value))
 const form = ref({
   enabled: false,
   token: '',
