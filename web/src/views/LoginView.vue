@@ -66,196 +66,367 @@ async function pickLocale(l) {
 
 const locales = computed(() => store.meta?.locales || ['en'])
 const localeIcon = localeFlag
+const version = computed(() => store.meta?.version || '')
 </script>
 
 <template>
-  <div class="login-app" :class="{ 'is-dark': themeMode !== 'light', 'is-ultra': themeMode === 'ultra' }">
+  <div class="login-app">
+    <!-- The design's art panel: the brand, the headline the page already
+         turns a word at a time, and what the panel is — over the design's
+         glow-and-grid ground. It goes away on a narrow screen, where the
+         form is the whole page. -->
+    <aside class="login-art">
+      <div class="art-brand">
+        <img class="brand-logo" :src="logo" alt="" />
+        <span class="art-wordmark">{{ t('app.name') }}</span>
+      </div>
+      <div class="art-mid">
+        <h1 class="art-headline"><b :key="word">{{ word }}</b></h1>
+        <p class="art-tagline">{{ t('app.tagline') }}</p>
+      </div>
+      <div v-if="version" class="art-foot">{{ version }}</div>
+    </aside>
+
     <div class="login-content">
-      <!-- Their toolbar: two 40px round buttons, fixed top-right. -->
-      <div class="login-toolbar">
-        <button class="abtn toolbar-btn" type="button" :title="t('nav.theme')" :aria-label="t('nav.theme')" @click="cycleTheme">
-          <AntIcon :name="themeMode === 'light' ? 'SunOutlined' : themeMode === 'dark' ? 'MoonOutlined' : 'MoonFilled'" />
-        </button>
-        <div class="lang">
-          <button class="abtn toolbar-btn" type="button" :aria-label="t('settings.language')" :aria-expanded="langOpen" @click="langOpen = !langOpen">
-            <AntIcon name="TranslationOutlined" />
-          </button>
-          <div v-if="langOpen" class="amenu lang-menu" role="menu">
-            <button v-for="l in locales" :key="l" class="amenu-item" :class="{ selected: l === store.locale }" role="menuitem" @click="pickLocale(l)">
-              <span aria-hidden="true">{{ localeIcon(l) }}</span><span>{{ localeName(l) }}</span>
+      <div class="login-box">
+        <!-- On a narrow screen the art panel is gone, so the brand rides at
+             the head of the box rather than leaving the page nameless. -->
+        <div class="box-brand">
+          <img class="brand-logo" :src="logo" alt="" />
+          <span class="art-wordmark">{{ t('app.name') }}</span>
+        </div>
+
+        <!-- The design's box head: the way in, and the theme and language
+             buttons beside it — the two the page has always carried, moved
+             from their fixed corner into the box. -->
+        <div class="box-head">
+          <div>
+            <h2>{{ t('auth.signIn') }}</h2>
+            <p class="box-sub">{{ t('login.welcome') }}</p>
+          </div>
+          <div class="box-tools">
+            <button class="tool-btn" type="button" :title="t('nav.theme')" :aria-label="t('nav.theme')" @click="cycleTheme">
+              <AntIcon :name="themeMode === 'light' ? 'SunOutlined' : themeMode === 'dark' ? 'MoonOutlined' : 'MoonFilled'" />
+            </button>
+            <div class="lang">
+              <button class="tool-btn" type="button" :aria-label="t('settings.language')" :aria-expanded="langOpen" @click="langOpen = !langOpen">
+                <AntIcon name="TranslationOutlined" />
+              </button>
+              <div v-if="langOpen" class="amenu lang-menu" role="menu">
+                <button v-for="l in locales" :key="l" class="amenu-item" :class="{ selected: l === store.locale }" role="menuitem" @click="pickLocale(l)">
+                  <span aria-hidden="true">{{ localeIcon(l) }}</span><span>{{ localeName(l) }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <form class="login-form" @submit.prevent="submit">
+          <div class="aform-item">
+            <label class="aform-label" for="login-user">{{ t('auth.username') }}</label>
+            <label class="ainput block large">
+              <span class="ainput-prefix"><AntIcon name="UserOutlined" /></span>
+              <input id="login-user" v-model="username" autocomplete="username" :placeholder="t('auth.username')" autofocus required />
+            </label>
+          </div>
+          <div class="aform-item">
+            <label class="aform-label" for="login-pass">{{ t('auth.password') }}</label>
+            <label class="ainput block large">
+              <span class="ainput-prefix"><AntIcon name="LockOutlined" /></span>
+              <input id="login-pass" v-model="password" :type="showPw ? 'text' : 'password'" autocomplete="current-password" :placeholder="t('auth.password')" required />
+              <button type="button" class="ainput-eye" :aria-label="t('auth.password')" @click="showPw = !showPw"><AntIcon :name="showPw ? 'EyeOutlined' : 'EyeInvisibleOutlined'" /></button>
+            </label>
+          </div>
+          <!-- Only after the password was accepted, so this reveals nothing
+               to someone guessing at the username. The design sets the step
+               in a calm card of its own; the field still rides the one form,
+               so the submit above it stays the only way in. -->
+          <div v-if="needCode" class="aform-item code-card">
+            <label class="aform-label" for="login-code">{{ t('auth.code') }}</label>
+            <label class="ainput block large">
+              <span class="ainput-prefix"><AntIcon name="KeyOutlined" /></span>
+              <input id="login-code" v-model="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" :placeholder="t('auth.code')" class="ltr" required />
+            </label>
+          </div>
+
+          <p v-if="error" class="error" role="alert">{{ error }}</p>
+
+          <div class="aform-item submit-row">
+            <button class="abtn primary large block" type="submit" :disabled="busy">
+              <span v-if="busy" class="spin"></span>
+              <template v-else>{{ t('auth.signIn') }}</template>
             </button>
           </div>
-        </div>
-      </div>
-
-      <div class="login-wrapper">
-        <div class="login-card">
-          <div class="brand">
-            <img class="brand-logo" :src="logo" alt="W-UI" />
-            <span class="brand-accent" aria-hidden="true"></span>
-          </div>
-          <h2 class="welcome"><b :key="word">{{ word }}</b></h2>
-
-          <form class="login-form" @submit.prevent="submit">
-            <div class="aform-item">
-              <label class="aform-label" for="login-user">{{ t('auth.username') }}</label>
-              <label class="ainput block large">
-                <span class="ainput-prefix"><AntIcon name="UserOutlined" /></span>
-                <input id="login-user" v-model="username" autocomplete="username" :placeholder="t('auth.username')" autofocus required />
-              </label>
-            </div>
-            <div class="aform-item">
-              <label class="aform-label" for="login-pass">{{ t('auth.password') }}</label>
-              <label class="ainput block large">
-                <span class="ainput-prefix"><AntIcon name="LockOutlined" /></span>
-                <input id="login-pass" v-model="password" :type="showPw ? 'text' : 'password'" autocomplete="current-password" :placeholder="t('auth.password')" required />
-                <button type="button" class="ainput-eye" :aria-label="t('auth.password')" @click="showPw = !showPw"><AntIcon :name="showPw ? 'EyeOutlined' : 'EyeInvisibleOutlined'" /></button>
-              </label>
-            </div>
-            <!-- Only after the password was accepted, so this reveals nothing
-                 to someone guessing at the username. -->
-            <div v-if="needCode" class="aform-item">
-              <label class="aform-label" for="login-code">{{ t('auth.code') }}</label>
-              <label class="ainput block large">
-                <span class="ainput-prefix"><AntIcon name="KeyOutlined" /></span>
-                <input id="login-code" v-model="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" :placeholder="t('auth.code')" class="ltr" required />
-              </label>
-            </div>
-
-            <p v-if="error" class="error" role="alert">{{ error }}</p>
-
-            <div class="aform-item submit-row">
-              <button class="abtn primary large block" type="submit" :disabled="busy">
-                <span v-if="busy" class="spin"></span>
-                <template v-else>{{ t('auth.signIn') }}</template>
-              </button>
-            </div>
-          </form>
-        </div>
+        </form>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* the classic panel's LoginPage.css, in this panel's colours: five blurred blobs and a
-   fading grid behind a frosted card, the name in a gradient, the headline
-   turning a word at a time, Ant's large inputs and button. */
+/* The coffee-shop sign-in: a split page. An art panel carries the brand
+   and the headline over the design's glow-and-grid ground; the form
+   stands on the ground itself, with no card around it. The fields, the
+   code step and the submit are the ones the page has always had — only
+   the room around them is new. */
 .login-app {
-  --bg-card: rgba(20, 18, 21, 0.55);
-  --bg-card-solid: #141215;
-  --color-border: rgba(255, 255, 255, 0.1);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 20px 60px rgba(224, 46, 61, 0.22);
-  --blob-1: rgba(224, 46, 61, 0.42);
-  --blob-2: rgba(160, 26, 42, 0.42);
-  --blob-3: rgba(242, 64, 79, 0.3);
-  --blob-4: rgba(251, 146, 60, 0.14);
-  --blob-5: rgba(120, 18, 30, 0.35);
-  --grid-color: rgba(255, 255, 255, 0.04);
-  --hair-a: rgba(255, 255, 255, 0.15);
-  --hair-b: rgba(224, 46, 61, 0.4);
-  position: relative;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
   min-height: 100vh;
-  overflow: hidden;
   color: var(--ink);
-  background: radial-gradient(ellipse at 25% 20%, #1a0d11 0%, #0a090a 60%);
-}
-.login-app:not(.is-dark) {
-  --bg-card: rgba(255, 255, 255, 0.72);
-  --bg-card-solid: #ffffff;
-  --color-border: rgba(255, 255, 255, 0.6);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 18px 50px rgba(200, 31, 46, 0.18);
-  --blob-1: rgba(200, 31, 46, 0.35);
-  --blob-2: rgba(242, 64, 79, 0.3);
-  --blob-3: rgba(251, 146, 60, 0.25);
-  --blob-4: rgba(160, 26, 42, 0.2);
-  --blob-5: rgba(200, 31, 46, 0.2);
-  --grid-color: rgba(200, 31, 46, 0.06);
-  --hair-a: rgba(255, 255, 255, 0.5);
-  --hair-b: rgba(200, 31, 46, 0.25);
-  background: linear-gradient(135deg, #fbe9eb 0%, #fdf2f8 50%, #fff5f5 100%);
-}
-.login-app.is-ultra {
-  --bg-card: rgba(10, 10, 12, 0.6);
-  --bg-card-solid: #0a0a0c;
-  --color-border: rgba(255, 255, 255, 0.06);
-  --blob-1: rgba(224, 46, 61, 0.3);
-  --blob-2: rgba(160, 26, 42, 0.22);
-  --blob-3: rgba(242, 64, 79, 0.2);
-  --blob-4: rgba(251, 146, 60, 0.12);
-  --blob-5: rgba(120, 18, 30, 0.25);
-  --grid-color: rgba(255, 255, 255, 0.025);
-  background: radial-gradient(ellipse at 25% 20%, #150709 0%, #000 60%);
 }
 
-.login-app::before, .login-app::after, .login-content::before, .login-content::after, .login-wrapper::before {
-  content: ''; position: absolute; border-radius: 50%; pointer-events: none; z-index: 0; will-change: transform;
+/* ── the art panel ────────────────────────────────────────────────────── */
+.login-art {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 48px;
+  border-inline-end: 1px solid var(--line-soft);
+  background:
+    radial-gradient(600px 400px at 20% 20%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 60%),
+    radial-gradient(500px 400px at 80% 70%, color-mix(in srgb, var(--sky) 14%, transparent), transparent 60%),
+    radial-gradient(400px 300px at 60% 30%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 60%),
+    var(--ground);
 }
-.login-app::before { top: -25vw; left: -20vw; width: 70vw; height: 70vw; max-width: 900px; max-height: 900px; filter: blur(100px); background: radial-gradient(circle, var(--blob-1) 0%, transparent 65%); animation: blob-drift-a 24s ease-in-out infinite alternate; }
-.login-app::after { bottom: -25vw; right: -20vw; width: 70vw; height: 70vw; max-width: 900px; max-height: 900px; filter: blur(100px); background: radial-gradient(circle, var(--blob-2) 0%, transparent 65%); animation: blob-drift-b 30s ease-in-out infinite alternate; }
-.login-content::before { top: 30%; left: 50%; width: 50vw; height: 50vw; max-width: 700px; max-height: 700px; filter: blur(100px); background: radial-gradient(circle, var(--blob-3) 0%, transparent 65%); animation: blob-drift-c 36s ease-in-out infinite alternate; }
-.login-content::after { top: 10%; right: 15%; width: 35vw; height: 35vw; max-width: 500px; max-height: 500px; filter: blur(90px); background: radial-gradient(circle, var(--blob-4) 0%, transparent 65%); animation: blob-drift-d 28s ease-in-out infinite alternate; }
-.login-wrapper::before { bottom: 5%; left: 10%; width: 35vw; height: 35vw; max-width: 500px; max-height: 500px; filter: blur(90px); background: radial-gradient(circle, var(--blob-5) 0%, transparent 65%); animation: blob-drift-e 32s ease-in-out infinite alternate; }
-.login-wrapper::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-  background-size: 48px 48px; background-position: center;
-  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%); mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+.login-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--fill-2) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fill-2) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  pointer-events: none;
 }
-@keyframes blob-drift-a { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(18vw, 10vh) scale(1.15); } 100% { transform: translate(34vw, 22vh) scale(1.25); } }
-@keyframes blob-drift-b { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-16vw, -10vh) scale(1.12); } 100% { transform: translate(-30vw, -22vh) scale(1.2); } }
-@keyframes blob-drift-c { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-20%, -20%) scale(1.1); } 100% { transform: translate(-80%, -10%) scale(1.05); } }
-@keyframes blob-drift-d { 0% { transform: translate(0, 0) scale(0.9); } 50% { transform: translate(-12vw, 14vh) scale(1.05); } 100% { transform: translate(8vw, -8vh) scale(1.1); } }
-@keyframes blob-drift-e { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(14vw, -8vh) scale(1.1); } 100% { transform: translate(-6vw, 12vh) scale(1.15); } }
+.login-art > * {
+  position: relative;
+  z-index: 1;
+}
+.art-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-logo {
+  width: 40px;
+  height: auto;
+  display: block;
+}
+.art-wordmark {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.art-headline {
+  font-size: 46px;
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+.art-headline b {
+  display: inline-block;
+  font-weight: inherit;
+  background: var(--primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: headline-in 280ms ease both;
+}
+@keyframes headline-in {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.art-tagline {
+  margin-top: 16px;
+  max-width: 460px;
+  color: var(--muted);
+}
+.art-foot {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+/* ── the form ─────────────────────────────────────────────────────────── */
+.login-content {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 40px 24px;
+}
+.login-box {
+  width: min(400px, 100%);
+}
+.box-brand {
+  display: none;
+}
+.box-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 30px;
+}
+.box-head h2 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.box-sub {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.box-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.tool-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+.tool-btn:hover {
+  color: var(--accent-text);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.lang {
+  position: relative;
+}
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-end: 0;
+  z-index: 20;
+  min-width: 160px;
+}
+.lang-menu .amenu-item.selected {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+@media (max-width: 900px) {
+  .login-app {
+    grid-template-columns: 1fr;
+  }
+  .login-art {
+    display: none;
+  }
+  .box-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  .box-brand .brand-logo {
+    width: 34px;
+  }
+  .box-brand .art-wordmark {
+    font-size: 19px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .login-app::before, .login-app::after, .login-content::before, .login-content::after, .login-wrapper::before { animation: none; }
-  .welcome b { animation: none; }
+  .art-headline b {
+    animation: none;
+  }
 }
-
-.login-content { position: relative; }
-.login-content > * { position: relative; z-index: 1; }
-.login-toolbar { position: fixed; top: 16px; right: 16px; z-index: 10; display: inline-flex; align-items: center; gap: 8px; }
-.toolbar-btn { width: 40px; height: 40px; min-width: 40px; padding: 0; border-radius: 50%; background: var(--bg-card-solid); }
-.toolbar-btn .anticon { font-size: 18px; }
-.lang { position: relative; }
-.lang-menu { position: absolute; top: calc(100% + 4px); inset-inline-end: 0; min-width: 160px; }
-.lang-menu .amenu-item.selected { color: var(--accent-text); background: var(--accent-soft); }
-
-.login-wrapper { position: relative; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
-.login-card {
-  position: relative; z-index: 2; width: 100%; max-width: 400px; padding: 40px 32px 28px;
-  background: var(--bg-card); border: 1px solid var(--color-border); border-radius: 20px; box-shadow: var(--shadow-card);
-  -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
-}
-.login-card::before {
-  content: ''; position: absolute; inset: 0; border-radius: 20px; padding: 1px; pointer-events: none;
-  background: linear-gradient(135deg, var(--hair-a), rgba(255, 255, 255, 0) 40%, var(--hair-b) 80%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
-}
-@media (max-width: 480px) { .login-card { padding: 32px 20px 24px; } }
-
-.brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 8px; }
-.brand-logo { width: 96px; height: auto; display: block; }
-.brand-accent { display: block; width: 40px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, var(--accent-hover), var(--accent)); }
-.welcome { min-height: 42px; margin: 12px 0 28px; text-align: center; color: var(--ink); font-size: 32px; font-weight: 700; line-height: 1.2; letter-spacing: 0.3px; }
-.welcome b { display: inline-block; font-weight: inherit; animation: headline-in 280ms ease both; }
-@keyframes headline-in { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: translateY(0); } }
 
 /* Ant's Form layout="vertical" with size="large" controls. */
-.login-form .aform-label { font-weight: 500; color: var(--ink); }
-.login-form .ainput.large { height: 40px; padding: 7px 11px; border-radius: 8px; font-size: 16px; background: var(--bg-card-solid); }
-.login-form .ainput.large input { font-size: 16px; }
-.login-form .ainput-prefix { color: var(--ink); }
-.ainput-eye { display: inline-flex; padding: 0; border: 0; background: none; color: var(--faint); font-size: 14px; cursor: pointer; }
-.ainput-eye:hover { color: var(--ink); }
-.login-form input:-webkit-autofill, .login-form input:-webkit-autofill:hover, .login-form input:-webkit-autofill:focus {
-  -webkit-text-fill-color: var(--ink) !important; -webkit-box-shadow: 0 0 0 1000px var(--bg-card-solid) inset !important; box-shadow: 0 0 0 1000px var(--bg-card-solid) inset !important;
+.login-form .aform-label {
+  font-weight: 500;
+  color: var(--ink);
+}
+.login-form .ainput.large {
+  height: 42px;
+  padding: 7px 11px;
+  border-radius: var(--r-sm);
+  font-size: 16px;
+}
+.login-form .ainput.large input {
+  font-size: 16px;
+}
+.login-form .ainput-prefix {
+  color: var(--faint);
+}
+.ainput-eye {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--faint);
+  font-size: 14px;
+  cursor: pointer;
+}
+.ainput-eye:hover {
+  color: var(--ink);
+}
+.login-form input:-webkit-autofill,
+.login-form input:-webkit-autofill:hover,
+.login-form input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset !important;
+  box-shadow: 0 0 0 1000px var(--surface-2) inset !important;
   transition: background-color 9999s ease-in-out 0s, color 9999s ease-in-out 0s;
 }
-.abtn.large { height: 40px; padding: 6px 15px; border-radius: 8px; font-size: 16px; }
-.abtn.block { width: 100%; }
-.submit-row { margin-bottom: 0; }
-.error { margin: -8px 0 16px; color: var(--bad); font-size: 13px; }
-.spin { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: rot 0.8s linear infinite; }
-@keyframes rot { to { transform: rotate(360deg); } }
+/* The code step, in its own calm card as the design sets it. */
+.code-card {
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.code-card .ainput.large {
+  margin-bottom: 2px;
+}
+.abtn.large {
+  height: 44px;
+  padding: 6px 15px;
+  border-radius: var(--r-sm);
+  font-size: 15px;
+}
+.abtn.block {
+  width: 100%;
+}
+.submit-row {
+  margin-bottom: 0;
+}
+/* A refusal is a banner, not a footnote: the design's bad tint, bordered. */
+.error {
+  margin: -8px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--bad-line);
+  border-radius: 10px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-size: 13px;
+}
+.spin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rot 0.8s linear infinite;
+}
+@keyframes rot {
+  to { transform: rotate(360deg); }
+}
 </style>
