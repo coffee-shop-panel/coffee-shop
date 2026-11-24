@@ -155,6 +155,19 @@ func (x *xuiAPI) learn(ctx context.Context) error {
 	case x.version != "":
 		x.gen = xuiGenOld
 	default:
+		// probed below
+	}
+	if x.gen != xuiGenNew && x.token && x.version != "" {
+		// A late 2.x panel can already have dropped the legacy client
+		// routes and carry the new clients API under a 2.x number
+		// (2.10.13 is one): the number alone does not say which routes
+		// answer, so ask it before trusting the number.
+		var probe json.RawMessage
+		if err := x.call(ctx, http.MethodGet, x.base+"clients/list", nil, &probe); err == nil {
+			x.gen = xuiGenNew
+		}
+	}
+	if x.version == "" {
 		var probe json.RawMessage
 		switch {
 		case x.call(ctx, http.MethodGet, x.base+"clients/list", nil, &probe) == nil:
