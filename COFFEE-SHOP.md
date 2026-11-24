@@ -28,6 +28,16 @@ can still be merged in.
 - **feat(update):** self-update fetches this fork's releases
   (`update.Repo = "coffee-shop-panel/coffee-shop"`), signed with this fork's own
   Ed25519 key.
+- **fix(api):** a machine (node) token reaches only the node protocol
+  (v3.2.5 audit) — the six `/api/node/*` routes, the probe, the node
+  list and the managed update — not every owner-gated route.
+- **fix(audit, v3.2.5):** the same-address exemption compares hosts,
+  not ports; traffic resets respect the caller's scope; hand-down
+  checks the client limit; a node's note survives its list toggle;
+  3x-ui clients are keyed per inbound; the coffee page downloads
+  AmneziaWG configs instead of building broken `wireguard://` links;
+  the Interfaces page has exactly two tabs (WireGuard / the 3x-ui
+  panel) and the client form gives a panel's inbounds as one switch.
 
 ## Releasing
 
