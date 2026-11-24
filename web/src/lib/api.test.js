@@ -74,6 +74,59 @@ describe('what a failed call says', () => {
   })
 })
 
+describe('what a download does', () => {
+  it('saves the bytes the server sends, under the name it gives', async () => {
+    setToken('abc')
+    const seen = {}
+    URL.createObjectURL = vi.fn((blob) => {
+      seen.blob = blob
+      return 'blob:x'
+    })
+    URL.revokeObjectURL = vi.fn()
+    vi.stubGlobal('fetch', () =>
+      answer(200, 'abc', { 'Content-Disposition': 'attachment; filename="b.tar.gz"' }),
+    )
+    await saveFile('/api/backups/x.tar.gz', 'x.tar.gz')
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
+    expect(seen.blob).toBeInstanceOf(Blob)
+    expect(seen.blob.size).toBe(3)
+  })
+
+  it('a download that stalls is abandoned instead of hanging the page', async () => {
+    vi.useFakeTimers()
+    try {
+      let signal
+      vi.stubGlobal('fetch', (_url, init) => {
+        signal = init.signal
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          body: {
+            getReader: () => ({
+              read: () =>
+                new Promise((_resolve, reject) => {
+                  signal.addEventListener('abort', () => {
+                    const err = new Error('aborted')
+                    err.name = 'AbortError'
+                    reject(err)
+                  })
+                }),
+            }),
+          },
+        })
+      })
+      const done = saveFile('/api/backups/x.tar.gz', 'x.tar.gz').catch((e) => e)
+      await vi.advanceTimersByTimeAsync(120_000)
+      const err = await done
+      expect(err).toBeInstanceOf(ApiError)
+      expect(err.kind).toBe('timeout')
+    } finally {
+      vi.useFakeTimers(false)
+    }
+  })
+})
+
 describe('what a call sends', () => {
   it('carries the session and the body', async () => {
     setToken('tok')

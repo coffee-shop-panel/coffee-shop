@@ -66,12 +66,13 @@ func TestTheTokenAndItsOwnCookieWorkTogether(t *testing.T) {
 	}
 }
 
-// A token issued before this existed carries no binding and keeps working
-// until it expires. Deploying a hardening change should not sign every operator
-// out of a running panel; the old tokens age out within hours on their own.
-func TestATokenFromBeforeThisIsStillAccepted(t *testing.T) {
-	if !bindingHolds(bound(t), &sessionClaims{}) {
-		t.Error("an upgrade signed out everybody who was already working")
+// A token issued before the binding existed carries no binding and is refused
+// now: a token without its cookie half is exactly the stolen token this
+// exists to stop, whatever its age. Every token the panel mints carries a
+// binding, so no operator signed in after the binding shipped is affected.
+func TestATokenWithoutABindingIsRefused(t *testing.T) {
+	if bindingHolds(bound(t), &sessionClaims{}) {
+		t.Error("a token with no binding was accepted with no cookie at all")
 	}
 }
 
@@ -131,9 +132,11 @@ func TestRaisingTheGenerationEndsAnOlderToken(t *testing.T) {
 	}
 }
 
-// The same grace as the binding, and for the same reason.
-func TestATokenFromBeforeTheGenerationExistedIsAccepted(t *testing.T) {
-	if !epochHolds(&model.Admin{SessionEpoch: 3}, &sessionClaims{}) {
-		t.Error("an upgrade signed out everybody who was already working")
+// A token from before the generation existed carries epoch zero and is refused
+// now, like a binding-less token: the panel has only ever minted tokens with a
+// generation of at least one.
+func TestATokenFromBeforeTheGenerationExistedIsRefused(t *testing.T) {
+	if epochHolds(&model.Admin{SessionEpoch: 3}, &sessionClaims{}) {
+		t.Error("a token with no generation was accepted")
 	}
 }

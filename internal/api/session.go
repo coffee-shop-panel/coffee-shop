@@ -50,8 +50,8 @@ type sessionClaims struct {
 	jwt.RegisteredClaims
 
 	// Bind is the fingerprint of the cookie that must accompany this token.
-	// Absent on tokens issued before this existed, which stay usable until they
-	// expire rather than signing everybody out on an upgrade.
+	// A token without one is refused: the binding is what stops a token
+	// read out of the page from being a session on its own.
 	Bind string `json:"bnd,omitempty"`
 
 	// Epoch is the sign-out generation the token was minted under. A token from
@@ -116,12 +116,13 @@ func clearBindCookie(w http.ResponseWriter, r *http.Request) {
 
 // bindingHolds reports whether the request carries the cookie this token names.
 //
-// A token with no binding is one issued before this existed. It is accepted
-// until it expires — a few hours at most — because signing every operator out
-// of a running panel to deploy a hardening change is its own kind of incident.
+// A token with no binding names no cookie, so there is nothing to match: it is
+// refused. Every token the panel mints carries a binding, so the only tokens
+// this turns away are the ones issued before the binding existed — and those
+// expired hours after it shipped.
 func bindingHolds(r *http.Request, claims *sessionClaims) bool {
 	if claims.Bind == "" {
-		return true
+		return false
 	}
 	c, err := r.Cookie(bindCookie)
 	if err != nil || c.Value == "" {
@@ -134,12 +135,12 @@ func bindingHolds(r *http.Request, claims *sessionClaims) bool {
 
 // epochHolds reports whether the token is from the current generation.
 //
-// Zero is a token from before the field existed and is accepted for the same
-// reason. Once an operator changes their password or signs out everywhere the
-// generation moves on, and those tokens go with it.
+// Zero is a token from before the field existed, and it is refused for the
+// same reason a binding-less token is: the panel has only ever minted tokens
+// with a generation of at least one, so a zero can only be a relic.
 func epochHolds(admin *model.Admin, claims *sessionClaims) bool {
 	if claims.Epoch == 0 {
-		return true
+		return false
 	}
 	return claims.Epoch == admin.SessionEpoch
 }

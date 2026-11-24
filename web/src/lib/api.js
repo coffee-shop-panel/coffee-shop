@@ -218,19 +218,57 @@ async function send(method, path, body) {
 // Authorization header — so it either 404s or 401s. These files hold private
 // keys, so serving them unauthenticated to make a link work is not the trade to
 // make. Fetched with the session and handed to the browser as a blob instead.
+// A download is not a request, so the 30-second request cap does not apply
+// here: a backup archive can take minutes to arrive. The download is bounded
+// instead by a stall timer — a connection that stops sending for two minutes
+// is abandoned — and by an overall cap, so a download can never hang the
+// page forever. The stall timer is what makes a slow connection survivable:
+// bytes still arriving keep the download alive.
+const downloadStallTimeout = 120_000
+const downloadTimeout = 15 * 60_000
+
 export async function saveFile(path, fallbackName) {
-  const res = await fetch(apiURL(path), {
-    headers: { Authorization: `Bearer ${getToken()}` },
-    credentials: 'same-origin',
-  })
+  const abort = new AbortController()
+  const overall = setTimeout(() => abort.abort(), downloadTimeout)
+  let stall = null
+  const armStall = () => {
+    clearTimeout(stall)
+    stall = setTimeout(() => abort.abort(), downloadStallTimeout)
+  }
+  const stopTimers = () => {
+    clearTimeout(overall)
+    clearTimeout(stall)
+  }
+
+  let res
+  try {
+    armStall()
+    res = await fetch(apiURL(path), {
+      headers: { Authorization: `Bearer ${getToken()}` },
+      credentials: 'same-origin',
+      signal: abort.signal,
+    })
+  } catch (err) {
+    stopTimers()
+    if (err?.name === 'AbortError') {
+      throw new ApiError('The download did not finish in time. Try again.', 0, 'timeout')
+    }
+    throw new ApiError(
+      'Could not reach the panel. Check that it is running and that your connection is up.',
+      0,
+      'network',
+    )
+  }
 
   if (res.status === 401) {
+    stopTimers()
     setToken(null)
     window.dispatchEvent(new CustomEvent('wui:unauthorized'))
     throw new ApiError('', 401, 'session')
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '')
+    stopTimers()
     let message = text
     try {
       message = JSON.parse(text)?.error || text
@@ -243,7 +281,32 @@ export async function saveFile(path, fallbackName) {
   // The server names the file; falling back to a given name beats saving
   // something called "download".
   const named = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')
-  handOver(await res.blob(), named ? named[1] : fallbackName)
+  // The body is read chunk by chunk rather than as one blob, so the stall
+  // timer can tell a download that is still arriving from one that stopped.
+  let blob
+  try {
+    if (!res.body) {
+      blob = await res.blob()
+    } else {
+      const reader = res.body.getReader()
+      const chunks = []
+      for (;;) {
+        armStall()
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+      }
+      blob = new Blob(chunks)
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new ApiError('The download stalled and was stopped. Try again.', 0, 'timeout')
+    }
+    throw err
+  } finally {
+    stopTimers()
+  }
+  handOver(blob, named ? named[1] : fallbackName)
 }
 
 // fetchBlob is saveFile without the saving: the bytes come back to the
