@@ -56,9 +56,18 @@ const (
 const (
 	KindNew   = "new"
 	KindRenew = "renew"
+	KindTopup = "topup"
 
 	MethodCard     = "card"
 	MethodZarinpal = "zarinpal"
+	MethodWallet   = "wallet"
+)
+
+// Code kinds, as stored on a code: what the code does at the till.
+const (
+	CodePercent = "percent" // Value percent off a price
+	CodeFixed   = "fixed"   // Value Toman off a price
+	CodeGift    = "gift"    // Value Toman into the redeemer's wallet
 )
 
 // The shop's two sections. A buyer chooses one before they see a plan --
@@ -113,6 +122,16 @@ type Config struct {
 	ZarinpalMerchant string
 	Welcome          string
 	InterfaceIDs     []uint
+
+	// The shop's growth settings: the trial it offers, how its
+	// customers are named, and the cashback it pays referrers.
+	TrialEnabled    bool
+	TrialBytes      uint64
+	TrialDays       int
+	TrialSection    string
+	NameFormat      string
+	CashbackPercent int
+	WheelEnabled    bool
 }
 
 func configFromRow(r *model.ShopBot) *Config {
@@ -125,6 +144,13 @@ func configFromRow(r *model.ShopBot) *Config {
 		CardHolder:       r.CardHolder,
 		ZarinpalMerchant: r.ZarinpalMerchant,
 		Welcome:          r.Welcome,
+		TrialEnabled:     r.TrialEnabled,
+		TrialBytes:       r.TrialBytes,
+		TrialDays:        r.TrialDays,
+		TrialSection:     r.TrialSection,
+		NameFormat:       r.NameFormat,
+		CashbackPercent:  r.CashbackPercent,
+		WheelEnabled:     r.WheelEnabled,
 	}
 	if r.InterfaceIDs != "" {
 		// A list that does not parse is a list of nothing, not an error the
@@ -150,6 +176,13 @@ func (c *Config) row() (*model.ShopBot, error) {
 		ZarinpalMerchant: c.ZarinpalMerchant,
 		Welcome:          c.Welcome,
 		InterfaceIDs:     string(raw),
+		TrialEnabled:     c.TrialEnabled,
+		TrialBytes:       c.TrialBytes,
+		TrialDays:        c.TrialDays,
+		TrialSection:     c.TrialSection,
+		NameFormat:       c.NameFormat,
+		CashbackPercent:  c.CashbackPercent,
+		WheelEnabled:     c.WheelEnabled,
 	}, nil
 }
 
@@ -354,6 +387,13 @@ type Order struct {
 	PriceToman  int64
 	DeviceLimit int
 
+	// Quantity is how many of the plan this order buys; Code is the
+	// code the buyer named at checkout and DiscountToman what it took
+	// off, both copied onto the order as the plan's terms were.
+	Quantity      int
+	Code          string
+	DiscountToman int64
+
 	Kind     string
 	ClientID uint
 
@@ -384,6 +424,7 @@ func orderFromRow(r *model.ShopOrder) *Order {
 		PlanID: r.PlanID, PlanName: r.PlanName, Section: r.Section,
 		QuotaBytes: r.QuotaBytes,
 		Days:       r.Days, PriceToman: r.PriceToman, DeviceLimit: r.DeviceLimit,
+		Quantity: r.Quantity, Code: r.Code, DiscountToman: r.DiscountToman,
 		Kind: r.Kind, ClientID: r.ClientID,
 		Method: r.Method, Status: r.Status,
 		ReceiptFileID: r.ReceiptFileID, Authority: r.Authority, RefID: r.RefID,
@@ -399,6 +440,7 @@ func (o *Order) row() *model.ShopOrder {
 		PlanID: o.PlanID, PlanName: o.PlanName, Section: o.Section,
 		QuotaBytes: o.QuotaBytes,
 		Days:       o.Days, PriceToman: o.PriceToman, DeviceLimit: o.DeviceLimit,
+		Quantity: o.Quantity, Code: o.Code, DiscountToman: o.DiscountToman,
 		Kind: o.Kind, ClientID: o.ClientID,
 		Method: o.Method, Status: o.Status,
 		ReceiptFileID: o.ReceiptFileID, Authority: o.Authority, RefID: o.RefID,
@@ -423,6 +465,12 @@ func newPublicToken() (string, error) {
 func (s *Shop) CreateOrder(ctx context.Context, o *Order) error {
 	if o.OperatorID == 0 {
 		return fault.Field("operatorId", "an order belongs to an operator")
+	}
+	// An order that does not say how many it buys buys one: the column
+	// has the same default, and the delivery reads the order rather
+	// than the row it became, so the two are kept saying the same thing.
+	if o.Quantity <= 0 {
+		o.Quantity = 1
 	}
 	if o.PublicToken == "" {
 		token, err := newPublicToken()
