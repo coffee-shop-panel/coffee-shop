@@ -122,7 +122,14 @@ func (s *Admins) Create(ctx context.Context, in AdminInput) (*model.Admin, error
 			return nil, fault.Field("role", "an admin may create resellers only")
 		}
 		parentAdmin = caller.ID
-		if err := s.checkHandDown(ctx, in.InterfaceIDs, in.QuotaBytes); err != nil {
+		// A limit not said is the zero Create stores, which means none --
+		// said out loud here so the hand-down check can refuse it under an
+		// admin who has one of their own.
+		limit := 0
+		if in.ClientLimit != nil {
+			limit = *in.ClientLimit
+		}
+		if err := s.checkHandDown(ctx, in.InterfaceIDs, in.QuotaBytes, &limit, 0); err != nil {
 			return nil, err
 		}
 	}
@@ -380,7 +387,7 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 		if in.Role != "" && in.Role != model.RoleReseller {
 			return nil, fault.Field("role", "an admin cannot change a reseller's role")
 		}
-		if err := s.checkHandDown(ctx, in.InterfaceIDs, in.QuotaBytes); err != nil {
+		if err := s.checkHandDown(ctx, in.InterfaceIDs, in.QuotaBytes, in.ClientLimit, id); err != nil {
 			return nil, err
 		}
 	}

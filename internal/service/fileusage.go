@@ -23,6 +23,18 @@ func ZeroFileUsage(db *gorm.DB, clientWhere string, args ...any) error {
 	} else {
 		q = q.Where("1 = 1")
 	}
+	// The caller's condition is a string, and the automatic narrowing is a
+	// clause on statements against the clients table, so it never reaches
+	// inside the subquery: a reset by a reseller -- of a selection, of a
+	// group, of everything -- zeroed the files of any customer the
+	// condition happened to name, and of every customer on the panel when
+	// it named none. Narrow by hand to the caller's own customers, the set
+	// the customers' totals beside it were narrowed to.
+	if db.Statement != nil && db.Statement.Context != nil {
+		if sc := ScopeOf(db.Statement.Context); sc.Restricted {
+			q = q.Where("client_id IN (SELECT id FROM clients WHERE owner_id IN ?)", sc.OwnerList())
+		}
+	}
 	if err := q.UpdateColumns(map[string]any{"up_bytes": 0, "down_bytes": 0}).Error; err != nil {
 		return fmt.Errorf("service: reset the files' usage: %w", err)
 	}

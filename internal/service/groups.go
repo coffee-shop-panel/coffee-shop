@@ -565,21 +565,31 @@ func (s *Clients) ApplyToGroup(ctx context.Context, op GroupOp) (int64, error) {
 		return res.RowsAffected, wrapBulk(res.Error)
 
 	case GroupReset:
-		res := scope().Updates(map[string]any{
-			"used_bytes":    0,
-			"up_bytes":      0,
-			"down_bytes":    0,
-			"last_reset_at": now,
-			"status": gorm.Expr("CASE WHEN status = ? THEN ? ELSE status END",
-				model.StatusExhausted, model.StatusActive),
+		// The customers' totals and their files' counters are one reset:
+		// in a transaction, so a failure between them cannot leave the
+		// totals at zero over files still carrying the old period.
+		var n int64
+		err := db.Transaction(func(tx *gorm.DB) error {
+			res := tx.Model(&model.Client{}).
+				Where("id IN (SELECT client_id FROM client_groups WHERE name = ?)", group).
+				Updates(map[string]any{
+					"used_bytes":    0,
+					"up_bytes":      0,
+					"down_bytes":    0,
+					"last_reset_at": now,
+					"status": gorm.Expr("CASE WHEN status = ? THEN ? ELSE status END",
+						model.StatusExhausted, model.StatusActive),
+				})
+			if res.Error != nil {
+				return res.Error
+			}
+			n = res.RowsAffected
+			return ZeroFileUsage(tx, "id IN (SELECT client_id FROM client_groups WHERE name = ?)", group)
 		})
-		if res.Error != nil {
-			return 0, wrapBulk(res.Error)
+		if err != nil {
+			return 0, wrapBulk(err)
 		}
-		if err := ZeroFileUsage(db, "id IN (SELECT client_id FROM client_groups WHERE name = ?)", group); err != nil {
-			return res.RowsAffected, wrapBulk(err)
-		}
-		return res.RowsAffected, nil
+		return n, nil
 
 	case GroupExtend:
 		if op.Days == 0 {

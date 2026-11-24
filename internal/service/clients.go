@@ -1296,9 +1296,28 @@ func (s *Clients) Update(ctx context.Context, id uint, in UpdateInput) (*model.C
 		}
 	}
 	if in.ResetCycle != nil {
-		fields["reset_cycle"] = *in.ResetCycle
+		// The same values Create accepts, and an empty one means none, as
+		// there. Anything else was stored verbatim before, where nothing
+		// ever matched it and the renewal quietly never happened.
+		cycle := *in.ResetCycle
+		switch cycle {
+		case "":
+			cycle = model.ResetNone
+		case model.ResetNone, model.ResetDaily, model.ResetWeekly, model.ResetMonthly:
+		default:
+			return nil, invalidField("resetCycle", "unknown reset cycle %q", *in.ResetCycle)
+		}
+		fields["reset_cycle"] = cycle
 	}
 	if in.Status != nil {
+		// A status nothing recognises was stored verbatim before: not an
+		// error, just a customer silently off, since only exactly "active"
+		// is ever served.
+		switch *in.Status {
+		case model.StatusActive, model.StatusDisabled, model.StatusExpired, model.StatusExhausted:
+		default:
+			return nil, invalidField("status", "unknown status %q", *in.Status)
+		}
 		fields["status"] = *in.Status
 	}
 

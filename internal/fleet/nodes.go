@@ -53,8 +53,11 @@ type NodeInput struct {
 	// a token. An empty password on an edit keeps the one stored.
 	Username *string `json:"username"`
 	Password string  `json:"password"`
-	Note     string  `json:"note"`
-	Enabled  *bool   `json:"enabled"`
+	// Note is a pointer like the rest: a partial save that never mentions
+	// it -- the list's switch sends only name, address and enabled --
+	// leaves the stored note alone rather than blanking it.
+	Note    *string `json:"note"`
+	Enabled *bool   `json:"enabled"`
 
 	// UsageCoefficient multiplies what this node reports before it is charged
 	// against a customer's allowance. Absent leaves it as it is; zero is read
@@ -136,7 +139,7 @@ func (s *Nodes) Create(ctx context.Context, in NodeInput) (*model.Node, error) {
 		Token:               in.Token,
 		Username:            strings.TrimSpace(deref(in.Username)),
 		Password:            in.Password,
-		Note:                in.Note,
+		Note:                deref(in.Note),
 		Enabled:             in.Enabled == nil || *in.Enabled,
 		OwnerID:             deref(in.OwnerID),
 	}
@@ -177,11 +180,13 @@ func (s *Nodes) Update(ctx context.Context, id uint, in NodeInput) (*model.Node,
 	updates := map[string]any{
 		"name":       in.Name,
 		"address":    in.Address,
-		"note":       in.Note,
 		"updated_at": time.Now().UTC(),
 	}
 	if in.Enabled != nil {
 		updates["enabled"] = *in.Enabled
+	}
+	if in.Note != nil {
+		updates["note"] = *in.Note
 	}
 	// An empty token means "leave it alone". The form cannot show the stored
 	// one, so submitting the page unchanged must not wipe it.
@@ -302,7 +307,10 @@ func (s *Nodes) validate(in *NodeInput, needToken bool) error {
 	in.Name = strings.TrimSpace(in.Name)
 	in.Address = strings.TrimSpace(in.Address)
 	in.Token = strings.TrimSpace(in.Token)
-	in.Note = strings.TrimSpace(in.Note)
+	if in.Note != nil {
+		note := strings.TrimSpace(*in.Note)
+		in.Note = &note
+	}
 
 	if in.Name == "" {
 		return fault.Field("name", "a node needs a name")

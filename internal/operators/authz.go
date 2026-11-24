@@ -3,6 +3,7 @@ package operators
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 
@@ -67,9 +68,14 @@ func (s *Admins) ownedReseller(ctx context.Context, id uint) (*model.Admin, erro
 
 // checkHandDown refuses a reseller an admin is creating or changing that
 // would reach past the admin's own ceiling: a tunnel the admin cannot sell,
-// or more traffic than the admin has left. The owner hands down without
-// limit. interfaceIDs is nil on an update that leaves the set alone.
-func (s *Admins) checkHandDown(ctx context.Context, interfaceIDs []uint, quota *uint64) error {
+// more traffic than the admin has left, or more users than the admin's
+// tree has room for. The owner hands down without limit. interfaceIDs is
+// nil on an update that leaves the set alone, and clientLimit is nil on
+// one that leaves the limit alone; on a create it is the limit the
+// reseller ends up with, where nil in the input has already been read as
+// the zero that means no limit. resellerID is the reseller being changed,
+// or zero for a new one.
+func (s *Admins) checkHandDown(ctx context.Context, interfaceIDs []uint, quota *uint64, clientLimit *int, resellerID uint) error {
 	caller := scopedTo(ctx)
 	if caller == nil {
 		return nil
@@ -90,5 +96,52 @@ func (s *Admins) checkHandDown(ctx context.Context, interfaceIDs []uint, quota *
 	if quota != nil && caller.QuotaBytes > 0 && *quota > caller.RemainingBytes() {
 		return fault.Field("quotaBytes", "that is more traffic than you have left to hand down")
 	}
+	// The same for users. The limit counts users, not customers -- the
+	// device limits of the customers in the admin's tree added up, as the
+	// ceiling on one operator is counted -- so a reseller with no limit,
+	// or one past what the tree has left, would grow the tree past the
+	// ceiling the owner sold the admin, one customer at a time and never
+	// refused anywhere.
+	if clientLimit != nil && caller.ClientLimit > 0 {
+		if *clientLimit <= 0 {
+			return fault.Field("clientLimit", "a reseller under you needs a user limit: yours is %d users", caller.ClientLimit)
+		}
+		held, err := s.treeUsers(ctx, caller, resellerID)
+		if err != nil {
+			return err
+		}
+		if int64(*clientLimit) > int64(caller.ClientLimit)-held {
+			return fault.Field("clientLimit",
+				"that is more users than you have left to hand down: %d of your %d are already sold",
+				held, caller.ClientLimit)
+		}
+	}
 	return nil
+}
+
+// treeUsers is how many users the customers in an admin's tree account
+// for: the device limits of every customer the admin or one of their
+// resellers holds, added up -- the count the ceiling holds one operator
+// to, over the whole tree. The reseller being handed a limit is left
+// out: their customers are what the new limit is measured against, not
+// a charge on top of it.
+func (s *Admins) treeUsers(ctx context.Context, caller *model.Admin, except uint) (int64, error) {
+	resellers, err := s.ResellerIDs(ctx, caller.ID)
+	if err != nil {
+		return 0, err
+	}
+	owners := append([]uint{caller.ID}, resellers...)
+	q := s.db.WithContext(ctx).Model(&model.Client{}).
+		Where("owner_id IN ?", owners)
+	if except != 0 {
+		q = q.Where("owner_id <> ?", except)
+	}
+	var held *int64
+	if err := q.Select("SUM(device_limit)").Scan(&held).Error; err != nil {
+		return 0, fmt.Errorf("service: count the users in your tree: %w", err)
+	}
+	if held == nil {
+		return 0, nil
+	}
+	return *held, nil
 }
