@@ -36,6 +36,13 @@ type Route struct {
 	// token that leaked would otherwise be a way to keep the door open.
 	Operator bool `json:"operator,omitempty"`
 
+	// Machine marks the node protocol: the routes another panel calls
+	// when it is using this one as a node. They are the one place a
+	// machine token passes the owner's gate (requireManager); on every
+	// other owner's route a token is refused, so one that leaked off a
+	// node server reaches nothing here but the protocol it was issued for.
+	Machine bool `json:"machine,omitempty"`
+
 	// Body is an example request body, if it takes one.
 	Body string `json:"body,omitempty"`
 
@@ -198,7 +205,7 @@ func (s *Server) routes() []Route {
 		// API and same token as everything else: a node is another W-UI panel,
 		// so there is one implementation to secure rather than a second
 		// protocol that only runs one way.
-		{Method: "POST", Path: "/api/node/sync", Group: "Nodes", Auth: true,
+		{Method: "POST", Path: "/api/node/sync", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "Take the desired state for one tunnel and make this panel match it.",
 			Body: `{"interface":{"originId":1,"name":"wg0","protocol":"wireguard",` +
 				`"listenPort":51820,"subnet":"10.66.0.0/16","endpointHost":"de.example.com"},` +
@@ -211,32 +218,32 @@ func (s *Server) routes() []Route {
 			// trust: the token says the caller knows a secret, the certificate
 			// says which machine it is.
 			handler: s.requireManagingPanel(s.handleNodeSync)},
-		{Method: "POST", Path: "/api/node/usage", Group: "Nodes", Auth: true,
+		{Method: "POST", Path: "/api/node/usage", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "Report what each customer spent here, and reset the counters.",
 			Note: "A read that resets, in one transaction. The panel asking adds these " +
 				"to a total spanning every node, so a figure returned twice would bill " +
 				"a customer for traffic they never sent.",
 			handler: s.requireManagingPanel(s.handleNodeUsage)},
-		{Method: "POST", Path: "/api/node/sessions", Group: "Nodes", Auth: true,
+		{Method: "POST", Path: "/api/node/sessions", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "Report which managed credentials are live here right now.",
 			Note: "A few bytes per live session, asked every few seconds, so the " +
 				"panel can hold a customer to their connections at once across " +
 				"every server. Each entry names the account by its id on the panel, " +
 				"how many devices it is carrying, and how long it has been live.",
 			handler: s.requireManagingPanel(s.handleNodeSessions)},
-		{Method: "POST", Path: "/api/node/hold", Group: "Nodes", Auth: true,
+		{Method: "POST", Path: "/api/node/hold", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "Hold devices off until a time, on the panel's decision.",
 			Body:    `{"holds":[{"originId":12,"until":"2026-01-01T12:00:00Z"}]}`,
 			Note: "The panel that owns a customer has counted more connections than " +
 				"their plan allows and named the newest. Its session here is ended " +
 				"and its peer kept off until then.",
 			handler: s.requireManagingPanel(s.handleNodeHold)},
-		{Method: "POST", Path: "/api/node/handover", Group: "Nodes", Auth: true,
+		{Method: "POST", Path: "/api/node/handover", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "This panel's own tunnels and customers, in full, for the managing panel to bring in.",
 			Note: "Keys, passwords and plans included: the managing panel makes the same records, so " +
 				"nothing a customer holds changes. Only tunnels this panel made itself; none it was handed.",
 			handler: s.requireManagingPanel(s.handleNodeHandover)},
-		{Method: "POST", Path: "/api/node/handover/claim", Group: "Nodes", Auth: true,
+		{Method: "POST", Path: "/api/node/handover/claim", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "Mark the tunnels, customers and files the managing panel took over as managed, under its ids.",
 			Body:    `{"tunnels":[{"localId":3,"originId":41}],"clients":[{"localId":9,"originId":120,"used":1048576}],"accounts":[{"localId":15,"originId":388}]}`,
 			Note: "All of it or none: a tunnel goes with every customer on it, since the next sync " +
@@ -589,7 +596,7 @@ func (s *Server) routes() []Route {
 			handler: s.handleRotateSubscription},
 
 		// ── Nodes ──
-		{Method: "GET", Path: "/api/nodes", Group: "Nodes", Auth: true,
+		{Method: "GET", Path: "/api/nodes", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "Every server this panel watches, with what the last probe found.",
 			handler: s.handleListNodes},
 		{Method: "POST", Path: "/api/nodes", Group: "Nodes", Auth: true, Operator: true,
@@ -652,7 +659,7 @@ func (s *Server) routes() []Route {
 		{Method: "GET", Path: "/api/metrics", Group: "Server", Auth: true,
 			Summary: "Tunnels, the loop, usage writes, nodes and backups, in Prometheus's text format.",
 			handler: s.handleMetrics},
-		{Method: "GET", Path: "/api/system", Group: "Server", Auth: true,
+		{Method: "GET", Path: "/api/system", Group: "Server", Auth: true, Machine: true,
 			Summary: "Versions, configuration and whether limits are being enforced.",
 			handler: s.handleSystemInfo},
 		{Method: "GET", Path: "/api/configs", Group: "Server", Auth: true,
@@ -750,7 +757,7 @@ func (s *Server) routes() []Route {
 			Note: "A build with no release-signing key cannot install anything, and says " +
 				"so here rather than when the button is pressed.",
 			handler: s.handleUpdateAvailable},
-		{Method: "POST", Path: "/api/system/update", Group: "Server", Auth: true,
+		{Method: "POST", Path: "/api/system/update", Group: "Server", Auth: true, Machine: true,
 			Summary: "Fetch the newest release, check its signature, install it and restart.",
 			Note: "Answers 202 at once and installs in the background; follow it at " +
 				"/api/system/update/progress. The panel downloads the release itself and " +
@@ -936,7 +943,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux, routes []Route) {
 			h = s.requireResellerManager(h)
 		} else if r.forOwner() && (r.Auth || r.Operator) {
 			// An open route has nobody signed in to be the owner.
-			h = s.requireManager(h)
+			h = s.requireManager(r.Machine, h)
 		}
 		// Under the signed-in operator, refuse an admin a page the owner left
 		// unchecked. Inside requireAuth (wrapped below), so the admin is known.

@@ -151,8 +151,9 @@ func TestAMachineTokenIsStillRefusedTheOwnersOwn(t *testing.T) {
 	}
 }
 
-// Each gate holds on its own, not only behind the others: requireManager lets
-// a machine token through, requireAdminManager and requireOperator do not.
+// Each gate holds on its own, not only behind the others: requireManager
+// refuses a machine token except on the routes flagged for it (the node
+// protocol), requireAdminManager and requireOperator refuse it outright.
 // (Every Operators route is also Operator, so through the mux the first of
 // those two answers and the second is never asked.)
 func TestEachGateDecidesAMachineTokenItself(t *testing.T) {
@@ -162,7 +163,12 @@ func TestEachGateDecidesAMachineTokenItself(t *testing.T) {
 		gate func(http.HandlerFunc) http.HandlerFunc
 		want int
 	}{
-		"requireManager":      {s.requireManager, http.StatusOK},
+		"requireManager": {func(next http.HandlerFunc) http.HandlerFunc {
+			return s.requireManager(false, next)
+		}, http.StatusForbidden},
+		"requireManager on a machine route": {func(next http.HandlerFunc) http.HandlerFunc {
+			return s.requireManager(true, next)
+		}, http.StatusOK},
 		"requireAdminManager": {s.requireAdminManager, http.StatusForbidden},
 		"requireOperator":     {s.requireOperator, http.StatusForbidden},
 	} {

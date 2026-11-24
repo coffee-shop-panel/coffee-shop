@@ -332,18 +332,25 @@ func signInRefusal(admin *model.Admin, now time.Time) string {
 // customers -- the point of that role is a second pair of hands over the
 // customers without the server underneath.
 //
-// A machine token is let through, as it was before v2.0.0. Only the owner
-// issues one, and the panel managing this one as a node reaches everything
-// it does through it -- the probe, the sync, the usage, the update. Refused
-// here, as it was from v2.0.0 to v2.6.0, no panel could manage a node at
-// all. What a leaked token could use to keep the door open stays refused to
-// it by requireOperator and requireAdminManager: the panel's settings,
+// A machine token is let through only where allowMachine says so, which
+// is only the node protocol: the routes flagged Machine in the table,
+// which are what the panel managing this one as a node reaches it through
+// -- the probe, the sync, the usage, the handover. Everywhere else it is
+// refused, as it was from v2.0.0 to v2.6.0. A token lives in a file on a
+// node server, and one that leaked must not become a way to run this
+// panel -- its customers, its tunnels, the panel itself. What a leaked
+// token could use to keep the door open stays refused to it by
+// requireOperator and requireAdminManager as well: the panel's settings,
 // backups, tokens, the node registry, the operators and the owner's own
 // account.
-func (s *Server) requireManager(next http.HandlerFunc) http.HandlerFunc {
+func (s *Server) requireManager(allowMachine bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if fromMachine(r.Context()) {
-			next(w, r)
+			if allowMachine {
+				next(w, r)
+				return
+			}
+			writeError(w, http.StatusForbidden, "this needs the panel's owner, not an API token")
 			return
 		}
 		admin := adminFrom(r.Context())
@@ -633,6 +640,10 @@ func (s *Server) handleTOTPDisable(w http.ResponseWriter, r *http.Request) {
 // administrator in the last little while, and remembers it otherwise. A code
 // is good for a window of a minute or so, and one read over a shoulder or
 // off a screen must not open a second session inside that window.
+//
+// The last few codes are remembered, not only the latest: remembering one
+// alone let the code before it be played again as soon as a newer one had
+// been used, inside the window both were still good for.
 func (s *Server) totpReplayed(adminID uint, code string, now time.Time) bool {
 	code = strings.TrimSpace(code)
 	s.totpMu.Lock()
@@ -640,14 +651,36 @@ func (s *Server) totpReplayed(adminID uint, code string, now time.Time) bool {
 	if s.totpUsed == nil {
 		s.totpUsed = map[uint]usedCode{}
 	}
-	if u, ok := s.totpUsed[adminID]; ok && u.code == code && now.Sub(u.at) < 2*time.Minute {
+	recent := make([]usedCodeAt, 0, len(s.totpUsed[adminID].recent)+1)
+	replayed := false
+	for _, e := range s.totpUsed[adminID].recent {
+		if now.Sub(e.at) >= 2*time.Minute {
+			continue // out of the window: forgotten, and no longer a replay
+		}
+		if e.code == code {
+			replayed = true
+		}
+		recent = append(recent, e)
+	}
+	if replayed {
+		s.totpUsed[adminID] = usedCode{recent: recent}
 		return true
 	}
-	s.totpUsed[adminID] = usedCode{code: code, at: now}
+	recent = append(recent, usedCodeAt{code: code, at: now})
+	if len(recent) > 4 {
+		recent = recent[len(recent)-4:]
+	}
+	s.totpUsed[adminID] = usedCode{recent: recent}
 	return false
 }
 
+// usedCode is the last few second-factor codes accepted for one
+// administrator, newest last, each with when it was accepted.
 type usedCode struct {
+	recent []usedCodeAt
+}
+
+type usedCodeAt struct {
 	code string
 	at   time.Time
 }
