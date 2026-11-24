@@ -108,6 +108,10 @@ func (s *Server) routes() []Route {
 			handler: s.handleCreateClient},
 		{Method: "GET", Path: "/api/clients/{id}", Group: "Customers", Auth: true,
 			Summary: "One customer with their devices.", handler: s.handleGetClient},
+		{Method: "GET", Path: "/api/clients/{id}/diagnostics", Group: "Customers", Auth: true,
+			Summary: "Why a customer's connection works or does not: their plan, and " +
+				"every device with its server, its node and its last handshake.",
+			handler: s.handleClientDiagnostics},
 		{Method: "PATCH", Path: "/api/clients/{id}", Group: "Customers", Auth: true,
 			Summary: "Change a customer's plan, status, or which servers they reach.",
 			Body:    `{"quotaBytes":21474836480,"status":"active","interfaceIds":[1,3]}`,
@@ -595,6 +599,14 @@ func (s *Server) routes() []Route {
 			Summary: "Issue a new link. Every copy of the old one stops working at once.",
 			handler: s.handleRotateSubscription},
 
+		// ── Activity ──
+		{Method: "GET", Path: "/api/activity", Group: "Activity", Auth: true,
+			Summary: "Who did what on this panel, newest first: every change an " +
+				"operator made, and every sign-in, with where it came from.",
+			Note: "The owner's alone: the log names every administrator and " +
+				"reseller, so unlike the customer list it is not narrowed by scope.",
+			handler: s.handleActivity},
+
 		// ── Nodes ──
 		{Method: "GET", Path: "/api/nodes", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "Every server this panel watches, with what the last probe found.",
@@ -752,6 +764,14 @@ func (s *Server) routes() []Route {
 				"an AmneziaWG copy gets a fresh obfuscation profile — sharing one would " +
 				"mean both tunnels blocked by the same rule.",
 			handler: s.handleCloneInterface},
+		{Method: "POST", Path: "/api/interfaces/{id}/move", Group: "Interfaces", Auth: true,
+			Summary: "Move every customer on this tunnel onto another WireGuard tunnel.",
+			Body:    `{"toInterfaceId":3}`,
+			Note: "Each customer keeps their devices, their names and their subscription " +
+				"link: they are issued fresh credentials on the target tunnel and taken " +
+				"off this one. Only WireGuard tunnels can be moved between, and a " +
+				"reseller moves only their own customers.",
+			handler: s.handleMoveInterfaceClients},
 		{Method: "GET", Path: "/api/system/update", Group: "Server", Auth: true,
 			Summary: "What release is available, and whether this build can install one.",
 			Note: "A build with no release-signing key cannot install anything, and says " +

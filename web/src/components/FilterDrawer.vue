@@ -20,7 +20,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue', 'close'])
 
-const BUCKETS = ['active', 'depleting', 'exhausted', 'expired', 'disabled', 'online']
+const BUCKETS = ['active', 'depleting', 'expiring', 'exhausted', 'expired', 'disabled', 'online']
 
 function patch(key, value) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })

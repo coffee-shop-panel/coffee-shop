@@ -9,7 +9,7 @@ import { exportable } from './rows.js'
 
 // interfaces: every tunnel; selected: the chosen ids; busy: the page's busy
 // flag; load(quiet): reload; open: what the menus open on the page --
-// { text({title,text,file}), importer(), clone(i), attach(i, list), move(i, kind), group(i, names), edit(i) }.
+// { text({title,text,file}), importer(), clone(i), attach(i, list), move(i, kind), moveClients(i), group(i, names), edit(i) }.
 export function useInterfaceActions({ interfaces, selected, busy, load, open }) {
   async function guard(fn, successKey) {
     try {
@@ -241,6 +241,7 @@ export function useInterfaceActions({ interfaces, selected, busy, load, open }) 
       case 'attachExisting': return openAttach(i)
       case 'attachTo': return open.move(i, 'attach')
       case 'detach': return open.move(i, 'detach')
+      case 'moveClients': return open.moveClients(i)
       case 'group': return openGroup(i)
       case 'delAll': return clearTunnel(i)
       case 'delete': return removeOne(i)

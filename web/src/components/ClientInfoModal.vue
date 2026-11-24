@@ -165,6 +165,30 @@ const expiryText = computed(() => {
   }
   return dateTime(c.value.expiresAt, store.locale)
 })
+
+// The diagnostics panel: the customer as the server sees them right now --
+// which node each device sits on, whether that node is up, and when it last
+// shook hands. Fetched once, on first open: it is a snapshot to reason from
+// while the customer is on the phone, not another live feed, so closing and
+// reopening the panel does not fetch it again. A failed fetch leaves diag
+// empty, so the next open tries again.
+const diagOpen = ref(false)
+const diag = ref(null) // { client, accounts }
+const diagLoading = ref(false)
+const diagError = ref('')
+async function toggleDiag() {
+  diagOpen.value = !diagOpen.value
+  if (!diagOpen.value || diag.value || diagLoading.value) return
+  diagLoading.value = true
+  diagError.value = ''
+  try {
+    diag.value = await api.clientDiagnostics(props.client.id)
+  } catch (e) {
+    diagError.value = e.message
+  } finally {
+    diagLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -267,6 +291,56 @@ const expiryText = computed(() => {
             </tr>
           </tbody>
         </table>
+
+        <!-- One snapshot of the customer as the server sees them, for the
+             "it does not connect" call: the essentials first, then a row per
+             device with its node, its address and its last handshake. -->
+        <div class="adivider"><span class="adivider-text">{{ t('diag.title') }}</span></div>
+        <button class="abtn small" :aria-expanded="diagOpen" @click="toggleDiag"><AntIcon name="ToolOutlined" /><span>{{ t('diag.open') }}</span></button>
+        <div v-if="diagOpen" class="diag-panel">
+          <div v-if="diagLoading" class="diag-state"><span class="spin"></span></div>
+          <div v-else-if="diagError" class="diag-state diag-err">{{ diagError }}</div>
+          <template v-else-if="diag">
+            <table class="info-table block">
+              <tbody>
+                <tr>
+                  <td>{{ t('client.statusLabel') }}</td>
+                  <td><span class="atag" :class="diag.client.status === 'active' ? 'green' : ''">{{ diag.client.status === 'disabled' ? t('status.disabled') : diag.client.status === 'active' ? t('status.enabled') : t(`status.${diag.client.status}`) }}</span></td>
+                </tr>
+                <tr>
+                  <td>{{ t('client.traffic') }}</td>
+                  <td><span class="atag ltr">{{ bytes(diag.client.usedBytes, store.locale) }} / {{ diag.client.quotaBytes > 0 ? bytes(diag.client.quotaBytes, store.locale) : '∞' }}</span></td>
+                </tr>
+                <tr>
+                  <td>{{ t('client.menu.duration') }}</td>
+                  <td>
+                    <span v-if="diag.client.expiresAt" class="atag ltr">{{ dateTime(diag.client.expiresAt, store.locale) }}</span>
+                    <span v-else class="atag purple">∞</span>
+                    <span v-if="diag.client.expiresAt" class="hint">{{ relative(diag.client.expiresAt, store.locale) }}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>{{ t('client.ipLimit') }}</td>
+                  <td><span class="atag">{{ diag.client.deviceLimit || '∞' }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="!diag.client.hasSubToken" class="diag-warn">{{ t('diag.noSub') }}</div>
+            <div v-if="!diag.accounts.length" class="aempty">{{ t('common.nothingYet') }}</div>
+            <template v-for="a in diag.accounts" :key="a.id">
+              <div class="ip-row">
+                <span class="ip-name">{{ a.deviceName }}</span>
+                <span class="atag" style="margin: 0">{{ a.interfaceName }}</span>
+                <span class="atag" :class="a.nodeUp ? 'green' : 'red'" style="margin: 0">{{ a.nodeName }}</span>
+                <code v-if="a.address" class="diag-addr ltr">{{ a.address }}</code>
+                <span class="atag ltr" style="margin: 0">↑ {{ bytes(a.upBytes, store.locale) }} / ↓ {{ bytes(a.downBytes, store.locale) }}</span>
+                <span class="hint ltr">{{ t('diag.lastHandshake') }}: {{ a.lastHandshake ? relative(a.lastHandshake, store.locale) : t('diag.never') }}</span>
+              </div>
+              <div v-if="!a.nodeUp" class="diag-warn">{{ t('diag.nodeDown') }}</div>
+              <div v-if="a.protocol === 'xray' && !a.hasLink" class="diag-warn">{{ t('diag.noLink') }}</div>
+            </template>
+          </template>
+        </div>
 
         <template v-if="sub?.link">
           <div class="adivider"><span class="adivider-text">{{ t('client.subscriptionTitle') }}</span></div>
@@ -383,6 +457,11 @@ const expiryText = computed(() => {
 /* Grows with the code: a short profile stays this narrow, a dense AmneziaWG
    one widens so its modules stay large enough to scan. */
 .qr-popover { width: max-content; max-width: min(92vw, 440px); }
+.diag-panel { margin-top: 10px; }
+.diag-state { padding: 10px 0; font-size: 13px; }
+.diag-err { color: var(--bad); }
+.diag-warn { padding: 2px 0 6px; font-size: 12px; color: var(--bad); }
+.diag-addr { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }
 .ip-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
 .ip-row:last-child { border-bottom: 0; }
 .ip-name { font-weight: 500; }

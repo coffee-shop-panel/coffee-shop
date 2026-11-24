@@ -32,6 +32,9 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		"PATCH /api/clients/{id}",
 		"DELETE /api/clients/{id}",
 		"GET /api/clients/{id}/configs",
+		// The connection check: it reads through the same scoped customer
+		// lookup as the page above, so it only ever shows their own.
+		"GET /api/clients/{id}/diagnostics",
 		"POST /api/clients/{id}/devices",
 		"POST /api/clients/{id}/reset",
 		"POST /api/clients/{id}/rotate-keys",

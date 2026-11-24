@@ -21,6 +21,7 @@ import ImportDialog from '../components/interfaces/ImportDialog.vue'
 import AttachDialog from '../components/interfaces/AttachDialog.vue'
 import CloneDialog from '../components/interfaces/CloneDialog.vue'
 import MoveDialog from '../components/interfaces/MoveDialog.vue'
+import MoveClientsDialog from '../components/interfaces/MoveClientsDialog.vue'
 import GroupDialog from '../components/interfaces/GroupDialog.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import PageSpin from '../components/PageSpin.vue'
@@ -101,6 +102,7 @@ const importOpen = ref(false)
 const cloning = ref(null) // the tunnel being copied
 const attach = ref(null) // { iface, list }
 const move = ref(null) // { iface, kind }
+const moving = ref(null) // the tunnel whose customers are being moved off it
 const grouping = ref(null) // { iface, names }
 
 // What an operator does to tunnels, and the menus that offer it.
@@ -112,6 +114,7 @@ const { pending, setEnabled, ask, runConfirmed, bulkDelete, pickRow, pickGeneral
     clone: (i) => (cloning.value = i),
     attach: (i, list) => (attach.value = { iface: i, list }),
     move: (i, kind) => (move.value = { iface: i, kind }),
+    moveClients: (i) => (moving.value = i),
     group: (i, names) => (grouping.value = { iface: i, names }),
   },
 })
@@ -368,6 +371,7 @@ async function submitForm(input) {
   </div>
 
   <MoveDialog v-if="move" :iface="move.iface" :kind="move.kind" :interfaces="interfaces" @close="move = null" @done="load()" />
+  <MoveClientsDialog v-if="moving" :iface="moving" :interfaces="interfaces" @close="moving = null" @done="load()" />
   <GroupDialog v-if="grouping" :iface="grouping.iface" :names="grouping.names" @close="grouping = null" @done="load()" />
 
   <TextDialog v-if="textModal" :title="textModal.title" :text="textModal.text" :file="textModal.file" @close="textModal = null" />

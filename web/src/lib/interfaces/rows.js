@@ -86,6 +86,10 @@ export function rowItems(i) {
     { key: 'attachExisting', icon: 'UsergroupAddOutlined', label: t('iface.menu.attachExisting') },
   ]
   if (i.protocol === 'openvpn') items.splice(2, 0, { key: 'profile', icon: 'ExportOutlined', label: t('interface.downloadProfile') })
+  // Moving everyone off a tunnel for good is WireGuard's alone: the move
+  // endpoint re-seats a customer's devices on the target tunnel, which is a
+  // WireGuard notion. Attach and Detach above are the cross-protocol pair.
+  if (i.protocol === 'wireguard') items.push({ key: 'moveClients', icon: 'SwapOutlined', label: t('iface.move') })
   if (i.clients > 0) {
     items.push(
       { key: 'attachTo', icon: 'UsergroupAddOutlined', label: t('iface.menu.attachTo') },

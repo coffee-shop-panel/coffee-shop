@@ -865,6 +865,12 @@ func (s *Clients) bucketWhere(bucket string) (string, []any) {
 	case "depleting":
 		return "status = ? AND quota_bytes > 0 AND used_bytes * 100 >= quota_bytes * ?",
 			[]any{model.StatusActive, depletingPercent}
+	case "expiring":
+		// No lower bound: a customer already past their date whose row has
+		// not been swept to expired yet is the one who most needs to be in
+		// this list, not the one to leave out of it.
+		return "status = ? AND expires_at IS NOT NULL AND expires_at <= ?",
+			[]any{model.StatusActive, time.Now().UTC().Add(expiringWithin)}
 	case "online":
 		if s.live != nil {
 			ids := s.live.LiveClients()
@@ -1464,6 +1470,87 @@ func (s *Clients) setInterfaces(ctx context.Context, client *model.Client, want 
 	return nil
 }
 
+// MoveInterface moves every customer on one WireGuard server onto another:
+// what emptying a server before it is given up takes, done in one action
+// rather than one customer at a time.
+//
+// Only WireGuard servers can be moved between. An account on a 3x-ui inbound
+// lives on that panel, not here, so there is nothing local to move it with;
+// refusing here keeps the operation to the case that can actually be done.
+//
+// Each customer goes through setInterfaces, so their devices keep their
+// names, their plan is untouched and their subscription link does not
+// change: from the customer's side the file for the old server is replaced
+// by one for the new, under the same link they already hold.
+func (s *Clients) MoveInterface(ctx context.Context, fromID, toID uint) (moved, failed int, err error) {
+	if err := checkBarred(ctx); err != nil {
+		return 0, 0, err
+	}
+	if fromID == toID {
+		return 0, 0, invalidField("toInterfaceId", "that is the server the customers are already on")
+	}
+	from, err := s.loadInterface(ctx, fromID)
+	if err != nil {
+		return 0, 0, err
+	}
+	to, err := s.loadInterface(ctx, toID)
+	if err != nil {
+		return 0, 0, err
+	}
+	if from.Protocol != model.ProtocolWireGuard {
+		return 0, 0, fmt.Errorf("%w: %s is not a WireGuard server; only WireGuard customers can be moved this way",
+			ErrInvalid, from.Name)
+	}
+	if to.Protocol != model.ProtocolWireGuard {
+		return 0, 0, fmt.Errorf("%w: %s is not a WireGuard server; only WireGuard customers can be moved this way",
+			ErrInvalid, to.Name)
+	}
+	if !to.Enabled {
+		return 0, 0, invalidField("toInterfaceId", "%s is switched off", to.Name)
+	}
+
+	// Whose customers these are is decided by the customers table, which
+	// narrows itself to the caller the way every other read here is
+	// narrowed: a reseller emptying a server moves their own customers off
+	// it and nobody else's. The accounts subquery only says who is on it.
+	var ids []uint
+	if err := s.db.WithContext(ctx).Model(&model.Client{}).
+		Where("id IN (SELECT client_id FROM accounts WHERE interface_id = ?)", fromID).
+		Pluck("id", &ids).Error; err != nil {
+		return 0, 0, fmt.Errorf("service: find the customers to move: %w", err)
+	}
+
+	for _, id := range ids {
+		client, err := s.Get(ctx, id)
+		if err != nil {
+			failed++
+			s.log.Warn("customer could not be moved", "client", id, "error", err)
+			continue
+		}
+		// The servers they reach, with the old one swapped for the new.
+		// setInterfaces adds the new accounts before removing the old, so a
+		// failure partway leaves the customer on both rather than on neither.
+		want := make([]uint, 0, len(client.Accounts))
+		for _, have := range clientInterfaces(client.Accounts) {
+			if have != fromID {
+				want = append(want, have)
+			}
+		}
+		want = append(want, toID)
+		if err := s.setInterfaces(ctx, client, want); err != nil {
+			// One customer's failure -- a full address pool on the new
+			// server, say -- must not stop the rest being moved.
+			failed++
+			s.log.Warn("customer could not be moved", "client", client.Name, "error", err)
+			continue
+		}
+		moved++
+	}
+	s.log.Info("customers moved to another server",
+		"from", from.Name, "to", to.Name, "moved", moved, "failed", failed)
+	return moved, failed, nil
+}
+
 func (s *Clients) revives(client *model.Client, in UpdateInput) bool {
 	if in.Status != nil {
 		return false // an explicit status wins
@@ -1555,6 +1642,11 @@ func (s *Clients) Delete(ctx context.Context, id uint) error {
 // depletingPercent is the share of the allowance at which a client is flagged
 // as running low.
 const depletingPercent = 80
+
+// expiringWithin is how far ahead a plan's end has to fall for the customer
+// to count as expiring soon: near enough that a renewal offered now lands
+// before the service stops.
+const expiringWithin = 3 * 24 * time.Hour
 
 // BulkAction is an operation applied to a selected set of clients.
 type BulkAction string
