@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="fa" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#2a1c10">
+<title>پنل اشتراک</title>
+<style>
+:root{
+  --page:#2a1c10;--ink:#2b1d10;--muted:#6e5a3f;--card1:#dbc9a3;--card2:#cdb88c;--edge:#8d6d41;--line:#a98a5b;
+  --green:#243b2e;--green2:#1f3a2b;--cream:#efe3c4;--brown:#6a4a2c;--tan:#cdb68a;--tan-edge:#a58a5c;--tile:rgba(255,248,226,.22);
+  --ok:#4fe0a0;--bad:#c0502f;
+  --noise:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35 0 0 0 0 .24 0 0 0 0 .1 0 0 0 .16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+[data-theme=light]{--page:#e9dec4;--card1:#e9dcbb;--card2:#decca2;--muted:#6b5838}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--page) var(--noise);color:var(--ink);font-family:Vazirmatn,Vazir,IRANSansX,Estedad,"Segoe UI",Tahoma,system-ui,sans-serif;font-size:15px;line-height:1.6;min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+a{color:inherit}
+svg.i{width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.f{fill:currentColor;stroke:none}
+.wrap{max-width:520px;margin:0 auto;padding:0 14px 130px}
+
+/* hero */
+.hero{position:relative;height:250px;margin:0 -14px;overflow:hidden;background:linear-gradient(#6a563a 0%,#b39461 55%,#7a6038 100%)}
+.hero.img{background-size:cover;background-position:center}
+.hero:after{content:"";position:absolute;inset:auto 0 0 0;height:90px;background:linear-gradient(transparent,var(--page))}
+.hero svg.fv{position:absolute;left:50%;top:52px;width:340px;margin-left:-170px;opacity:.92}
+.hero .sun{position:absolute;left:50%;top:80px;width:240px;height:240px;margin-left:-120px;border-radius:50%;background:radial-gradient(#f0d9a0 0%,rgba(240,217,160,0) 68%);opacity:.55}
+.top{position:absolute;z-index:2;inset:14px 14px auto 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.brand{display:flex;align-items:center;gap:10px;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.55)}
+.brand b{display:block;font-size:20px;line-height:1.25}
+.brand small{display:block;font-size:13px;opacity:.9;line-height:1.2}
+.sq-g{width:46px;height:46px;border-radius:15px;background:var(--green);border:1px solid rgba(255,255,255,.18);color:var(--cream);display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,0,0,.35)}
+.circs{display:flex;gap:8px}
+.circ{width:42px;height:42px;border-radius:50%;background:rgba(40,30,20,.62);color:var(--cream);display:grid;place-items:center;font-weight:700;font-size:13px;border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(2px);text-decoration:none}
+
+/* notice */
+.notice{position:relative;z-index:3;margin:-34px 0 14px;border-radius:999px;background:var(--card1) var(--noise);border:3px solid var(--edge);box-shadow:inset 0 0 0 4px var(--card2),inset 0 0 0 5px var(--line),0 6px 16px rgba(0,0,0,.35);padding:12px 18px;display:flex;align-items:center;justify-content:center;gap:12px;text-align:center;font-weight:600;font-size:14px}
+.notice svg{color:#7a5a30;width:20px;height:20px}
+
+/* cards */
+.card{position:relative;background:var(--card1) var(--noise);border:3px solid var(--edge);border-radius:28px;box-shadow:inset 0 0 0 5px var(--card2),inset 0 0 0 6px var(--line),0 8px 22px rgba(0,0,0,.4);padding:22px 18px;margin-bottom:14px}
+.card h2{margin:0;font-size:22px;line-height:1.3}
+.card .sub{margin:2px 0 14px;color:var(--muted);font-size:14px}
+.tile{position:relative;background:var(--tile);border:2px solid var(--line);border-radius:20px;box-shadow:inset 0 0 0 3px rgba(205,184,140,.55),inset 0 0 0 4px var(--line);padding:13px 14px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+
+.chip{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:5px 16px;font-weight:700;font-size:14px;background:var(--green);color:var(--cream)}
+.chip i{width:9px;height:9px;border-radius:50%;background:#fff;display:block}
+.chip.bad{background:#6a2a18}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 16px}
+.tag{background:var(--tan);border:1.5px solid var(--tan-edge);color:#5b4426;border-radius:999px;padding:3px 14px;font-weight:600;font-size:13px}
+.uname-l{color:var(--muted);font-size:14px}
+.uname{font-size:32px;font-weight:800;line-height:1.2;word-break:break-all;margin:0 0 14px}
+.btns{display:flex;gap:10px;margin-bottom:14px}
+.btn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;border-radius:999px;font-weight:700;font-size:14px;padding:0 10px;white-space:nowrap;text-decoration:none;transition:transform .08s}
+.btn:active{transform:scale(.98)}
+.btn.dark{background:var(--green);color:var(--cream)}
+.btn.light{background:#e6d6af;color:var(--ink);border:2px solid var(--tan-edge)}
+.btn.full{width:100%;flex:none}
+.tile .l{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#4b3820;font-weight:600;font-size:14px}
+.tile .l svg{color:#7a5a30;width:26px;height:26px}
+.tile .v{font-weight:800;font-size:17px;margin-top:6px;line-height:1.35}
+.tile.c{text-align:center}
+.tile.c svg{color:#6b4d2a;width:30px;height:30px;display:block;margin:0 auto 4px}
+.tile.c .l{display:block;color:#3b2a14;font-weight:800;font-size:14px}
+.tile.c .v{font-size:15px;margin-top:2px}
+.ttl{display:flex;align-items:center;justify-content:center;gap:12px;font-weight:800;font-size:20px;margin:2px 0 14px}
+.ttl:before,.ttl:after{content:"";flex:1;height:2px;background:var(--line);opacity:.8}
+.ttl span:before,.ttl span:after{content:"❦";color:#7a5a30;font-size:15px;margin:0 8px}
+.usage{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ring{position:relative;width:132px;height:132px;flex:none}
+.ring text{font-family:inherit}
+.rose{width:120px;height:120px;opacity:.55;flex:none}
+.split{display:grid;grid-template-columns:1fr 2px 1fr;align-items:center;text-align:center;margin:16px 0 12px}
+.split .bar{height:56px;background:var(--line)}
+.split small{display:block;color:var(--muted);font-weight:600}
+.split b{font-size:17px}
+.dots{display:flex;justify-content:space-between;gap:3px;margin:6px 4px}
+.dots i{flex:1;max-width:28px;aspect-ratio:1;border-radius:50%;background:#bba983;border:2px solid #a7916a}
+.dots i.on{background:#2c5a41;border-color:#1f3a2b}
+.tot{text-align:center;font-weight:600;margin-top:8px}
+.stat .v{font-size:14px;line-height:1.3;margin-top:4px}
+.stat .l{display:block;font-size:13px;font-weight:700;color:#3b2a14;margin-top:6px}
+
+/* rows (configs) */
+.row{margin-bottom:12px;padding:12px 12px 12px}
+.rt{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.sq{width:46px;height:46px;border-radius:14px;background:var(--green);color:var(--cream);display:grid;place-items:center;flex:none}
+.sq svg{width:22px;height:22px}
+.rn{flex:1;min-width:0}
+.rn b{display:block;font-size:17px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rn small{display:flex;align-items:center;gap:6px;color:var(--muted);font-weight:600;font-size:12.5px}
+.dot{width:8px;height:8px;border-radius:50%;background:#2f8a5a;display:inline-block}
+.dot.off{background:#9a8a6a}
+.pill{background:var(--green);color:var(--cream);border-radius:999px;padding:2px 12px;font-weight:700;font-size:12px;white-space:nowrap}
+.pill.new{background:#7a4a1c}
+.mini-row{display:grid;gap:8px}
+.mini{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;border-radius:14px;background:#c8b184;border:1.5px solid var(--tan-edge);color:#3b2a14;font-weight:700;font-size:12px}
+.mini svg{width:19px;height:19px}
+.mini.g{background:var(--green);border-color:#10241a;color:var(--cream)}
+.mini[disabled]{opacity:.6;cursor:progress}
+.hint{color:var(--muted);font-size:13px;margin:10px 2px 0}
+
+/* apps */
+.app{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;padding:16px}
+.app .sq{width:52px;height:52px;border-radius:16px}
+.app .sq svg{width:26px;height:26px}
+.app .nm{font-size:22px;font-weight:800;line-height:1.2}
+.app.me{border-color:#6d7f72}
+
+/* nav */
+.nav{position:fixed;z-index:20;inset:auto 0 0 0;padding:10px 14px calc(14px + env(safe-area-inset-bottom));display:flex;gap:9px;justify-content:center;pointer-events:none}
+.nav>div{display:flex;gap:9px;width:100%;max-width:520px;pointer-events:auto}
+.nb{flex:1;min-height:58px;border-radius:999px;background:var(--brown) var(--noise);border:2px solid #b0915c;color:#f3e4c0;display:flex;align-items:center;justify-content:center;gap:9px;font-weight:700;font-size:14px;box-shadow:0 6px 16px rgba(0,0,0,.45);padding:0 8px;white-space:nowrap;overflow:hidden}
+.nb svg{width:21px;height:21px}
+.nb.on{background:var(--green);border-color:#c7ae74}
+
+/* sheet / toast */
+#sheet{position:fixed;z-index:50;inset:0;background:rgba(15,9,3,.66);display:none;align-items:flex-end;justify-content:center}
+#sheet.show{display:flex}
+.sh{width:100%;max-width:520px;max-height:88vh;overflow:auto;background:var(--card1) var(--noise);border:3px solid var(--edge);border-bottom:0;border-radius:28px 28px 0 0;padding:18px 18px calc(24px + env(safe-area-inset-bottom));box-shadow:inset 0 0 0 5px var(--card2),inset 0 0 0 6px var(--line)}
+.sh .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sh .hd b{font-size:20px}
+.x{width:40px;height:40px;border-radius:50%;background:#c8b184;border:1.5px solid var(--tan-edge);display:grid;place-items:center}
+.qrbox{background:#fff;border-radius:18px;padding:10px;max-width:300px;margin:6px auto 12px;border:2px solid var(--line)}
+.qrbox svg{display:block;width:100%;height:auto}
+.cap{text-align:center;color:var(--muted);font-size:13.5px;margin:0 0 8px}
+.ai{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:10px}
+.ai .rn b{white-space:normal}
+.ai a.btn{flex:none;min-height:42px;padding:0 18px;font-size:14px}
+#toast{position:fixed;z-index:60;left:50%;bottom:96px;transform:translate(-50%,16px);background:#1b120a;color:var(--cream);border:1.5px solid #b0915c;border-radius:999px;padding:10px 20px;font-weight:600;font-size:14px;opacity:0;pointer-events:none;transition:.2s;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+.empty{text-align:center;padding:26px 6px}
+.empty h2{margin-bottom:6px}
+.spin{display:inline-block;width:18px;height:18px;border:3px solid #a58a5c;border-top-color:var(--green);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-4px}
+@keyframes sp{to{transform:rotate(360deg)}}
+[dir=ltr] .ttl span:before,[dir=ltr] .ttl span:after{margin:0 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero" id="hero">
+    <div class="sun"></div>
+    <svg class="fv" id="fv" viewBox="0 0 300 170" aria-hidden="true"></svg>
+    <div class="top">
+      <div class="brand">
+        <span class="sq-g"><button id="b-refresh" data-act="refresh" aria-label="refresh" style="display:grid;place-items:center;width:100%;height:100%"></button></span>
+        <span><b id="brand"></b><small id="brandsub"></small></span>
+      </div>
+      <div class="circs">
+        <a class="circ" id="b-support" data-act="support" href="#" aria-label="support"></a>
+        <button class="circ" id="b-theme" data-act="theme" aria-label="theme"></button>
+        <button class="circ" id="b-lang" data-act="lang" aria-label="language"></button>
+      </div>
+    </div>
+  </header>
+  <div class="notice" id="notice" hidden></div>
+  <main id="app"><div class="card empty"><span class="spin"></span></div></main>
+</div>
+<nav class="nav"><div id="nav"></div></nav>
+<div id="sheet" role="dialog" aria-modal="true"></div>
+<div id="toast" role="status"></div>
+
+<script>
+var QR = (function () {
+  'use strict';
+  var ECC_PER_BLOCK = [
+    [-1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28]
+  ];
+  var NUM_BLOCKS = [
+    [-1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 4, 6, 6, 6, 6, 7, 8, 8, 9, 9, 10, 12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25],
+    [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49]
+  ];
+  var FORMAT_BITS = [1, 0];
+
+  function rawModules(ver) {
+    var r = (16 * ver + 128) * ver + 64;
+    if (ver >= 2) {
+      var n = Math.floor(ver / 7) + 2;
+      r -= (25 * n - 10) * n - 55;
+      if (ver >= 7) r -= 36;
+    }
+    return r;
+  }
+  function dataCodewords(ver, e) {
+    return Math.floor(rawModules(ver) / 8) - ECC_PER_BLOCK[e][ver] * NUM_BLOCKS[e][ver];
+  }
+  function gfMul(x, y) {
+    var z = 0;
+    for (var i = 7; i >= 0; i--) {
+      z = (z << 1) ^ ((z >>> 7) * 0x11D);
+      z ^= ((y >>> i) & 1) * x;
+    }
+    return z;
+  }
+  function rsDivisor(deg) {
+    var res = [], i, j;
+    for (i = 0; i < deg - 1; i++) res.push(0);
+    res.push(1);
+    var root = 1;
+    for (i = 0; i < deg; i++) {
+      for (j = 0; j < res.length; j++) {
+        res[j] = gfMul(res[j], root);
+        if (j + 1 < res.length) res[j] ^= res[j + 1];
+      }
+      root = gfMul(root, 2);
+    }
+    return res;
+  }
+  function rsRemainder(data, div) {
+    var res = div.map(function () { return 0; });
+    data.forEach(function (b) {
+      var f = b ^ res.shift();
+      res.push(0);
+      div.forEach(function (c, i) { res[i] ^= gfMul(c, f); });
+    });
+    return res;
+  }
+  function alignPositions(ver) {
+    if (ver === 1) return [];
+    var n = Math.floor(ver / 7) + 2;
+    var step = ver === 32 ? 26 : Math.ceil((ver * 4 + 4) / (n * 2 - 2)) * 2;
+    var res = [6];
+    for (var pos = ver * 4 + 17 - 7; res.length < n; pos -= step) res.splice(1, 0, pos);
+    return res;
+  }
+  function bit(x, i) { return ((x >>> i) & 1) !== 0; }
+
+  function encode(text, eccPref, forceMask) {
+    var bytes = Array.prototype.slice.call(new TextEncoder().encode(text));
+    var order = eccPref === 'L' ? [0] : [1, 0];
+    var ver = 0, e = 0, found = false;
+    for (var oi = 0; oi < order.length && !found; oi++) {
+      for (var v = 1; v <= 40; v++) {
+        var cap = dataCodewords(v, order[oi]) * 8;
+        var need = 4 + (v < 10 ? 8 : 16) + bytes.length * 8;
+        if (need <= cap) { ver = v; e = order[oi]; found = true; break; }
+      }
+    }
+    if (!found) throw new Error('too long');
+    var bits = [];
+    function put(val, len) { for (var i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1); }
+    put(4, 4);
+    put(bytes.length, ver < 10 ? 8 : 16);
+    bytes.forEach(function (b) { put(b, 8); });
+    var capBits = dataCodewords(ver, e) * 8;
+    put(0, Math.min(4, capBits - bits.length));
+    put(0, (8 - bits.length % 8) % 8);
+    for (var pad = 0xEC; bits.length < capBits; pad ^= 0xEC ^ 0x11) put(pad, 8);
+    var data = [];
+    for (var i = 0; i < bits.length; i += 8) {
+      var b = 0;
+      for (var k = 0; k < 8; k++) b = (b << 1) | bits[i + k];
+      data.push(b);
+    }
+    // ECC + interleave
+    var nb = NUM_BLOCKS[e][ver], eccLen = ECC_PER_BLOCK[e][ver];
+    var raw = Math.floor(rawModules(ver) / 8);
+    var nShort = nb - raw % nb, shortLen = Math.floor(raw / nb);
+    var blocks = [], div = rsDivisor(eccLen), pos = 0;
+    for (i = 0; i < nb; i++) {
+      var dat = data.slice(pos, pos + shortLen - eccLen + (i < nShort ? 0 : 1));
+      pos += dat.length;
+      var ecc = rsRemainder(dat, div);
+      if (i < nShort) dat.push(0);
+      blocks.push(dat.concat(ecc));
+    }
+    var all = [];
+    for (i = 0; i < blocks[0].length; i++) {
+      for (var j = 0; j < blocks.length; j++) {
+        if (i !== shortLen - eccLen || j >= nShort) all.push(blocks[j][i]);
+      }
+    }
+    // matrix
+    var size = ver * 4 + 17, m = [], fn = [];
+    for (i = 0; i < size; i++) { m.push(new Array(size).fill(false)); fn.push(new Array(size).fill(false)); }
+    function setFn(x, y, d) { m[y][x] = d; fn[y][x] = true; }
+    for (i = 0; i < size; i++) { setFn(6, i, i % 2 === 0); setFn(i, 6, i % 2 === 0); }
+    function finder(cx, cy) {
+      for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) {
+        var dist = Math.max(Math.abs(dx), Math.abs(dy)), xx = cx + dx, yy = cy + dy;
+        if (xx >= 0 && xx < size && yy >= 0 && yy < size) setFn(xx, yy, dist !== 2 && dist !== 4);
+      }
+    }
+    finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+    var ap = alignPositions(ver), na = ap.length;
+    for (i = 0; i < na; i++) for (j = 0; j < na; j++) {
+      if ((i === 0 && j === 0) || (i === 0 && j === na - 1) || (i === na - 1 && j === 0)) continue;
+      for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++)
+        setFn(ap[i] + dx, ap[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+    }
+    function drawFormat(mask) {
+      var d = (FORMAT_BITS[e] << 3) | mask, rem = d;
+      for (var q = 0; q < 10; q++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+      var bitsF = ((d << 10) | rem) ^ 0x5412, t;
+      for (t = 0; t <= 5; t++) setFn(8, t, bit(bitsF, t));
+      setFn(8, 7, bit(bitsF, 6)); setFn(8, 8, bit(bitsF, 7)); setFn(7, 8, bit(bitsF, 8));
+      for (t = 9; t < 15; t++) setFn(14 - t, 8, bit(bitsF, t));
+      for (t = 0; t < 8; t++) setFn(size - 1 - t, 8, bit(bitsF, t));
+      for (t = 8; t < 15; t++) setFn(8, size - 15 + t, bit(bitsF, t));
+      setFn(8, size - 8, true);
+    }
+    drawFormat(0);
+    if (ver >= 7) {
+      var rem = ver;
+      for (i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+      var vb = (ver << 12) | rem;
+      for (i = 0; i < 18; i++) {
+        var col = bit(vb, i), a = size - 11 + i % 3, bb = Math.floor(i / 3);
+        setFn(a, bb, col); setFn(bb, a, col);
+      }
+    }
+    // codewords
+    var idx = 0;
+    for (var right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (var vert = 0; vert < size; vert++) {
+        for (j = 0; j < 2; j++) {
+          var x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - vert : vert;
+          if (!fn[y][x] && idx < all.length * 8) { m[y][x] = bit(all[idx >>> 3], 7 - (idx & 7)); idx++; }
+        }
+      }
+    }
+    function applyMask(mask) {
+      for (var y = 0; y < size; y++) for (var x = 0; x < size; x++) {
+        var inv;
+        switch (mask) {
+          case 0: inv = (x + y) % 2 === 0; break;
+          case 1: inv = y % 2 === 0; break;
+          case 2: inv = x % 3 === 0; break;
+          case 3: inv = (x + y) % 3 === 0; break;
+          case 4: inv = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; break;
+          case 5: inv = x * y % 2 + x * y % 3 === 0; break;
+          case 6: inv = (x * y % 2 + x * y % 3) % 2 === 0; break;
+          default: inv = ((x + y) % 2 + x * y % 3) % 2 === 0;
+        }
+        if (!fn[y][x] && inv) m[y][x] = !m[y][x];
+      }
+    }
+    function penalty() {
+      var p = 0, y, x, run, dark = 0;
+      for (y = 0; y < size; y++) {
+        run = 1;
+        for (x = 1; x < size; x++) {
+          if (m[y][x] === m[y][x - 1]) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1;
+        }
+      }
+      for (x = 0; x < size; x++) {
+        run = 1;
+        for (y = 1; y < size; y++) {
+          if (m[y][x] === m[y - 1][x]) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1;
+        }
+      }
+      for (y = 0; y < size - 1; y++) for (x = 0; x < size - 1; x++) {
+        var c = m[y][x];
+        if (c === m[y][x + 1] && c === m[y + 1][x] && c === m[y + 1][x + 1]) p += 3;
+      }
+      for (y = 0; y < size; y++) for (x = 0; x < size; x++) if (m[y][x]) dark++;
+      var k = Math.ceil(Math.abs(dark * 20 - size * size * 10) / (size * size)) - 1;
+      return p + Math.max(k, 0) * 10;
+    }
+    var best = 0, bestP = Infinity;
+    for (var mk = 0; mk < 8; mk++) {
+      applyMask(mk); drawFormat(mk);
+      var pp = penalty();
+      if (pp < bestP) { bestP = pp; best = mk; }
+      applyMask(mk);
+    }
+    if (typeof forceMask === 'number') best = forceMask;
+    applyMask(best); drawFormat(best);
+    return { size: size, modules: m, version: ver, mask: best };
+  }
+
+  function toSvg(text, fg, bg) {
+    var q = encode(text, 'M'), n = q.size, b = 4, d = '';
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++)
+      if (q.modules[y][x]) d += 'M' + (x + b) + ',' + (y + b) + 'h1v1h-1z';
+    var s = n + b * 2;
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + s + ' ' + s + '" shape-rendering="crispEdges" role="img" aria-label="QR">' +
+      '<rect width="' + s + '" height="' + s + '" fill="' + (bg || '#fff') + '"/><path d="' + d + '" fill="' + (fg || '#000') + '"/></svg>';
+  }
+  return { encode: encode, toSvg: toSvg };
+})();
+
+</script>
+<script>
+(function () {
+'use strict';
+
+/* ---------- settings you may edit ---------- */
+var CFG = {
+  brand: 'Coffee-shop',
+  notice: null,            // null = default text, '' = hide the notice bar
+  heroImage: '',           // optional: url of a hero background image (e.g. 'hero.jpg')
+  v2boxSubUrl: null        // optional: panel endpoint returning a V2Box-compatible subscription, e.g. '/api/v1/sub/{token}?format=v2box'
+};
+
+/* ---------- text ---------- */
+var T = {
+  fa: {
+    brandSub: 'پنل اشتراک', notice: 'اگه وصل نشد، کانفیگ جدید رو از بخش کانفیگ‌ها بگیر',
+    tabAccount: 'اطلاعات حساب', tabConfigs: 'کانفیگ‌ها', tabApps: 'اپلیکیشن‌ها', tabGuide: 'راهنما',
+    guide: 'راهنمای استفاده', guideSub: 'کدام کانفیگ با کدام برنامه کار می‌کند و چطور اضافه‌اش کنید.', moreBtn: 'نمایش بیشتر',
+    hidGuide: 'فقط کانفیگ‌های وایرگارد این اشتراک وارد هیدیفای می‌شوند؛ برای VLESS و تروجان از V2Box استفاده کنید (توضیح کامل در تب «راهنما»).',
+    gHidT: 'هیدیفای — مخصوص وایرگارد',
+    gHid: 'فقط کانفیگ‌های وایرگارد (AmneziaWG) این اشتراک به هیدیفای می‌روند. از تب «کانفیگ‌ها» دکمهٔ «افزودن همه کانفیگ‌ها به هیدیفای» را بزنید تا همه یکجا وارد شوند. هیدیفای باید نسخهٔ ۴ یا بالاتر باشد و کانفیگ‌ها نباید ویرایش شوند، وگرنه وصل نمی‌شوند.',
+    gV2T: 'V2Box و v2rayNG — مخصوص VLESS، تروجان و بقیه',
+    gV2: 'کانفیگ‌های VLESS، تروجان، Hysteria2 و شادوساکس در هیدیفای نمی‌آیند. از تب «کانفیگ‌ها» با دکمهٔ «افزودن به V2Box» همه‌شان یکجا وارد V2Box می‌شوند؛ در v2rayNG هم کافی است لینک اشتراک را کپی کنید و از بخش اشتراک‌ها (Subscription) اضافه‌اش کنید.',
+    gWgT: 'اپ وایرگارد و AmneziaWG',
+    gWg: 'هر کانفیگ وایرگارد را می‌توانید از فهرست تب «کانفیگ‌ها» جداگانه دانلود و در اپ WireGuard یا AmneziaWG وارد کنید؛ دکمهٔ کنار هر کانفیگ هم آن را مستقیم در برنامه باز می‌کند.',
+    gTipT: 'نکته‌ها',
+    gTip1: 'اگر کانفیگی وصل نشد، اول پروفایل را در برنامه‌تان به‌روز کنید؛ بیشتر مشکل‌ها با همین کار حل می‌شود.',
+    gTip2: 'برای گرفتن کانفیگ‌های تازه، در هیدیفای و V2Box روی پروفایل اشتراک بزنید و «به‌روزرسانی» را انتخاب کنید.',
+    gTip3: 'لینک اشتراک مثل رمز عبور است؛ آن را با کسی به اشتراک نگذارید.',
+    sActive: 'فعال', sExpired: 'منقضی', sLimited: 'حجم تمام شده', sDisabled: 'غیرفعال', sUnknown: 'نامشخص',
+    username: 'نام کاربری', copyLink: 'کپی لینک اشتراک', qrLink: 'QR اشتراک',
+    lastConn: 'آخرین اتصال', remaining: 'زمان باقی‌مانده', unlimited: 'نامحدود', never: 'هنوز متصل نشده',
+    usage: 'وضعیت مصرف', used: 'مصرف', left: 'باقی‌مانده', total: 'حجم کل', totalUsed: 'مصرف کل', leftVol: 'حجم باقی‌مانده',
+    devices: 'دستگاه فعال', devLimit: 'ظرفیت مجاز', expiry: 'تاریخ انقضا', nodesOn: 'نودهای آنلاین',
+    cfgCount: '{n} کانفیگ', devCount: '{a} از {b} دستگاه', daysLeft: '{n} روز مانده', day: 'روز',
+    configs: 'کانفیگ‌ها', configsSub: 'لینک اشتراک و کانفیگ‌های وایرگارد', copyAll: 'کپی همه لینک‌ها (V2Box)',
+    subLink: 'لینک اشتراک', v2boxSub: 'لینک ساب V2Box', hidSub: 'هیدیفای', recommended: 'پیشنهادی', online: 'آنلاین', offline: 'آفلاین',
+    dl: 'دانلود', copy: 'کپی', qr: 'QR', v2box: 'V2Box',
+    apps: 'اپلیکیشن‌ها', appsSub: 'لیست اپلیکیشن‌ها بر اساس سیستم‌عامل', yourSys: 'سیستم شما', view: 'مشاهده', get: 'دریافت', neu: 'جدید',
+    copied: 'کپی شد', copyFail: 'کپی نشد', fetching: 'در حال دریافت کانفیگ…', cfgErr: 'دریافت کانفیگ ناموفق بود', dled: 'فایل دانلود شد',
+    v2boxTip: 'اگر V2Box باز نشد، در برنامه از «کلیپ‌بورد» اضافه کن؛ لینک کپی شده است.',
+    v2boxGuide: 'با دکمهٔ «افزودن به V2Box» همهٔ کانفیگ‌های این اشتراک (VLESS، تروجان و بقیهٔ پروتکل‌ها — به‌جز وایرگارد) یکجا وارد V2Box می‌شود. برای v2rayNG هم کافی است دکمهٔ کپی را بزنید و همین لینک اشتراک را در برنامه اضافه کنید. کانفیگ‌های وایرگارد فقط از فهرست کانفیگ‌های همین صفحه قابل استفاده‌اند.',
+    v2boxAdd: 'افزودن کانفیگ پیشنهادی به V2Box', v2boxSubAdd: 'افزودن لینک ساب به V2Box', v2boxCopySub: 'کپی لینک ساب V2Box',
+    hidSubAdd: 'افزودن همه کانفیگ‌ها به هیدیفای', hidTip: 'لینک هیدیفای کپی شد؛ اگه اپ باز نشد، لینک رو دستی تو هیدیفای وارد کن',
+    qrCfg: 'این QR را در برنامه WireGuard اسکن کن', qrLinkCap: 'این QR لینک اشتراک است', close: 'بستن',
+    nf: 'اشتراک پیدا نشد', nfSub: 'لینک اشتراک نامعتبر است یا حذف شده.', neterr: 'اتصال به پنل برقرار نشد', retry: 'تلاش دوباره',
+    noSupport: 'راه پشتیبانی تنظیم نشده', noNodes: 'هنوز کانفیگی برای این اشتراک ساخته نشده.', gb: 'گیگابایت', mb: 'مگابایت', kb: 'کیلوبایت', b: 'بایت',
+    p_android: 'اندروید', p_ios: 'iOS', p_windows: 'ویندوز', p_macos: 'مک', p_linux: 'لینوکس', ago: 'پیش'
+  },
+  en: {
+    brandSub: 'Subscription panel', notice: 'If it won\'t connect, grab a fresh config from the Configs tab',
+    tabAccount: 'Account', tabConfigs: 'Configs', tabApps: 'Apps', tabGuide: 'Guide',
+    guide: 'How to use', guideSub: 'Which config works with which app, and how to add it.', moreBtn: 'Show more',
+    hidGuide: 'Only this subscription\'s WireGuard configs go into Hiddify; for VLESS and Trojan use V2Box (full explanation in the Guide tab).',
+    gHidT: 'Hiddify — for WireGuard',
+    gHid: 'Only the WireGuard (AmneziaWG) configs of this subscription go into Hiddify. In the Configs tab, tap "Add all configs to Hiddify" to import them all at once. Hiddify must be version 4 or later, and the configs must not be edited, or they will not connect.',
+    gV2T: 'V2Box & v2rayNG — for VLESS, Trojan and the rest',
+    gV2: 'VLESS, Trojan, Hysteria2 and Shadowsocks configs do not go into Hiddify. In the Configs tab, the "Add to V2Box" button imports them all into V2Box at once; in v2rayNG, just copy the subscription link and add it under Subscriptions.',
+    gWgT: 'WireGuard & AmneziaWG apps',
+    gWg: 'Each WireGuard config can also be downloaded separately from the Configs tab list and imported into the WireGuard or AmneziaWG app; the button beside each config opens it in the app directly.',
+    gTipT: 'Tips',
+    gTip1: 'If a config will not connect, update its profile in your app first; that fixes most problems.',
+    gTip2: 'To receive fresh configs, open the subscription profile in Hiddify or V2Box and choose Update.',
+    gTip3: 'Your subscription link is like a password; do not share it with anyone.',
+    sActive: 'Active', sExpired: 'Expired', sLimited: 'Quota used up', sDisabled: 'Disabled', sUnknown: 'Unknown',
+    username: 'Username', copyLink: 'Copy subscription link', qrLink: 'Subscription QR',
+    lastConn: 'Last connection', remaining: 'Time left', unlimited: 'Unlimited', never: 'Never connected',
+    usage: 'Usage', used: 'Used', left: 'Left', total: 'Total quota', totalUsed: 'Total used', leftVol: 'Remaining',
+    devices: 'Active devices', devLimit: 'Device limit', expiry: 'Expires on', nodesOn: 'Nodes online',
+    cfgCount: '{n} configs', devCount: '{a} of {b} devices', daysLeft: '{n} days left', day: 'days',
+    configs: 'Configs', configsSub: 'Subscription link and WireGuard configs', copyAll: 'Copy all links (V2Box)',
+    subLink: 'Subscription link', v2boxSub: 'V2Box sub link', hidSub: 'Hiddify', recommended: 'Recommended', online: 'Online', offline: 'Offline',
+    dl: 'Download', copy: 'Copy', qr: 'QR', v2box: 'V2Box',
+    apps: 'Apps', appsSub: 'Apps by operating system', yourSys: 'Your system', view: 'View', get: 'Get', neu: 'New',
+    copied: 'Copied', copyFail: 'Couldn\'t copy', fetching: 'Fetching config…', cfgErr: 'Couldn\'t fetch the config', dled: 'File downloaded',
+    v2boxTip: 'If V2Box didn\'t open, add it from the clipboard inside the app; the link is copied.',
+    v2boxGuide: 'The "Add to V2Box" button imports every config of this subscription (VLESS, Trojan and the other protocols — except WireGuard) into V2Box at once. For v2rayNG, tap copy and add the same subscription link in the app. WireGuard configs are only available from the config list on this page.',
+    v2boxAdd: 'Add recommended config to V2Box', v2boxSubAdd: 'Add sub link to V2Box', v2boxCopySub: 'Copy V2Box sub link',
+    hidSubAdd: 'Add all configs to Hiddify', hidTip: 'Hiddify link copied; if the app did not open, paste the link into Hiddify manually',
+    qrCfg: 'Scan this QR in the WireGuard app', qrLinkCap: 'This QR is the subscription link', close: 'Close',
+    nf: 'Subscription not found', nfSub: 'The link is invalid or was removed.', neterr: 'Couldn\'t reach the panel', retry: 'Try again',
+    noSupport: 'No support contact set', noNodes: 'No configs have been created for this subscription yet.', gb: 'GB', mb: 'MB', kb: 'KB', b: 'B',
+    p_android: 'Android', p_ios: 'iOS', p_windows: 'Windows', p_macos: 'macOS', p_linux: 'Linux', ago: 'ago'
+  }
+};
+
+/* ---------- apps ---------- */
+var APPS = {
+  android: [
+    { n: 'WireGuard', d: { fa: 'کلاینت رسمی وایرگارد', en: 'The official WireGuard client' }, u: 'https://play.google.com/store/apps/details?id=com.wireguard.android' },
+    { n: 'AmneziaWG', neu: 1, d: { fa: 'وایرگارد مقاوم‌تر در برابر فیلترینگ', en: 'WireGuard hardened against filtering' }, u: 'https://play.google.com/store/apps/details?id=org.amnezia.awg' }
+  ],
+  ios: [
+    { n: 'WireGuard', d: { fa: 'کلاینت رسمی وایرگارد', en: 'The official WireGuard client' }, u: 'https://apps.apple.com/app/wireguard/id1441195209' },
+    { n: 'AmneziaWG', neu: 1, d: { fa: 'وایرگارد مقاوم‌تر در برابر فیلترینگ', en: 'WireGuard hardened against filtering' }, u: 'https://apps.apple.com/app/id6478942365' },
+    { n: 'V2Box', neu: 1, v2: 1, d: { fa: 'کانفیگ‌ها با یک کلیک اضافه می‌شن', en: 'Imports configs in one tap' }, u: 'https://apps.apple.com/app/id6446814690' }
+  ],
+  windows: [
+    { n: 'WireGuard', d: { fa: 'کلاینت رسمی وایرگارد', en: 'The official WireGuard client' }, u: 'https://www.wireguard.com/install/' },
+    { n: 'AmneziaWG', neu: 1, d: { fa: 'وایرگارد مقاوم‌تر در برابر فیلترینگ', en: 'WireGuard hardened against filtering' }, u: 'https://github.com/amnezia-vpn/amneziawg-windows-client/releases' }
+  ],
+  macos: [
+    { n: 'WireGuard', d: { fa: 'کلاینت رسمی وایرگارد', en: 'The official WireGuard client' }, u: 'https://apps.apple.com/app/wireguard/id1451685025' }
+  ],
+  linux: [
+    { n: 'WireGuard', d: { fa: 'ابزار رسمی wg-quick', en: 'Official wg-quick tools' }, u: 'https://www.wireguard.com/install/' },
+    { n: 'AmneziaWG', neu: 1, d: { fa: 'ماژول و ابزار AmneziaWG', en: 'AmneziaWG module and tools' }, u: 'https://github.com/amnezia-vpn/amneziawg-linux-kernel-module' }
+  ]
+};
+var PLATFORMS = ['android', 'ios', 'windows', 'macos', 'linux'];
+
+/* ---------- icons ---------- */
+var P = {
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  dl: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M17 20h4M20 17v3"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  refresh: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun: '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  mobile: '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
+  flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  term: '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
+  monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'
+};
+var PF = {
+  android: '<path d="M6 18V9h12v9a1 1 0 0 1-1 1h-1v3h-2v-3h-4v3H8v-3H7a1 1 0 0 1-1-1zM3.5 9.5a1 1 0 0 1 2 0V15a1 1 0 0 1-2 0zM18.5 9.5a1 1 0 0 1 2 0V15a1 1 0 0 1-2 0zM6.4 8a5.6 5.6 0 0 1 11.2 0zM8.2 3.1l.9 1.4-.6.4-.9-1.5zM15.8 3.1l-.9 1.4.6.4.9-1.5z"/>',
+  ios: '<path d="M16.4 12.7c0-2.2 1.8-3.2 1.9-3.3-1-1.5-2.6-1.7-3.2-1.7-1.4-.1-2.6.8-3.3.8s-1.7-.8-2.8-.8c-1.4 0-2.8.9-3.5 2.1-1.5 2.6-.4 6.5 1.1 8.6.7 1 1.6 2.2 2.7 2.1 1.1 0 1.5-.7 2.8-.7s1.7.7 2.8.7 1.9-1 2.6-2.1c.8-1.2 1.1-2.3 1.2-2.4-.1 0-2.3-.9-2.3-3.3zM14.4 6.2c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.6.6-1 1.6-.9 2.6 1 .1 1.9-.5 2.5-1.2z"/>',
+  windows: '<path d="M3 5.5 10.5 4.5v7H3zM11.5 4.4 21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.4z"/>'
+};
+function ic(name, cls) { return '<svg class="i ' + (cls || '') + '" viewBox="0 0 24 24" aria-hidden="true">' + P[name] + '</svg>'; }
+function pfIcon(p) {
+  if (PF[p]) return '<svg class="i f" viewBox="0 0 24 24" aria-hidden="true">' + PF[p] + '</svg>';
+  return ic(p === 'macos' ? 'monitor' : 'term');
+}
+
+/* ---------- state ---------- */
+var q = new URLSearchParams(location.search);
+var demo = q.get('demo') === '1';
+var S = { lang: 'fa', theme: 'dark', tab: 'account', info: null, nodes: [], err: null, loading: true, cache: {}, token: '', showN: 6 };
+try { S.lang = localStorage.getItem('wgsub.lang') || 'fa'; S.theme = localStorage.getItem('wgsub.theme') || 'dark'; } catch (e) {}
+if (q.get('lang')) S.lang = q.get('lang') === 'en' ? 'en' : 'fa';
+if (q.get('theme')) S.theme = q.get('theme') === 'light' ? 'light' : 'dark';
+var hashTab = (location.hash || '').replace('#', '');
+if (['account', 'configs', 'apps', 'guide'].indexOf(hashTab) > -1) S.tab = hashTab;
+
+function t(k, v) {
+  var s = (T[S.lang] && T[S.lang][k]) || T.fa[k] || k;
+  if (v) for (var n in v) s = s.replace('{' + n + '}', v[n]);
+  return s;
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function $(id) { return document.getElementById(id); }
+
+/* ---------- formatting ---------- */
+function nf(n, d) {
+  var s = new Intl.NumberFormat(S.lang === 'fa' ? 'fa-IR' : 'en-US', { maximumFractionDigits: d == null ? 1 : d, useGrouping: false }).format(n);
+  return s.replace(/٫/g, '.');
+}
+function bytes(n) {
+  n = Number(n) || 0;
+  if (n >= 1073741824) return nf(n / 1073741824) + ' ' + t('gb');
+  if (n >= 1048576) return nf(n / 1048576) + ' ' + t('mb');
+  if (n >= 1024) return nf(n / 1024) + ' ' + t('kb');
+  return nf(n, 0) + ' ' + t('b');
+}
+function toDate(v) {
+  if (v == null || v === '' || v === 0) return null;
+  if (typeof v === 'number') return new Date(v < 1e12 ? v * 1000 : v);
+  var d = new Date(v);
+  return isNaN(d) ? null : d;
+}
+function dateStr(d) {
+  return new Intl.DateTimeFormat(S.lang === 'fa' ? 'fa-IR-u-ca-persian' : 'en-GB', { year: 'numeric', month: 'long', day: 'numeric' }).format(d);
+}
+function timeAgo(d) {
+  var diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 0) diff = 0;
+  var rtf = new Intl.RelativeTimeFormat(S.lang === 'fa' ? 'fa' : 'en', { numeric: 'auto' });
+  if (diff < 90) return S.lang === 'fa' ? 'همین الان' : 'just now';
+  if (diff < 3600) return rtf.format(-Math.round(diff / 60), 'minute');
+  if (diff < 86400) return rtf.format(-Math.round(diff / 3600), 'hour');
+  if (diff < 86400 * 7) return rtf.format(-Math.round(diff / 86400), 'day');
+  return dateStr(d);
+}
+
+/* ---------- api ---------- */
+var CC = { 'آلمان': 'DE', 'هلند': 'NL', 'فنلاند': 'FI', 'فرانسه': 'FR', 'انگلیس': 'UK', 'بریتانیا': 'UK', 'ترکیه': 'TR', 'امارات': 'AE', 'آمریکا': 'US', 'سوئد': 'SE', 'کانادا': 'CA', 'ژاپن': 'JP', 'سنگاپور': 'SG', 'لهستان': 'PL', 'روسیه': 'RU', 'ایران': 'IR', 'ارمنستان': 'AM', 'ایتالیا': 'IT', 'اسپانیا': 'ES' };
+function asciiSlug(s) { return String(s || '').replace(/[^A-Za-z0-9_=+.-]+/g, ''); }
+function cfgFileName(node, i) {
+  var label = asciiSlug((S.info && S.info.label) || '').slice(0, 8) || 'wg';
+  var name = String(node.name || '');
+  var c = '';
+  Object.keys(CC).forEach(function (k) { if (!c && name.indexOf(k) > -1) c = CC[k]; });
+  if (!c) c = asciiSlug(name).slice(0, 6);
+  if (!c) c = 'n' + (node.node_id != null ? node.node_id : i + 1);
+  return (label + '-' + c).slice(0, 15) + '.conf';
+}
+function api(path) {
+  if (demo) return demoApi(path);
+  return fetch(path, { headers: { Accept: 'application/json' }, cache: 'no-store' }).then(function (r) {
+    if (!r.ok) { var e = new Error('http'); e.status = r.status; throw e; }
+    return r.json();
+  });
+}
+function getToken() {
+  if (demo) return 'demo-token';
+  if (q.get('token')) return q.get('token');
+  var segs = location.pathname.split('/').filter(Boolean);
+  return segs.length ? decodeURIComponent(segs[segs.length - 1]) : '';
+}
+function cfgUrl(node) { return new URL(node.config_path, location.origin).href; }
+function getConfig(node, key) {
+  if (S.cache[key]) return Promise.resolve(S.cache[key]);
+  var p = demo ? demoApi(node.config_path) : fetch(cfgUrl(node), { cache: 'no-store' }).then(function (r) {
+    if (!r.ok) throw new Error('http');
+    return r.text();
+  });
+  return p.then(function (txt) { S.cache[key] = txt; return txt; });
+}
+function load() {
+  S.loading = true; S.err = null; render();
+  var tk = encodeURIComponent(S.token);
+  return api('/api/v1/sub/' + tk + '/info').then(function (info) {
+    S.info = info;
+    var nodes = info.nodes;
+    if (!Array.isArray(nodes)) return api('/api/v1/sub/' + tk + '/nodes').then(function (r) { return Array.isArray(r) ? r : (r && r.nodes) || []; });
+    return nodes;
+  }).then(function (nodes) {
+    S.nodes = nodes; S.loading = false; render();
+  }).catch(function (e) {
+    S.loading = false; S.err = (e && e.status && e.status < 500) ? 'nf' : 'net'; render();
+  });
+}
+
+/* ---------- conf -> wireguard:// ---------- */
+function parseConf(txt) {
+  var sec = '', o = { i: {}, p: {} };
+  String(txt).split(/\r?\n/).forEach(function (l) {
+    l = l.trim();
+    if (!l || l[0] === '#') return;
+    var m = l.match(/^\[(\w+)\]$/);
+    if (m) { sec = m[1].toLowerCase(); return; }
+    var k = l.indexOf('=');
+    if (k < 0) return;
+    var key = l.slice(0, k).trim().toLowerCase(), val = l.slice(k + 1).trim();
+    if (sec === 'interface') o.i[key] = val; else if (sec === 'peer' && !(key in o.p)) o.p[key] = val;
+  });
+  return o;
+}
+function toWgUri(txt, name) {
+  var c = parseConf(txt), m = (c.p.endpoint || '').match(/^(\[[^\]]+\]|[^:]+):(\d+)$/);
+  if (!m || !c.i.privatekey || !c.p.publickey) return null;
+  var qs = ['publickey=' + encodeURIComponent(c.p.publickey)];
+  if (c.i.address) qs.push('address=' + encodeURIComponent(c.i.address.replace(/\s+/g, '')).replace(/%2C/gi, ','));
+  if (c.i.mtu) qs.push('mtu=' + encodeURIComponent(c.i.mtu));
+  if (c.p.presharedkey) qs.push('presharedkey=' + encodeURIComponent(c.p.presharedkey));
+  return 'wireguard://' + encodeURIComponent(c.i.privatekey) + '@' + m[1] + ':' + m[2] + '?' + qs.join('&') + '#' + encodeURIComponent(name);
+}
+
+/* ---------- helpers: ui ---------- */
+var toastT;
+function toast(msg) {
+  var el = $('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(function () { el.classList.remove('show'); }, 2600);
+}
+function copyText(txt) {
+  function fb() {
+    var ta = document.createElement('textarea');
+    ta.value = txt; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    return ok;
+  }
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(txt).then(function () { return true; }, function () { return fb(); });
+  }
+  return Promise.resolve(fb());
+}
+function doCopy(txt, msg) {
+  return copyText(txt).then(function (ok) { toast(ok ? (msg || t('copied')) : t('copyFail')); return ok; });
+}
+function sheet(html) {
+  var el = $('sheet');
+  el.innerHTML = '<div class="sh">' + html + '</div>';
+  el.classList.add('show');
+}
+function closeSheet() { $('sheet').classList.remove('show'); $('sheet').innerHTML = ''; }
+function sheetHead(title) {
+  return '<div class="hd"><b>' + esc(title) + '</b><button class="x" data-act="close" aria-label="' + esc(t('close')) + '">' + ic('x') + '</button></div>';
+}
+function showQr(title, text, cap) {
+  var svg;
+  try { svg = QR.toSvg(text, '#1b120a', '#ffffff'); } catch (e) { toast(t('cfgErr')); return; }
+  sheet(sheetHead(title) + '<div class="qrbox">' + svg + '</div><p class="cap">' + esc(cap) + '</p>');
+}
+function pageLink() { return demo ? 'https://example.com/sub/demo-token' : location.origin + location.pathname + (q.get('token') ? '?token=' + encodeURIComponent(q.get('token')) : ''); }
+function v2boxSubLink() {
+  if (CFG.v2boxSubUrl) {
+    try { return new URL(CFG.v2boxSubUrl.replace('{token}', encodeURIComponent(S.token)), location.origin).href; } catch (e) { /* fall through to the panel format */ }
+  }
+  if (S.info && S.info.has_links) {
+    var p = pageLink();
+    return p + (p.indexOf('?') > -1 ? '&' : '?') + 'format=base64';
+  }
+  return null;
+}
+function hiddifySubLink() {
+  return location.origin + '/api/v1/sub/' + encodeURIComponent(S.token) + '/hiddify';
+}
+function platform() {
+  var ua = navigator.userAgent || '';
+  if (/android/i.test(ua)) return 'android';
+  if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+  if (/Windows/i.test(ua)) return 'windows';
+  if (/Macintosh|Mac OS/i.test(ua)) return 'macos';
+  if (/Linux|X11/i.test(ua)) return 'linux';
+  return '';
+}
+
+/* ---------- decorations ---------- */
+function drawFaravahar() {
+  var gold = '#e1c68c', dark = '#6b4f2a', s = '';
+  [-1, 1].forEach(function (d) {
+    for (var k = 0; k < 3; k++) {
+      var y = 76 + k * 13, x1 = 150 + d * (112 - k * 20), y1 = 50 + k * 17;
+      s += '<path d="M' + (150 + d * 22) + ',' + y + ' Q' + (150 + d * 70) + ',' + (y - 16) + ' ' + x1 + ',' + y1 + '" fill="none" stroke="' + dark + '" stroke-width="13" stroke-linecap="round"/>';
+      s += '<path d="M' + (150 + d * 22) + ',' + y + ' Q' + (150 + d * 70) + ',' + (y - 16) + ' ' + x1 + ',' + y1 + '" fill="none" stroke="' + gold + '" stroke-width="10" stroke-linecap="round" stroke-dasharray="3 3.2"/>';
+    }
+    s += '<path d="M' + (150 + d * 20) + ',112 q' + (d * 34) + ',10 ' + (d * 40) + ',36" fill="none" stroke="' + gold + '" stroke-width="5" stroke-linecap="round"/>';
+    s += '<circle cx="' + (150 + d * 62) + '" cy="152" r="9" fill="none" stroke="' + gold + '" stroke-width="5"/>';
+  });
+  s += '<circle cx="150" cy="86" r="25" fill="none" stroke="' + dark + '" stroke-width="9"/><circle cx="150" cy="86" r="25" fill="none" stroke="' + gold + '" stroke-width="6"/>';
+  s += '<path d="M138 140 L162 140 L156 104 L144 104Z" fill="' + gold + '" stroke="' + dark + '" stroke-width="2"/>';
+  s += '<circle cx="150" cy="70" r="9" fill="' + gold + '" stroke="' + dark + '" stroke-width="2"/><path d="M141 62 L145 48 L150 56 L155 48 L159 62Z" fill="' + gold + '" stroke="' + dark + '" stroke-width="2"/>';
+  s += '<path d="M138 140 L162 140 L168 166 L132 166Z" fill="' + gold + '" stroke="' + dark + '" stroke-width="2"/><path d="M142 148h16M140 156h20" stroke="' + dark + '" stroke-width="2"/>';
+  $('fv').innerHTML = s;
+}
+function rosette() {
+  var s = '<svg class="rose" viewBox="0 0 120 120" aria-hidden="true"><g fill="none" stroke="#6b4d2a" stroke-width="2">';
+  for (var i = 0; i < 12; i++) s += '<ellipse cx="60" cy="24" rx="9" ry="19" transform="rotate(' + i * 30 + ' 60 60)"/>';
+  s += '<circle cx="60" cy="60" r="16"/><circle cx="60" cy="60" r="7" fill="#6b4d2a"/><circle cx="60" cy="60" r="55"/></g></svg>';
+  return s;
+}
+
+/* ---------- views ---------- */
+function statusInfo(info) {
+  var st = String(info.status || '').toLowerCase();
+  if (st === 'active' || st === 'enabled' || st === 'on') return { k: 'sActive', ok: true };
+  if (st === 'expired') return { k: 'sExpired' };
+  if (st === 'limited' || st === 'exhausted' || st === 'data_limited') return { k: 'sLimited' };
+  if (st === 'disabled' || st === 'inactive' || st === 'off') return { k: 'sDisabled' };
+  return { k: 'sUnknown' };
+}
+function viewAccount() {
+  var i = S.info, st = statusInfo(i), quota = Number(i.data_quota_bytes) || 0, used = Number(i.data_used_bytes) || 0;
+  var unl = quota <= 0, pct = unl ? 0 : Math.max(0, Math.min(100, used / quota * 100));
+  var exp = toDate(i.expiry_at), hs = toDate(i.last_handshake_at);
+  var days = (i.days_left == null || !exp) ? null : Math.max(0, Number(i.days_left));
+  var dl = Number(i.device_limit) || 0, da = Number(i.devices_active) || 0;
+  var onl = S.nodes.filter(function (n) { return n.online; }).length;
+  var C = 2 * Math.PI * 46, dash = (pct / 100 * C).toFixed(1);
+  var dotsOn = unl ? 0 : Math.round(pct * 14 / 100);
+  var dots = ''; for (var k = 0; k < 14; k++) dots += '<i class="' + (k < dotsOn ? 'on' : '') + '"></i>';
+  var left = unl ? t('unlimited') : bytes(Math.max(0, quota - used));
+  var h = '';
+  h += '<section class="card">';
+  h += '<span class="chip' + (st.ok ? '' : ' bad') + '"><i></i>' + esc(t(st.k)) + '</span>';
+  h += '<div class="tags"><span class="tag">' + esc(t('cfgCount', { n: nf(S.nodes.length, 0) })) + '</span>';
+  h += '<span class="tag">' + esc(dl > 0 ? t('devCount', { a: nf(da, 0), b: nf(dl, 0) }) : t('devices') + ': ' + nf(da, 0)) + '</span>';
+  h += '<span class="tag">' + esc(days == null ? t('unlimited') : t('daysLeft', { n: nf(days, 0) })) + '</span></div>';
+  h += '<div class="uname-l">' + esc(t('username')) + '</div><h1 class="uname">' + esc(i.label || '—') + '</h1>';
+  h += '<div class="btns"><button class="btn dark" data-act="copy-link">' + ic('link') + esc(t('copyLink')) + '</button>';
+  h += '<button class="btn light" data-act="qr-link">' + ic('qr') + esc(t('qrLink')) + '</button></div>';
+  h += '<div class="grid2" style="margin-bottom:14px">';
+  h += '<div class="tile"><div class="l"><span>' + esc(t('lastConn')) + '</span>' + ic('wifi') + '</div><div class="v">' + esc(hs ? timeAgo(hs) : t('never')) + '</div></div>';
+  h += '<div class="tile"><div class="l"><span>' + esc(t('remaining')) + '</span>' + ic('clock') + '</div><div class="v">' + esc(days == null ? t('unlimited') : nf(days, 0) + ' ' + t('day')) + '</div></div></div>';
+  h += '<div class="tile" style="padding:16px 14px"><div class="ttl"><span>' + esc(t('usage')) + '</span></div>';
+  h += '<div class="usage"><div class="ring"><svg viewBox="0 0 120 120" width="132" height="132" role="img" aria-label="' + esc(nf(pct, 0)) + '%"><circle cx="60" cy="60" r="46" fill="none" stroke="#b9a67f" stroke-width="15"/>';
+  h += '<circle cx="60" cy="60" r="46" fill="none" stroke="#1f3a2b" stroke-width="15" stroke-dasharray="' + dash + ' ' + C.toFixed(1) + '" transform="rotate(-90 60 60)"/>';
+  h += '<text x="60" y="66" text-anchor="middle" font-size="' + (unl ? 30 : 22) + '" font-weight="800" fill="#2b1d10">' + (unl ? '∞' : esc(nf(pct, 0)) + '%') + '</text></svg></div>' + rosette() + '</div>';
+  h += '<div class="split"><div><small>' + esc(t('left')) + '</small><b>' + esc(left) + '</b></div><div class="bar"></div><div><small>' + esc(t('used')) + '</small><b>' + esc(bytes(used)) + '</b></div></div>';
+  h += '<div class="dots">' + dots + '</div><div class="tot">' + esc(t('total')) + ': ' + esc(unl ? t('unlimited') : bytes(quota)) + '</div></div>';
+  h += '<div class="grid3" style="margin-top:12px">';
+  h += '<div class="tile c stat">' + ic('shield') + '<span class="l">' + esc(t('total')) + '</span><div class="v">' + esc(unl ? t('unlimited') : bytes(quota)) + '</div></div>';
+  h += '<div class="tile c stat">' + ic('globe') + '<span class="l">' + esc(t('leftVol')) + '</span><div class="v">' + esc(left) + '</div></div>';
+  h += '<div class="tile c stat">' + ic('flame') + '<span class="l">' + esc(t('totalUsed')) + '</span><div class="v">' + esc(bytes(used)) + '</div></div></div>';
+  h += '<div class="grid2" style="margin-top:12px">';
+  h += '<div class="tile"><div class="l"><span>' + esc(t('devices')) + '</span>' + ic('mobile') + '</div><div class="v">' + esc(nf(da, 0)) + '</div></div>';
+  h += '<div class="tile"><div class="l"><span>' + esc(t('devLimit')) + '</span>' + ic('shield') + '</div><div class="v">' + esc(dl > 0 ? nf(dl, 0) : t('unlimited')) + '</div></div>';
+  h += '<div class="tile"><div class="l"><span>' + esc(t('expiry')) + '</span>' + ic('cal') + '</div><div class="v">' + esc(exp ? dateStr(exp) : t('unlimited')) + '</div></div>';
+  h += '<div class="tile"><div class="l"><span>' + esc(t('nodesOn')) + '</span>' + ic('globe') + '</div><div class="v">' + esc(nf(onl, 0) + ' / ' + nf(S.nodes.length, 0)) + '</div></div></div>';
+  h += '</section>';
+  return h;
+}
+function viewConfigs() {
+  var h = '<section class="card"><h2>' + esc(t('configs')) + '</h2><p class="sub">' + esc(t('configsSub')) + '</p>';
+  if (S.nodes.length) h += '<button class="btn light full" style="margin-bottom:14px" data-act="copy-all">' + ic('copy') + esc(t('copyAll')) + '</button>';
+  h += '<div class="tile row"><div class="rt"><span class="sq">' + ic('link') + '</span><div class="rn"><b>' + esc(t('subLink')) + '</b></div></div>';
+  h += '<div class="mini-row" style="grid-template-columns:repeat(2,1fr)"><button class="mini" data-act="copy-link">' + ic('copy') + esc(t('copy')) + '</button><button class="mini" data-act="qr-link">' + ic('qr') + esc(t('qr')) + '</button></div></div>';
+  var vs = v2boxSubLink();
+  if (vs) {
+    h += '<div class="tile row"><div class="rt"><span class="sq">' + ic('zap') + '</span><div class="rn"><b>' + esc(t('v2boxSub')) + '</b></div></div>';
+    h += '<div class="mini-row" style="grid-template-columns:repeat(2,1fr)"><button class="mini g" data-act="v2-sub-add">' + ic('zap') + esc(t('v2boxSubAdd')) + '</button><button class="mini" data-act="v2-sub-copy">' + ic('copy') + esc(t('copy')) + '</button></div>';
+    h += '<p class="hint" style="margin-top:10px">' + esc(t('v2boxGuide')) + '</p></div>';
+  }
+  if (S.nodes.length) {
+    h += '<div class="tile row"><div class="rt"><span class="sq">' + ic('zap') + '</span><div class="rn"><b>' + esc(t('hidSub')) + '</b></div></div>';
+    h += '<div class="mini-row" style="grid-template-columns:repeat(2,1fr)"><button class="mini g" data-act="hid-add">' + ic('zap') + esc(t('hidSubAdd')) + '</button><button class="mini" data-act="hid-copy">' + ic('copy') + esc(t('copy')) + '</button></div>';
+    h += '<p class="hint" style="margin-top:10px">' + esc(t('hidGuide')) + '</p></div>';
+  }
+  if (!S.nodes.length) h += '<p class="hint">' + esc(t('noNodes')) + '</p>';
+  var showN = S.showN || 6;
+  S.nodes.forEach(function (n, idx) {
+    if (idx >= showN) return;
+    h += '<div class="tile row"><div class="rt"><span class="sq">' + ic('globe') + '</span><div class="rn"><b>' + esc(n.name || ('#' + (idx + 1))) + '</b>';
+    h += '<small><span class="dot' + (n.online ? '' : ' off') + '"></span>' + esc(n.online ? t('online') : t('offline')) + '</small></div>';
+    if (n.recommended) h += '<span class="pill">' + esc(t('recommended')) + '</span>';
+    h += '</div><div class="mini-row" style="grid-template-columns:repeat(4,1fr)">';
+    h += '<button class="mini g" data-act="node-dl" data-i="' + idx + '">' + ic('dl') + esc(t('dl')) + '</button>';
+    h += '<button class="mini" data-act="node-copy" data-i="' + idx + '">' + ic('copy') + esc(t('copy')) + '</button>';
+    h += '<button class="mini" data-act="node-qr" data-i="' + idx + '">' + ic('qr') + esc(t('qr')) + '</button>';
+    h += '<button class="mini" data-act="node-v2" data-i="' + idx + '">' + ic('zap') + esc(t('v2box')) + '</button></div></div>';
+  });
+  if (S.nodes.length > showN) h += '<button class="btn light full" data-act="more-nodes">' + esc(t('moreBtn')) + ' (' + nf(Math.min(showN, S.nodes.length), 0) + ' / ' + nf(S.nodes.length, 0) + ')</button>';
+  h += '</section>';
+  return h;
+}
+function viewApps() {
+  var me = platform(), order = PLATFORMS.slice();
+  if (me && order.indexOf(me) > 0) { order.splice(order.indexOf(me), 1); order.unshift(me); }
+  var h = '<section class="card"><h2>' + esc(t('apps')) + '</h2><p class="sub">' + esc(t('appsSub')) + '</p>';
+  order.forEach(function (p) {
+    h += '<div class="tile app' + (p === me ? ' me' : '') + '"><span class="sq">' + pfIcon(p) + '</span><div class="nm">' + esc(t('p_' + p)) + '</div>';
+    if (p === me) h += '<div><span class="chip" style="font-size:13px;padding:2px 14px">' + esc(t('yourSys')) + '</span></div>';
+    h += '<button class="btn dark full" data-act="app" data-p="' + p + '">' + esc(t('view')) + '</button></div>';
+  });
+  h += '</section>';
+  return h;
+}
+function openApps(p) {
+  var h = sheetHead(t('p_' + p));
+  var rec = S.nodes.filter(function (n) { return n.recommended; })[0] || S.nodes[0];
+  APPS[p].forEach(function (a) {
+    h += '<div class="tile ai"><span class="sq">' + ic('shield') + '</span><div class="rn"><b>' + esc(a.n) + (a.neu ? ' <span class="pill new">' + esc(t('neu')) + '</span>' : '') + '</b><small>' + esc(a.d[S.lang]) + '</small></div>';
+    h += '<a class="btn dark" href="' + esc(a.u) + '" target="_blank" rel="noopener noreferrer">' + esc(t('get')) + '</a></div>';
+    if (a.v2) {
+      h += '<div class="mini-row" style="margin:-2px 0 12px;grid-template-columns:1fr">';
+      if (rec) h += '<button class="mini g" style="flex-direction:row;gap:8px" data-act="v2-rec">' + ic('zap') + esc(t('v2boxAdd')) + '</button>';
+      if (v2boxSubLink()) h += '<button class="mini g" style="flex-direction:row;gap:8px" data-act="v2-sub-add">' + ic('zap') + esc(t('v2boxSubAdd')) + '</button>';
+      h += '</div>';
+    }
+  });
+  sheet(h);
+}
+
+function viewGuide() {
+  var h = '<section class="card"><h2>' + esc(t('guide')) + '</h2><p class="sub">' + esc(t('guideSub')) + '</p>';
+  h += '<div class="tile row"><div class="rt"><span class="sq">' + ic('zap') + '</span><div class="rn"><b>' + esc(t('gHidT')) + '</b></div></div><p class="hint" style="margin-top:10px">' + esc(t('gHid')) + '</p></div>';
+  if (S.info && S.info.has_links) h += '<div class="tile row"><div class="rt"><span class="sq">' + ic('globe') + '</span><div class="rn"><b>' + esc(t('gV2T')) + '</b></div></div><p class="hint" style="margin-top:10px">' + esc(t('gV2')) + '</p></div>';
+  h += '<div class="tile row"><div class="rt"><span class="sq">' + ic('shield') + '</span><div class="rn"><b>' + esc(t('gWgT')) + '</b></div></div><p class="hint" style="margin-top:10px">' + esc(t('gWg')) + '</p></div>';
+  h += '<div class="tile row"><div class="rt"><span class="sq">' + ic('help') + '</span><div class="rn"><b>' + esc(t('gTipT')) + '</b></div></div>';
+  h += '<p class="hint" style="margin-top:10px">' + esc(t('gTip1')) + '</p><p class="hint">' + esc(t('gTip2')) + '</p><p class="hint">' + esc(t('gTip3')) + '</p></div>';
+  h += '</section>';
+  return h;
+}
+function renderNav() {
+  var tabs = [['account', 'user', 'tabAccount'], ['configs', 'sliders', 'tabConfigs'], ['apps', 'grid', 'tabApps'], ['guide', 'help', 'tabGuide']];
+  $('nav').innerHTML = tabs.map(function (x) {
+    return '<button class="nb' + (S.tab === x[0] ? ' on' : '') + '" data-act="tab" data-t="' + x[0] + '">' + ic(x[1]) + '<span>' + esc(t(x[2])) + '</span></button>';
+  }).join('');
+}
+function renderChrome() {
+  document.documentElement.lang = S.lang;
+  document.documentElement.dir = S.lang === 'fa' ? 'rtl' : 'ltr';
+  document.documentElement.setAttribute('data-theme', S.theme);
+  var m = document.querySelector('meta[name=theme-color]'); if (m) m.content = S.theme === 'light' ? '#e9dec4' : '#2a1c10';
+  $('brand').textContent = CFG.brand;
+  $('brandsub').textContent = t('brandSub');
+  $('b-refresh').innerHTML = ic('refresh');
+  $('b-theme').innerHTML = ic(S.theme === 'light' ? 'sun' : 'moon');
+  $('b-support').innerHTML = ic('phone');
+  $('b-lang').textContent = S.lang === 'fa' ? 'FA' : 'EN';
+  var nt = CFG.notice == null ? t('notice') : CFG.notice;
+  var nel = $('notice');
+  nel.hidden = !nt;
+  nel.innerHTML = nt ? ic('flame') + '<span>' + esc(nt) + '</span>' + ic('flame') : '';
+  var sc = S.info && S.info.support_contact, a = $('b-support');
+  if (sc) {
+    var href = /^(https?:|tel:|mailto:|tg:)/i.test(sc) ? sc : (/^@/.test(sc) ? 'https://t.me/' + sc.slice(1) : (/^\+?[\d\s-]{6,}$/.test(sc) ? 'tel:' + sc.replace(/\s+/g, '') : (/^[\w.-]+\.[a-z]{2,}/i.test(sc) ? 'https://' + sc : '')));
+    a.href = href || '#'; a.target = href && /^https?:/.test(href) ? '_blank' : ''; a.rel = 'noopener noreferrer';
+    a.dataset.has = href ? '1' : '';
+  } else { a.href = '#'; a.dataset.has = ''; }
+  document.title = (S.info && S.info.label ? S.info.label + ' · ' : '') + t('brandSub');
+}
+function render() {
+  renderChrome(); renderNav();
+  var el = $('app');
+  if (S.loading && !S.info) { el.innerHTML = '<div class="card empty"><span class="spin"></span></div>'; return; }
+  if (S.err) {
+    el.innerHTML = '<div class="card empty"><h2>' + esc(t(S.err === 'nf' ? 'nf' : 'neterr')) + '</h2><p class="sub">' + (S.err === 'nf' ? esc(t('nfSub')) : '') + '</p><button class="btn dark full" data-act="refresh">' + ic('refresh') + esc(t('retry')) + '</button></div>';
+    return;
+  }
+  el.innerHTML = S.tab === 'configs' ? viewConfigs() : S.tab === 'apps' ? viewApps() : S.tab === 'guide' ? viewGuide() : viewAccount();
+}
+
+/* ---------- actions ---------- */
+function nodeAt(btn) { var i = Number(btn.getAttribute('data-i')); return { n: S.nodes[i], i: i }; }
+function withNode(btn, fn) {
+  var o = nodeAt(btn); if (!o.n) return;
+  btn.setAttribute('disabled', '');
+  getConfig(o.n, 'n' + o.i).then(function (txt) { btn.removeAttribute('disabled'); fn(txt, o.n, o.i); })
+    .catch(function () { btn.removeAttribute('disabled'); toast(t('cfgErr')); });
+}
+function openV2(uri) {
+  doCopy(uri, t('v2boxTip')).then(function () { location.href = uri; });
+}
+function nodeUri(txt, n, i) { return toWgUri(txt, (S.info && S.info.label ? S.info.label + ' ' : '') + (n.name || ('#' + (i + 1)))); }
+function recNode() {
+  var idx = 0; S.nodes.forEach(function (n, i) { if (n.recommended && !idx) idx = i; });
+  return { n: S.nodes[idx], i: idx };
+}
+function onClick(e) {
+  var b = e.target.closest('[data-act]');
+  if (!b) { if (e.target.id === 'sheet') closeSheet(); return; }
+  var act = b.getAttribute('data-act');
+  switch (act) {
+    case 'tab': S.tab = b.getAttribute('data-t'); try { history.replaceState(null, '', '#' + S.tab); } catch (x) {} render(); window.scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'refresh': S.cache = {}; load(); break;
+    case 'more-nodes': S.showN = (S.showN || 6) + 6; render(); break;
+    case 'theme': S.theme = S.theme === 'light' ? 'dark' : 'light'; try { localStorage.setItem('wgsub.theme', S.theme); } catch (x) {} render(); break;
+    case 'lang': S.lang = S.lang === 'fa' ? 'en' : 'fa'; try { localStorage.setItem('wgsub.lang', S.lang); } catch (x) {} render(); break;
+    case 'support': if (!b.dataset.has) { e.preventDefault(); toast(t('noSupport')); } break;
+    case 'close': closeSheet(); break;
+    case 'copy-link': doCopy(pageLink()); break;
+    case 'qr-link': showQr(t('qrLink'), pageLink(), t('qrLinkCap')); break;
+    case 'app': openApps(b.getAttribute('data-p')); break;
+    case 'node-dl': withNode(b, function (txt, n, i) {
+      var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' }), a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = cfgFileName(n, i);
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); toast(t('dled'));
+    }); break;
+    case 'node-copy': withNode(b, function (txt) { doCopy(txt); }); break;
+    case 'node-qr': withNode(b, function (txt, n) { showQr(n.name || t('qr'), txt, t('qrCfg')); }); break;
+    case 'node-v2': withNode(b, function (txt, n, i) { var u = nodeUri(txt, n, i); if (u) openV2(u); else toast(t('cfgErr')); }); break;
+    case 'v2-rec': { var r = recNode(); if (r.n) { toast(t('fetching')); getConfig(r.n, 'n' + r.i).then(function (txt) { var u = nodeUri(txt, r.n, r.i); if (u) openV2(u); else toast(t('cfgErr')); }).catch(function () { toast(t('cfgErr')); }); } break; }
+    case 'copy-all': toast(t('fetching')); Promise.all(S.nodes.map(function (n, i) { return getConfig(n, 'n' + i).then(function (txt) { return nodeUri(txt, n, i); }); }))
+      .then(function (list) { doCopy(list.filter(Boolean).join('\n'), t('v2boxTip')); }).catch(function () { toast(t('cfgErr')); }); break;
+    case 'v2-sub-add': { var s = v2boxSubLink(); if (s) { var nm = (S.info && S.info.label) || CFG.brand; var u = 'v2box://install-sub?url=' + encodeURIComponent(s) + '&name=' + encodeURIComponent(nm); doCopy(s, t('v2boxTip')).then(function () { location.href = u; }); } break; }
+    case 'v2-sub-copy': { var s2 = v2boxSubLink(); if (s2) doCopy(s2); break; }
+    case 'hid-add': { var hs = hiddifySubLink(); var hn = (S.info && S.info.label) || CFG.brand; var hu = 'hiddify://import/' + hs + '#' + encodeURIComponent(hn); doCopy(hs, t('hidTip')).then(function () { var pf = platform(); var store = pf === 'android' ? 'https://play.google.com/store/apps/details?id=app.hiddify.com' : pf === 'ios' ? 'https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532' : 'https://github.com/hiddify/hiddify-app/releases/latest'; var gone = false; var mark = function () { gone = true; }; document.addEventListener('visibilitychange', mark); window.addEventListener('pagehide', mark); window.addEventListener('blur', mark); location.href = hu; setTimeout(function () { document.removeEventListener('visibilitychange', mark); window.removeEventListener('pagehide', mark); window.removeEventListener('blur', mark); if (!gone && !document.hidden) location.href = store; }, 2000); }); break; }
+    case 'hid-copy': doCopy(hiddifySubLink()); break;
+  }
+}
+document.addEventListener('click', onClick);
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+
+/* ---------- demo data (?demo=1) ---------- */
+function demoApi(path) {
+  var nodes = [
+    { node_id: 1, name: 'آلمان', online: true, recommended: true, config_path: '/api/v1/sub/demo-token?format=conf&node_id=1' },
+    { node_id: 2, name: 'هلند', online: true, recommended: false, config_path: '/api/v1/sub/demo-token?format=conf&node_id=2' },
+    { node_id: 3, name: 'فنلاند', online: false, recommended: false, config_path: '/api/v1/sub/demo-token?format=conf&node_id=3' }
+  ];
+  if (/\/info$/.test(path)) {
+    return Promise.resolve({ label: 'demo-user', status: 'active', data_quota_bytes: 20 * 1073741824, data_used_bytes: 12.4 * 1073741824, expiry_at: new Date(Date.now() + 18 * 86400000).toISOString(), days_left: 18, device_limit: 3, devices_active: 2, last_handshake_at: new Date(Date.now() - 5 * 60000).toISOString(), support_contact: '@demo_support', config_path: nodes[0].config_path, nodes: nodes });
+  }
+  if (/\/nodes$/.test(path)) return Promise.resolve(nodes);
+  var id = (path.match(/node_id=(\d+)/) || [0, 1])[1];
+  return Promise.resolve('[Interface]\nPrivateKey = aGVsbG8tZGVtby1wcml2YXRlLWtleS0wMDAwMDAwMDA=\nAddress = 10.8.0.' + (10 + Number(id)) + '/32\nDNS = 1.1.1.1\nMTU = 1280\n\n[Peer]\nPublicKey = c2VydmVyLWRlbW8tcHVibGljLWtleS0wMDAwMDAwMDAwMDA=\nPresharedKey = ZGVtby1wc2stMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=\nAllowedIPs = 0.0.0.0/0, ::/0\nEndpoint = 203.0.113.' + id + ':51820\nPersistentKeepalive = 25\n');
+}
+
+/* ---------- boot ---------- */
+if (CFG.heroImage) { var hh = $('hero'); hh.classList.add('img'); hh.style.backgroundImage = 'url("' + CFG.heroImage + '")'; $('fv').style.display = 'none'; }
+drawFaravahar();
+S.token = getToken();
+if (!S.token) { S.loading = false; S.err = 'nf'; render(); } else load();
+})();
+</script>
+</body>
+</html>

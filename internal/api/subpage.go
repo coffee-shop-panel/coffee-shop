@@ -193,6 +193,13 @@ func (s *Server) maybeServeSubPage(w http.ResponseWriter, r *http.Request, token
 		return true
 	}
 
+	// The coffee page, when that is the look the owner picked: a whole
+	// page of its own, fed by its own API (subcoffee.go).
+	if page.Template == "parseh" {
+		s.serveCoffeePage(w)
+		return true
+	}
+
 	s.renderSubPage(w, page, token, false, r.UserAgent())
 	return true
 }

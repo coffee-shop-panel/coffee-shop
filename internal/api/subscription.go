@@ -236,6 +236,11 @@ func (s *Server) SubscriptionRouter(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		// The coffee page's own API, which lives under /api/ by its own
+		// naming and is no route of the panel's (subcoffee.go).
+		if s.serveCoffeeAPI(w, r) {
+			return
+		}
 		// Never shadow the panel's own routes, whatever the path is set to.
 		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/assets/") {
 			next.ServeHTTP(w, r)
