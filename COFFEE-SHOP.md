@@ -154,6 +154,35 @@ v5 rather than a version per feature.
   script is externalised like the coffee page's, so the listener's
   CSP is untouched.
 
+### The coffee-shop design port (in progress, unreleased)
+
+The panel is being re-skinned to the coffee-shop design mockups, wave by
+wave, on this branch. Wave 1 (tokens + shell + sign-in) is in:
+
+- `web/src/brand.css` carries the design's token layer over the app's own
+  theme mechanism (no parallel one): design dark is the default `:root`,
+  design ultra is `:root[data-theme='ultra-dark']`, design light is
+  `:root.light` — the selectors `lib/theme.js` has always set. Amber
+  accent (#f59e0b, #b45309 in light), the design's surfaces, lines, ink,
+  status hues, 14px/9px radii, glows and dot texture on the ground, and
+  the design's font stacks. The app has no ant-design-vue dependency and
+  no ConfigProvider — its Ant look is hand-rolled classes over these same
+  variables, so remapping the variables is the token mapping.
+- The shell gains the design's translucent topbar (the page's name as a
+  crumb; the phone's menu handle lives in it), the open sidebar is the
+  design's 248px, the selected item wears the design's accent treatment,
+  and the sign-out row is the design's account card.
+- The sign-in page is the design's split layout: an art panel (brand,
+  the rotating headline word in the accent gradient, the tagline, the
+  version) beside the form; the theme and language buttons moved into
+  the form's head; the 2FA step sits in a calm card inside the same form.
+  Same fields, same flow. The design's feature tiles and PRO chip were
+  not carried (their copy has no source in the panel's locales), and the
+  wordmark keeps the app's own name.
+- Deferred to later waves: the ⌘K palette and the topbar's status pills,
+  and the page-by-page layout alignment. The subscription page is not
+  part of this port.
+
 ## Releasing
 
 Builds are made with the version and the signing public key compiled in:
