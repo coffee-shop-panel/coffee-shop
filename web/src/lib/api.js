@@ -447,6 +447,11 @@ export const api = {
   // A plan with no id is a new one; with an id, the plan it names.
   shopPlanSave: (plan) => request('POST', '/api/shop/plans', plan),
   shopPlanDelete: (id) => request('DELETE', `/api/shop/plans/${id}`),
+  shopCodes: () => request('GET', '/api/shop/codes'),
+  // A code with no id is a new one; with an id, the code it names. Its
+  // uses are the store's own record and are never sent.
+  shopCodeSave: (code) => request('POST', '/api/shop/codes', code),
+  shopCodeDelete: (id) => request('DELETE', `/api/shop/codes/${id}`),
   shopOrders: (status = '', limit = 100) => {
     const q = new URLSearchParams()
     if (status) q.set('status', status)

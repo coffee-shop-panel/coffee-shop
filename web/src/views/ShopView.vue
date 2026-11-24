@@ -38,11 +38,25 @@ const form = ref({
   welcome: '',
   interfaceIds: [],
   publicBase: '',
+  // The v5 settings ride in the same form and the same save: the trial
+  // (its quota typed in gigabytes, like a plan's), the naming pattern,
+  // the cashback percent, the wheel's switch, and the shop's own
+  // tutorial and FAQ words.
+  trialEnabled: false,
+  trialGb: '',
+  trialDays: '',
+  trialSection: 'wireguard',
+  nameFormat: '',
+  cashbackPercent: '',
+  wheelEnabled: false,
+  tutorialText: '',
+  faqText: '',
 })
 const saving = ref(false)
 
 const stats = ref(null)
 const plans = ref([])
+const codes = ref([])
 const orders = ref([])
 const buyers = ref([])
 const interfaces = ref([])
@@ -59,6 +73,9 @@ const delivered = ref(null)
 const planEdit = ref(null)
 const planBusy = ref(false)
 const planDelete = ref(null)
+const codeEdit = ref(null)
+const codeBusy = ref(false)
+const codeDelete = ref(null)
 const orderReject = ref(null)
 
 const nf = (n) => Number(n || 0).toLocaleString(store.locale)
@@ -77,6 +94,15 @@ function fillForm(c) {
     welcome: c.welcome || '',
     interfaceIds: [...(c.interfaceIds || [])],
     publicBase: c.publicBase || '',
+    trialEnabled: !!c.trialEnabled,
+    trialGb: bytesToGigabytes(c.trialBytes),
+    trialDays: c.trialDays || '',
+    trialSection: c.trialSection === 'v2ray' ? 'v2ray' : 'wireguard',
+    nameFormat: c.nameFormat || '',
+    cashbackPercent: c.cashbackPercent || '',
+    wheelEnabled: !!c.wheelEnabled,
+    tutorialText: c.tutorialText || '',
+    faqText: c.faqText || '',
   }
 }
 
@@ -85,16 +111,18 @@ async function load() {
   try {
     // The config is the page; the rest are summaries around it, and each is
     // allowed to fail without taking the page down with it.
-    const [c, p, s, ifaces, b] = await Promise.all([
+    const [c, p, s, ifaces, b, cd] = await Promise.all([
       api.shopConfig(),
       api.shopPlans().catch(() => null),
       api.shopStats().catch(() => null),
       api.interfaces().catch(() => []),
       api.shopBuyers().catch(() => null),
+      api.shopCodes().catch(() => null),
     ])
     cfg.value = c
     fillForm(c)
     plans.value = p?.items || []
+    codes.value = cd?.items || []
     stats.value = s
     interfaces.value = ifaces || []
     buyers.value = b?.items || []
@@ -139,6 +167,15 @@ async function saveConfig() {
       zarinpalMerchant: form.value.zarinpalMerchant.trim(),
       welcome: form.value.welcome,
       interfaceIds: form.value.interfaceIds,
+      trialEnabled: !!form.value.trialEnabled,
+      trialBytes: gigabytesToBytes(form.value.trialGb),
+      trialDays: Math.max(0, Math.round(Number(form.value.trialDays) || 0)),
+      trialSection: form.value.trialSection,
+      nameFormat: form.value.nameFormat,
+      cashbackPercent: Math.min(100, Math.max(0, Math.round(Number(form.value.cashbackPercent) || 0))),
+      wheelEnabled: !!form.value.wheelEnabled,
+      tutorialText: form.value.tutorialText,
+      faqText: form.value.faqText,
     }
     // Sent only when a new one was typed. An empty field cannot mean
     // "clear the token" -- there is a bot running on it -- so it means
@@ -272,6 +309,77 @@ async function deletePlan() {
     notify(e.message, 'error')
   } finally {
     planBusy.value = false
+  }
+}
+
+// ── codes ────────────────────────────────────────────────────────────────
+
+// The codes a buyer names: percent and fixed ones take money off a
+// checkout, a gift one is redeemed into a wallet. The expiry is edited
+// as a plain date -- empty is a code that never runs out -- and sent
+// as the end of that day, so a code said to end on a date is good for
+// all of it.
+const CODE_KINDS = ['percent', 'fixed', 'gift']
+const kindOf = (c) => (CODE_KINDS.includes(c?.kind) ? c.kind : 'percent')
+
+function openCode(code) {
+  codeEdit.value = code
+    ? {
+        id: code.id,
+        code: code.code || '',
+        kind: kindOf(code),
+        value: code.value ?? '',
+        maxUses: code.maxUses ?? '',
+        expiresDate: code.expiresAt ? String(code.expiresAt).slice(0, 10) : '',
+        enabled: !!code.enabled,
+      }
+    : { id: 0, code: '', kind: 'percent', value: '', maxUses: '', expiresDate: '', enabled: true }
+}
+
+const codeValid = computed(() => {
+  const c = codeEdit.value
+  if (!c) return false
+  return c.code.trim() !== '' && Number(c.value) > 0
+})
+
+async function saveCode() {
+  const c = codeEdit.value
+  if (!c || !codeValid.value) return
+  codeBusy.value = true
+  try {
+    await api.shopCodeSave({
+      id: c.id || 0,
+      code: c.code.trim(),
+      kind: c.kind,
+      value: Math.round(Number(c.value)),
+      maxUses: Math.max(0, Math.round(Number(c.maxUses) || 0)),
+      expiresAt: c.expiresDate ? new Date(`${c.expiresDate}T23:59:59.999Z`).toISOString() : null,
+      enabled: !!c.enabled,
+    })
+    const res = await api.shopCodes().catch(() => null)
+    if (res) codes.value = res.items || []
+    codeEdit.value = null
+    notify(t('shop.codes.saved'))
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    codeBusy.value = false
+  }
+}
+
+async function deleteCode() {
+  const code = codeDelete.value
+  if (!code) return
+  codeBusy.value = true
+  try {
+    await api.shopCodeDelete(code.id)
+    codes.value = codes.value.filter((c) => c.id !== code.id)
+    codeDelete.value = null
+    notify(t('shop.codes.deleted'))
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    codeBusy.value = false
   }
 }
 
@@ -519,6 +627,70 @@ async function sendAnnounce() {
         <p v-else-if="cfg?.publicBase" class="muted small">
           {{ t('shop.pay.publicBase') }}: <span class="ltr">{{ cfg.publicBase }}</span>
         </p>
+      </div>
+
+      <div class="card-head shop-subhead">
+        <h2>{{ t('shop.v5.title') }}</h2>
+      </div>
+      <div class="card-body shop-form">
+        <div class="setting-list-item"><div class="arow">
+          <div class="acol"><div class="setting-list-meta">
+            <div class="setting-list-title">{{ t('shop.v5.trial') }}</div>
+            <div class="setting-list-description">{{ t('shop.v5.trialDesc') }}</div>
+          </div></div>
+          <div class="acol"><Toggle v-model="form.trialEnabled" :label="t('shop.v5.trial')" /></div>
+        </div></div>
+
+        <div class="shop-grid">
+          <div class="field">
+            <label for="sv5-trial-quota">{{ t('shop.plans.quotaGb') }}</label>
+            <input id="sv5-trial-quota" v-model="form.trialGb" type="number" min="0" step="any" inputmode="decimal" class="ltr" placeholder="0" />
+          </div>
+          <div class="field">
+            <label for="sv5-trial-days">{{ t('shop.plans.days') }}</label>
+            <input id="sv5-trial-days" v-model="form.trialDays" type="number" min="0" step="1" inputmode="numeric" class="ltr" placeholder="0" />
+          </div>
+          <div class="field">
+            <label for="sv5-trial-section">{{ t('shop.plans.section') }}</label>
+            <div class="aselect">
+              <select id="sv5-trial-section" v-model="form.trialSection">
+                <option value="wireguard">{{ t('shop.section.wireguard') }}</option>
+                <option value="v2ray">{{ t('shop.section.v2ray') }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="sv5-cashback">{{ t('shop.v5.cashback') }}</label>
+            <input id="sv5-cashback" v-model="form.cashbackPercent" type="number" min="0" max="100" step="1" inputmode="numeric" class="ltr" placeholder="0" />
+            <span class="hint">{{ t('shop.v5.cashbackDesc') }}</span>
+          </div>
+        </div>
+
+        <div class="setting-list-item"><div class="arow">
+          <div class="acol"><div class="setting-list-meta">
+            <div class="setting-list-title">{{ t('shop.v5.wheel') }}</div>
+            <div class="setting-list-description">{{ t('shop.v5.wheelDesc') }}</div>
+          </div></div>
+          <div class="acol"><Toggle v-model="form.wheelEnabled" :label="t('shop.v5.wheel')" /></div>
+        </div></div>
+
+        <div class="field">
+          <label for="sv5-name-format">{{ t('shop.v5.nameFormat') }}</label>
+          <input id="sv5-name-format" v-model="form.nameFormat" type="text" autocomplete="off" spellcheck="false" class="ltr" />
+          <span class="hint">{{ t('shop.v5.nameFormatHint') }}</span>
+        </div>
+
+        <div class="field">
+          <label for="sv5-tutorial">{{ t('shop.v5.tutorial') }}</label>
+          <textarea id="sv5-tutorial" v-model="form.tutorialText" rows="4"></textarea>
+          <span class="hint">{{ t('shop.v5.tutorialHint') }}</span>
+        </div>
+
+        <div class="field">
+          <label for="sv5-faq">{{ t('shop.v5.faq') }}</label>
+          <textarea id="sv5-faq" v-model="form.faqText" rows="4"></textarea>
+          <span class="hint">{{ t('shop.v5.faqHint') }}</span>
+        </div>
 
         <div class="shop-save">
           <button type="submit" class="btn primary" :disabled="saving">
@@ -569,6 +741,54 @@ async function sendAnnounce() {
                 <div class="row">
                   <button class="btn sm ghost icon" :title="t('action.edit')" @click="openPlan(p)"><Icon name="edit" :size="14" /></button>
                   <button class="btn sm ghost icon" :title="t('action.delete')" @click="planDelete = p"><Icon name="trash" :size="14" /></button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- The codes a buyer can name: discounts at checkout, gifts into
+         a wallet. A code's uses are counted by the store itself; this
+         table only shows the count it keeps. -->
+    <div class="card">
+      <div class="card-head">
+        <h2>{{ t('shop.codes.title') }}</h2>
+        <button class="btn sm primary spacer" @click="openCode(null)">
+          <Icon name="plus" :size="14" /><span>{{ t('shop.codes.add') }}</span>
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ t('shop.codes.code') }}</th>
+              <th>{{ t('shop.codes.kind') }}</th>
+              <th>{{ t('shop.codes.value') }}</th>
+              <th>{{ t('shop.codes.used') }} / {{ t('shop.codes.maxUses') }}</th>
+              <th>{{ t('shop.codes.expires') }}</th>
+              <th>{{ t('shop.plans.enabled') }}</th>
+              <th class="w-sm"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!codes.length" class="empty-row">
+              <td colspan="7">
+                <div class="card-empty"><div>{{ t('shop.codes.empty') }}</div></div>
+              </td>
+            </tr>
+            <tr v-for="c in codes" :key="c.id">
+              <td class="ltr">{{ c.code }}</td>
+              <td><span class="tag">{{ t(`shop.codes.kind.${kindOf(c)}`) }}</span></td>
+              <td class="num">{{ kindOf(c) === 'percent' ? `${nf(c.value)}%` : money(c.value) }}</td>
+              <td class="num">{{ nf(c.usedCount) }} / {{ c.maxUses ? nf(c.maxUses) : t('shop.plans.unlimited') }}</td>
+              <td class="small muted">{{ c.expiresAt ? dateTime(c.expiresAt, store.locale) : t('shop.codes.noExpiry') }}</td>
+              <td><span class="tag" :class="c.enabled ? 'green' : 'grey'">{{ c.enabled ? t('shop.plans.enabled') : t('shop.bot.off') }}</span></td>
+              <td>
+                <div class="row">
+                  <button class="btn sm ghost icon" :title="t('action.edit')" @click="openCode(c)"><Icon name="edit" :size="14" /></button>
+                  <button class="btn sm ghost icon" :title="t('action.delete')" @click="codeDelete = c"><Icon name="trash" :size="14" /></button>
                 </div>
               </td>
             </tr>
@@ -672,12 +892,13 @@ async function sendAnnounce() {
               <th>{{ t('shop.buyers.expires') }}</th>
               <th>{{ t('shop.buyers.usage') }}</th>
               <th>{{ t('shop.buyers.orders') }}</th>
+              <th>{{ t('shop.buyers.wallet') }}</th>
               <th class="w-md"></th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!buyers.length" class="empty-row">
-              <td colspan="7">
+              <td colspan="8">
                 <div class="card-empty"><div>{{ t('shop.buyers.empty') }}</div></div>
               </td>
             </tr>
@@ -688,6 +909,7 @@ async function sendAnnounce() {
               <td class="small muted">{{ b.expiresAt ? dateTime(b.expiresAt, store.locale) : t('shop.plans.unlimited') }}</td>
               <td class="num">{{ bytes(b.usedBytes, store.locale) }} / {{ b.quotaBytes ? bytes(b.quotaBytes, store.locale) : t('shop.plans.unlimited') }}</td>
               <td class="num">{{ nf(b.orders) }}</td>
+              <td class="num">{{ money(b.walletBalance) }}</td>
               <td>
                 <div class="row">
                   <button class="btn sm ghost" @click="openAnnounce(b)">
@@ -804,6 +1026,64 @@ async function sendAnnounce() {
     </div>
   </div>
 
+  <!-- One code, made or mended. Its uses are not in the form: they are
+       the store's record of what was spent, and an edit that could
+       rewrite them would hand spent uses back. -->
+  <div v-if="codeEdit" class="modal-backdrop" @click.self="codeEdit = null">
+    <div class="modal narrow" role="dialog" aria-modal="true">
+      <div class="card-head">
+        <h2>{{ codeEdit.id ? t('shop.codes.edit') : t('shop.codes.new') }}</h2>
+        <button class="btn sm icon ghost spacer" :aria-label="t('action.cancel')" @click="codeEdit = null">
+          <Icon name="close" :size="15" />
+        </button>
+      </div>
+      <form id="shop-code-form" class="card-body shop-form" @submit.prevent="saveCode">
+        <div class="field">
+          <label for="sc-code">{{ t('shop.codes.code') }}</label>
+          <input id="sc-code" v-model="codeEdit.code" type="text" maxlength="64" autocomplete="off" spellcheck="false" class="ltr" autofocus />
+        </div>
+        <div class="field">
+          <label for="sc-kind">{{ t('shop.codes.kind') }}</label>
+          <div class="aselect">
+            <select id="sc-kind" v-model="codeEdit.kind">
+              <option value="percent">{{ t('shop.codes.kind.percent') }}</option>
+              <option value="fixed">{{ t('shop.codes.kind.fixed') }}</option>
+              <option value="gift">{{ t('shop.codes.kind.gift') }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="shop-grid">
+          <div class="field">
+            <label for="sc-value">{{ t('shop.codes.value') }}</label>
+            <input id="sc-value" v-model="codeEdit.value" type="number" min="0" step="1" inputmode="numeric" class="ltr" />
+            <span class="hint">{{ codeEdit.kind === 'percent' ? t('shop.codes.valuePercentHint') : t('shop.codes.valueMoneyHint') }}</span>
+          </div>
+          <div class="field">
+            <label for="sc-max">{{ t('shop.codes.maxUses') }}</label>
+            <input id="sc-max" v-model="codeEdit.maxUses" type="number" min="0" step="1" inputmode="numeric" class="ltr" placeholder="0" />
+            <span class="hint">{{ t('shop.plans.unlimited') }}: 0</span>
+          </div>
+          <div class="field">
+            <label for="sc-expires">{{ t('shop.codes.expires') }}</label>
+            <input id="sc-expires" v-model="codeEdit.expiresDate" type="date" class="ltr" />
+            <span class="hint">{{ t('shop.codes.noExpiry') }}: —</span>
+          </div>
+          <div class="field">
+            <label>{{ t('shop.plans.enabled') }}</label>
+            <Toggle v-model="codeEdit.enabled" :label="t('shop.plans.enabled')" />
+          </div>
+        </div>
+      </form>
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" @click="codeEdit = null">{{ t('action.cancel') }}</button>
+        <button type="submit" form="shop-code-form" class="btn primary" :disabled="!codeValid || codeBusy">
+          <span v-if="codeBusy" class="spin"></span>
+          <span v-else>{{ t('action.save') }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- A card order's receipt, fetched with the session and read here:
        the seller looks at the photo and decides without leaving it,
        which is the whole errand this order is waiting on. -->
@@ -843,6 +1123,18 @@ async function sendAnnounce() {
     :busy="planBusy"
     @confirm="deletePlan"
     @cancel="planDelete = null"
+  />
+
+  <ConfirmDialog
+    :open="!!codeDelete"
+    :title="t('action.delete')"
+    :body="t('shop.codes.deleteConfirm')"
+    :subject="codeDelete?.code || ''"
+    :confirm-label="t('action.delete')"
+    :danger="true"
+    :busy="codeBusy"
+    @confirm="deleteCode"
+    @cancel="codeDelete = null"
   />
 
   <ConfirmDialog
