@@ -76,7 +76,7 @@ func (b *bot) sellerPanelCallback(ctx context.Context, cb *tgCallback, sess *ses
 		b.answer(ctx, cb, "")
 		sess.reset()
 		sess.testing = true
-		kb := append(menuKeyboard(), []tgButton{{Text: btnSpPanel, Data: "sp:home"}})
+		kb := append(b.menuKeyboard(ctx), []tgButton{{Text: btnSpPanel, Data: "sp:home"}})
 		b.editOrSend(ctx, cb, txtSpTestIntro, kb)
 	case data == "sp:stats":
 		b.answer(ctx, cb, "")
@@ -384,6 +384,14 @@ func (b *bot) spBuyerDetail(ctx context.Context, cb *tgCallback, clientID uint) 
 		escapeHTML(found.Name), statusText(model.ClientStatus(found.Status)),
 		expiry, formatBytes(found.UsedBytes), formatBytes(found.QuotaBytes),
 		faNum(int64(found.Orders)))
+	// What the buyer holds at this shop, beside what they have used:
+	// a seller asked about a top-up or a wallet payment needs the
+	// balance to answer, and it is the shop's own record of it.
+	if w, err := b.mgr.shop.WalletFor(ctx, cfg.OperatorID, found.TelegramID); err == nil {
+		text += "\n" + fmt.Sprintf(txtSpBuyerWallet, formatPrice(w.BalanceToman))
+	} else {
+		b.log.Warn("shop bot could not read the buyer's wallet", "error", err)
+	}
 	// The link is the seller's to re-send when a buyer loses it.
 	if opCtx, err := b.mgr.shop.OperatorCtx(ctx, cfg.OperatorID); err == nil {
 		if client, err := b.mgr.clients.Get(opCtx, clientID); err == nil && client != nil {
