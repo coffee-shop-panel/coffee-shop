@@ -97,6 +97,10 @@ const botStatus = computed(() => {
   return { text: t('adminbot.connecting'), tone: 'orange' }
 })
 
+// The status names its colour in the app's tag words; the design's tags
+// say the same things with other words.
+const botStatusTone = computed(() => ({ green: 'ok', orange: 'warn', grey: 'gray' })[botStatus.value.tone] || 'gray')
+
 // What the bot does, in the order an operator reaches for it. A guide,
 // not settings: it is here so the page says what the bot is for before
 // the operator goes and makes one in BotFather.
@@ -116,13 +120,13 @@ const guideItems = [
   <div v-else-if="loading" class="empty"></div>
   <ErrorState v-else-if="loadError" :error="loadError" @retry="load" />
 
-  <div v-else class="adminbot-stack">
-    <header class="page-head">
+  <div v-else class="adminbot-stack cs">
+    <div class="ph">
       <div>
-        <h1>{{ t('nav.adminBot') }}</h1>
+        <h2>{{ t('nav.adminBot') }}</h2>
         <p>{{ t('adminbot.intro') }}</p>
       </div>
-    </header>
+    </div>
 
     <!-- The bot's whole config is three fields, so it is one card with
          one save, the way the sales bot's is: two saves would leave the
@@ -130,7 +134,7 @@ const guideItems = [
     <form class="card" @submit.prevent="saveConfig">
       <div class="card-head">
         <h2>{{ t('adminbot.title') }}</h2>
-        <span class="tag num" :class="botStatus.tone">{{ botStatus.text }}</span>
+        <span class="dtag" :class="botStatusTone"><i class="dot"></i>{{ botStatus.text }}</span>
         <span v-if="cfg?.botUsername" class="muted small ltr">@{{ cfg.botUsername }}</span>
       </div>
       <div class="card-body adminbot-form">

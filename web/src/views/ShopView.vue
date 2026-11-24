@@ -206,9 +206,9 @@ async function saveConfig() {
 // The bot's state as the server last saw it, not as the unsaved switch
 // wishes it were: a switch just flipped has not connected anything yet.
 const botStatus = computed(() => {
-  if (!cfg.value?.enabled) return { text: t('shop.bot.off'), tone: 'grey' }
-  if (cfg.value.botRunning) return { text: t('shop.bot.connected'), tone: 'green' }
-  return { text: t('shop.bot.connecting'), tone: 'orange' }
+  if (!cfg.value?.enabled) return { text: t('shop.bot.off'), tone: 'gray' }
+  if (cfg.value.botRunning) return { text: t('shop.bot.connected'), tone: 'ok' }
+  return { text: t('shop.bot.connecting'), tone: 'warn' }
 })
 
 // The same option shape the customer form's server picker uses, over every
@@ -245,7 +245,7 @@ const statTiles = computed(() => {
 // shelves existed carries no section; it is a WireGuard plan, which is
 // what the bot sold then and what the server still calls it.
 const sectionOf = (x) => (x?.section === 'v2ray' ? 'v2ray' : 'wireguard')
-const SECTION_TONES = { wireguard: 'blue', v2ray: 'purple' }
+const SECTION_TONES = { wireguard: 'info', v2ray: 'purple' }
 
 function openPlan(plan) {
   planEdit.value = plan
@@ -386,15 +386,18 @@ async function deleteCode() {
 // ── orders ───────────────────────────────────────────────────────────────
 
 const STATUS_TONES = {
-  unpaid: 'grey',
-  awaiting_receipt: 'grey',
-  pending_review: 'orange',
-  paid: 'blue',
-  fulfilled: 'green',
-  rejected: 'red',
-  expired: 'grey',
-  failed: 'red',
+  unpaid: 'gray',
+  awaiting_receipt: 'gray',
+  pending_review: 'warn',
+  paid: 'info',
+  fulfilled: 'ok',
+  rejected: 'bad',
+  expired: 'gray',
+  failed: 'bad',
 }
+
+// A buyer's standing, in the design's tag words.
+const BUYER_TONES = { active: 'ok', disabled: 'gray', expired: 'bad', depleted: 'warn', limited: 'warn' }
 const actionable = (o) => o.status === 'pending_review' || o.status === 'paid'
 
 async function approveOrder(order) {
@@ -514,14 +517,20 @@ async function sendAnnounce() {
   <div v-else-if="loading" class="empty"></div>
   <ErrorState v-else-if="loadError" :error="loadError" @retry="load" />
 
-  <div v-else class="shop-stack">
+  <div v-else class="shop-stack cs">
+    <div class="ph">
+      <div>
+        <h2>{{ t('nav.shop') }}</h2>
+        <p>{{ t('shop.lede') }}</p>
+      </div>
+    </div>
     <!-- The shop at a glance, once the counters have loaded: what sold
          today, what has sold altogether, and what is waiting on the
          seller -- the one number here that asks for something. -->
-    <div v-if="statTiles.length" class="ov-customers">
-      <div v-for="tile in statTiles" :key="tile.key" class="card ov-cust" :class="{ quiet: !tile.n, urgent: tile.urgent }">
-        <span class="ov-cust-label">{{ tile.label }}</span>
-        <strong class="ov-cust-value num">{{ tile.value }}</strong>
+    <div v-if="statTiles.length" class="grid shop-stats">
+      <div v-for="tile in statTiles" :key="tile.key" class="card stat" :class="{ quiet: !tile.n, hot: tile.urgent }">
+        <span class="lbl">{{ tile.label }}</span>
+        <div class="val num">{{ tile.value }}</div>
       </div>
     </div>
 
@@ -531,7 +540,7 @@ async function sendAnnounce() {
     <form class="card" @submit.prevent="saveConfig">
       <div class="card-head">
         <h2>{{ t('shop.bot.title') }}</h2>
-        <span class="tag num" :class="botStatus.tone">{{ botStatus.text }}</span>
+        <span class="dtag" :class="botStatus.tone"><i class="dot"></i>{{ botStatus.text }}</span>
         <span v-if="cfg?.botUsername" class="muted small ltr">@{{ cfg.botUsername }}</span>
       </div>
       <div class="card-body shop-form">
@@ -709,7 +718,7 @@ async function sendAnnounce() {
           <Icon name="plus" :size="14" /><span>{{ t('shop.plans.add') }}</span>
         </button>
       </div>
-      <div class="table-wrap">
+      <div class="tw">
         <table>
           <thead>
             <tr>
@@ -731,12 +740,12 @@ async function sendAnnounce() {
             </tr>
             <tr v-for="p in plans" :key="p.id">
               <td>{{ p.name }}</td>
-              <td><span class="tag" :class="SECTION_TONES[sectionOf(p)]">{{ t(`shop.section.${sectionOf(p)}`) }}</span></td>
+              <td><span class="dtag" :class="SECTION_TONES[sectionOf(p)]">{{ t(`shop.section.${sectionOf(p)}`) }}</span></td>
               <td class="num">{{ p.quotaBytes ? bytes(p.quotaBytes, store.locale) : t('shop.plans.unlimited') }}</td>
               <td class="num">{{ nf(p.days) }} {{ t('unit.days') }}</td>
               <td class="num">{{ money(p.priceToman) }}</td>
               <td class="num">{{ p.deviceLimit ? nf(p.deviceLimit) : t('shop.plans.unlimited') }}</td>
-              <td><span class="tag" :class="p.enabled ? 'green' : 'grey'">{{ p.enabled ? t('shop.plans.enabled') : t('shop.bot.off') }}</span></td>
+              <td><span class="dtag" :class="p.enabled ? 'ok' : 'gray'">{{ p.enabled ? t('shop.plans.enabled') : t('shop.bot.off') }}</span></td>
               <td>
                 <div class="row">
                   <button class="btn sm ghost icon" :title="t('action.edit')" @click="openPlan(p)"><Icon name="edit" :size="14" /></button>
@@ -759,7 +768,7 @@ async function sendAnnounce() {
           <Icon name="plus" :size="14" /><span>{{ t('shop.codes.add') }}</span>
         </button>
       </div>
-      <div class="table-wrap">
+      <div class="tw">
         <table>
           <thead>
             <tr>
@@ -780,11 +789,11 @@ async function sendAnnounce() {
             </tr>
             <tr v-for="c in codes" :key="c.id">
               <td class="ltr">{{ c.code }}</td>
-              <td><span class="tag">{{ t(`shop.codes.kind.${kindOf(c)}`) }}</span></td>
+              <td><span class="dtag acc">{{ t(`shop.codes.kind.${kindOf(c)}`) }}</span></td>
               <td class="num">{{ kindOf(c) === 'percent' ? `${nf(c.value)}%` : money(c.value) }}</td>
               <td class="num">{{ nf(c.usedCount) }} / {{ c.maxUses ? nf(c.maxUses) : t('shop.plans.unlimited') }}</td>
               <td class="small muted">{{ c.expiresAt ? dateTime(c.expiresAt, store.locale) : t('shop.codes.noExpiry') }}</td>
-              <td><span class="tag" :class="c.enabled ? 'green' : 'grey'">{{ c.enabled ? t('shop.plans.enabled') : t('shop.bot.off') }}</span></td>
+              <td><span class="dtag" :class="c.enabled ? 'ok' : 'gray'">{{ c.enabled ? t('shop.plans.enabled') : t('shop.bot.off') }}</span></td>
               <td>
                 <div class="row">
                   <button class="btn sm ghost icon" :title="t('action.edit')" @click="openCode(c)"><Icon name="edit" :size="14" /></button>
@@ -824,7 +833,7 @@ async function sendAnnounce() {
         <button type="button" class="aalert-close" :aria-label="t('action.cancel')" @click="delivered = null"><Icon name="close" :size="14" /></button>
       </div>
 
-      <div class="table-wrap">
+      <div class="tw">
         <table>
           <thead>
             <tr>
@@ -850,11 +859,11 @@ async function sendAnnounce() {
               </td>
               <td>
                 <span>{{ o.planName }}</span>
-                <span class="tag" :class="SECTION_TONES[sectionOf(o)]">{{ t(`shop.section.${sectionOf(o)}`) }}</span>
+                <span class="dtag" :class="SECTION_TONES[sectionOf(o)]">{{ t(`shop.section.${sectionOf(o)}`) }}</span>
               </td>
               <td class="num">{{ money(o.priceToman) }}</td>
-              <td><span class="tag">{{ t(`shop.orders.method.${o.method}`) }}</span></td>
-              <td><span class="tag" :class="STATUS_TONES[o.status] || 'grey'">{{ t(`shop.status.${o.status}`) }}</span></td>
+              <td><span class="dtag gray">{{ t(`shop.orders.method.${o.method}`) }}</span></td>
+              <td><span class="dtag" :class="STATUS_TONES[o.status] || 'gray'">{{ t(`shop.status.${o.status}`) }}</span></td>
               <td class="small muted">{{ dateTime(o.createdAt, store.locale) }}</td>
               <td>
                 <div v-if="actionable(o) || (o.method === 'card' && o.hasReceipt)" class="row">
@@ -882,7 +891,7 @@ async function sendAnnounce() {
       <div class="card-head">
         <h2>{{ t('shop.buyers.title') }}</h2>
       </div>
-      <div class="table-wrap">
+      <div class="tw">
         <table>
           <thead>
             <tr>
@@ -905,7 +914,7 @@ async function sendAnnounce() {
             <tr v-for="b in buyers" :key="b.clientId">
               <td>{{ b.name || '—' }}</td>
               <td class="num ltr">{{ b.telegramId }}</td>
-              <td><span class="tag" :class="b.status">{{ t(`status.${b.status}`) }}</span></td>
+              <td><span class="dtag" :class="BUYER_TONES[b.status] || 'gray'">{{ t(`status.${b.status}`) }}</span></td>
               <td class="small muted">{{ b.expiresAt ? dateTime(b.expiresAt, store.locale) : t('shop.plans.unlimited') }}</td>
               <td class="num">{{ bytes(b.usedBytes, store.locale) }} / {{ b.quotaBytes ? bytes(b.quotaBytes, store.locale) : t('shop.plans.unlimited') }}</td>
               <td class="num">{{ nf(b.orders) }}</td>
@@ -1156,10 +1165,13 @@ async function sendAnnounce() {
   flex-direction: column;
   gap: 18px;
 }
-/* The counters' grid carries a bottom margin of its own on the overview;
-   here the stack's gap already does that work. */
-.shop-stack .ov-customers {
-  margin-bottom: 0;
+/* The counters as the design's stat cards, five across when they fit;
+   a counter at zero reads quiet, as it did as a tile. */
+.shop-stats {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.shop-stats .stat.quiet .val {
+  color: var(--faint);
 }
 /* A second heading inside the one config card, set off from the bot's half
    by the rule the card's own head draws under itself. */
