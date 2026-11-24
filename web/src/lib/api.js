@@ -406,6 +406,32 @@ export const api = {
   activity: (before = 0, limit = 100) =>
     request('GET', `/api/activity?limit=${limit}` + (before ? `&before=${before}` : '')),
 
+  // The operator's own Telegram sales bot: its settings, the plans it
+  // sells and the orders it has taken. Every operator runs their own bot,
+  // so each of these is answered for the caller alone -- a reseller's shop
+  // is theirs, never the panel owner's.
+  shopConfig: () => request('GET', '/api/shop/config'),
+  // A token left out of the body (or sent empty) keeps the one on file:
+  // the settings page never sees the stored token, so it cannot send it
+  // back, and "unchanged" has to be sayable.
+  shopConfigSave: (body) => request('PUT', '/api/shop/config', body),
+  shopPlans: () => request('GET', '/api/shop/plans'),
+  // A plan with no id is a new one; with an id, the plan it names.
+  shopPlanSave: (plan) => request('POST', '/api/shop/plans', plan),
+  shopPlanDelete: (id) => request('DELETE', `/api/shop/plans/${id}`),
+  shopOrders: (status = '', limit = 100) => {
+    const q = new URLSearchParams()
+    if (status) q.set('status', status)
+    q.set('limit', String(limit))
+    return request('GET', `/api/shop/orders?${q}`)
+  },
+  // Approving is also the delivery: the customer is made and the answer
+  // carries the subscription link, so the seller can pass it on by hand
+  // when the bot could not reach the buyer.
+  shopOrderApprove: (id) => request('POST', `/api/shop/orders/${id}/approve`),
+  shopOrderReject: (id) => request('POST', `/api/shop/orders/${id}/reject`),
+  shopStats: () => request('GET', '/api/shop/stats'),
+
   interfaces: (opts) => request('GET', '/api/interfaces', undefined, opts),
   createInterface: (input) => request('POST', '/api/interfaces', input),
   updateInterface: (id, input) => request('PATCH', `/api/interfaces/${id}`, input),
