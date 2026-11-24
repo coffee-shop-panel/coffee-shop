@@ -137,7 +137,7 @@ func coffeeNodes(cfg service.SubSettings, page *service.SubPage, token string) [
 		nodes = append(nodes, map[string]any{
 			"node_id":     d.ID,
 			"name":        name,
-			"online":      true,
+			"online":      d.Online,
 			"recommended": false,
 			"amnezia":     d.AmneziaKey != "",
 			"config_path": base + "?device=" + uitoa(d.ID) + "&host=" + uitoa(d.HostID),

@@ -408,6 +408,7 @@ var T = {
     brandSub: 'پنل اشتراک', notice: 'اگه وصل نشد، کانفیگ جدید رو از بخش کانفیگ‌ها بگیر',
     tabAccount: 'اطلاعات حساب', tabConfigs: 'کانفیگ‌ها', tabApps: 'اپلیکیشن‌ها', tabGuide: 'راهنما',
     guide: 'راهنمای استفاده', guideSub: 'کدام کانفیگ با کدام برنامه کار می‌کند و چطور اضافه‌اش کنید.', moreBtn: 'نمایش بیشتر',
+    renewT: 'اشتراکت رو به اتمامه', renewB: 'برای اینکه اتصالت قطع نشه، قبل از تموم شدن تمدیدش کن.', renewBtn: 'تمدید اشتراک',
     hidGuide: 'فقط کانفیگ‌های وایرگارد این اشتراک وارد هیدیفای می‌شوند؛ برای VLESS و تروجان از V2Box استفاده کنید (توضیح کامل در تب «راهنما»).',
     gHidT: 'هیدیفای — مخصوص وایرگارد',
     gHid: 'فقط کانفیگ‌های وایرگارد (AmneziaWG) این اشتراک به هیدیفای می‌روند. از تب «کانفیگ‌ها» دکمهٔ «افزودن همه کانفیگ‌ها به هیدیفای» را بزنید تا همه یکجا وارد شوند. هیدیفای باید نسخهٔ ۴ یا بالاتر باشد و کانفیگ‌ها نباید ویرایش شوند، وگرنه وصل نمی‌شوند.',
@@ -443,6 +444,7 @@ var T = {
     brandSub: 'Subscription panel', notice: 'If it won\'t connect, grab a fresh config from the Configs tab',
     tabAccount: 'Account', tabConfigs: 'Configs', tabApps: 'Apps', tabGuide: 'Guide',
     guide: 'How to use', guideSub: 'Which config works with which app, and how to add it.', moreBtn: 'Show more',
+    renewT: 'Your subscription is running out', renewB: 'Renew before it ends so your connection is not cut off.', renewBtn: 'Renew subscription',
     hidGuide: 'Only this subscription\'s WireGuard configs go into Hiddify; for VLESS and Trojan use V2Box (full explanation in the Guide tab).',
     gHidT: 'Hiddify — for WireGuard',
     gHid: 'Only the WireGuard (AmneziaWG) configs of this subscription go into Hiddify. In the Configs tab, tap "Add all configs to Hiddify" to import them all at once. Hiddify must be version 4 or later, and the configs must not be edited, or they will not connect.',
@@ -778,6 +780,13 @@ function viewAccount() {
   h += '<div class="uname-l">' + esc(t('username')) + '</div><h1 class="uname">' + esc(i.label || '—') + '</h1>';
   h += '<div class="btns"><button class="btn dark" data-act="copy-link">' + ic('link') + esc(t('copyLink')) + '</button>';
   h += '<button class="btn light" data-act="qr-link">' + ic('qr') + esc(t('qrLink')) + '</button></div>';
+  var renewSoon = (i.days_left != null && Number(i.days_left) <= 7) || (!unl && pct >= 90);
+  if (renewSoon) {
+    h += '<div class="tile" style="margin-bottom:14px;border-color:var(--bad)"><b>' + esc(t('renewT')) + '</b><p class="sub" style="margin:4px 0 0">' + esc(t('renewB')) + '</p>';
+    var sh = supportHref(i.support_contact);
+    if (sh) h += '<a class="btn dark" style="margin-top:10px" href="' + esc(sh) + '" target="_blank" rel="noopener">' + esc(t('renewBtn')) + '</a>';
+    h += '</div>';
+  }
   h += '<div class="grid2" style="margin-bottom:14px">';
   h += '<div class="tile"><div class="l"><span>' + esc(t('lastConn')) + '</span>' + ic('wifi') + '</div><div class="v">' + esc(hs ? timeAgo(hs) : t('never')) + '</div></div>';
   h += '<div class="tile"><div class="l"><span>' + esc(t('remaining')) + '</span>' + ic('clock') + '</div><div class="v">' + esc(days == null ? t('unlimited') : nf(days, 0) + ' ' + t('day')) + '</div></div></div>';
@@ -877,6 +886,14 @@ function renderNav() {
     return '<button class="nb' + (S.tab === x[0] ? ' on' : '') + '" data-act="tab" data-t="' + x[0] + '">' + ic(x[1]) + '<span>' + esc(t(x[2])) + '</span></button>';
   }).join('');
 }
+/* supportHref turns the operator's free-text support contact into a link:
+   a full URL stays as it is, an @handle becomes a Telegram link, a phone
+   number a tel: link, and a bare domain gains https://. Anything else is
+   not a link at all, and the caller falls back to plain text. */
+function supportHref(sc) {
+  if (!sc) return '';
+  return /^(https?:|tel:|mailto:|tg:)/i.test(sc) ? sc : (/^@/.test(sc) ? 'https://t.me/' + sc.slice(1) : (/^\+?[\d\s-]{6,}$/.test(sc) ? 'tel:' + sc.replace(/\s+/g, '') : (/^[\w.-]+\.[a-z]{2,}/i.test(sc) ? 'https://' + sc : '')));
+}
 function renderChrome() {
   document.documentElement.lang = S.lang;
   document.documentElement.dir = S.lang === 'fa' ? 'rtl' : 'ltr';
@@ -894,7 +911,7 @@ function renderChrome() {
   nel.innerHTML = nt ? ic('flame') + '<span>' + esc(nt) + '</span>' + ic('flame') : '';
   var sc = S.info && S.info.support_contact, a = $('b-support');
   if (sc) {
-    var href = /^(https?:|tel:|mailto:|tg:)/i.test(sc) ? sc : (/^@/.test(sc) ? 'https://t.me/' + sc.slice(1) : (/^\+?[\d\s-]{6,}$/.test(sc) ? 'tel:' + sc.replace(/\s+/g, '') : (/^[\w.-]+\.[a-z]{2,}/i.test(sc) ? 'https://' + sc : '')));
+    var href = supportHref(sc);
     a.href = href || '#'; a.target = href && /^https?:/.test(href) ? '_blank' : ''; a.rel = 'noopener noreferrer';
     a.dataset.has = href ? '1' : '';
   } else { a.href = '#'; a.dataset.has = ''; }

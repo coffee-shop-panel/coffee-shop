@@ -857,6 +857,10 @@ type SubPageDevice struct {
 	// AmneziaKey is an AmneziaWG file as the AmneziaVPN app imports it
 	// (wgconf.AmneziaVPNKey); empty for any other.
 	AmneziaKey string
+	// Online is whether the node behind this device's tunnel is up, so
+	// the customer's page can mark a config on a dead node as offline
+	// instead of leaving them to retry it and blame their phone.
+	Online bool
 }
 
 // Unlimited reports whether this plan has no volume ceiling.
@@ -998,6 +1002,17 @@ func (s *Subscriptions) PageFor(ctx context.Context, token, subURL string) (*Sub
 		return nil, err
 	}
 
+	// One query for the nodes behind those interfaces, so each device can
+	// carry whether the machine it lives on is up.
+	var nodes []model.Node
+	if err := s.db.WithContext(ctx).Find(&nodes).Error; err != nil {
+		return nil, fmt.Errorf("service: read nodes: %w", err)
+	}
+	nodesByID := make(map[uint]model.Node, len(nodes))
+	for _, n := range nodes {
+		nodesByID[n.ID] = n
+	}
+
 	rendered, err := s.renderDevicesFor(ctx, c, byID, "page")
 	if err != nil {
 		return nil, err
@@ -1054,6 +1069,13 @@ func (s *Subscriptions) PageFor(ctx context.Context, token, subURL string) (*Sub
 			User:      user,
 			Username:  d.Account.Username,
 			UsedBytes: d.Account.UpBytes + d.Account.DownBytes,
+		}
+		// The local node is up by definition: this code is running on it.
+		// Any other node is up when it last answered. A device whose node
+		// row is missing reads as down rather than claiming a health
+		// nobody has checked.
+		if n, ok := nodesByID[byID[d.Account.InterfaceID].NodeID]; ok {
+			dev.Online = n.Kind == model.KindLocal || n.Reachable
 		}
 		if f := byID[d.Account.InterfaceID]; f.Protocol == model.ProtocolWireGuard && f.Mode == model.ModeAmnezia {
 			dev.AmneziaKey = wgconf.AmneziaVPNKey(string(d.Profile.Body))
