@@ -50,6 +50,7 @@ import (
 	"github.com/abolfazl/w-ui/internal/routing"
 	"github.com/abolfazl/w-ui/internal/service"
 	"github.com/abolfazl/w-ui/internal/shaper"
+	"github.com/abolfazl/w-ui/internal/adminbot"
 	"github.com/abolfazl/w-ui/internal/shop"
 	"github.com/abolfazl/w-ui/internal/shopbot"
 	"github.com/abolfazl/w-ui/internal/single"
@@ -326,6 +327,13 @@ func run() error {
 	shopBots := shopbot.New(shopSvc, clientsSvc, log)
 	shopBots.Start(ctx)
 
+	// The management bots: likewise one per operator, separate from the
+	// sales bots, each working only its own operator's customers. They
+	// borrow the shop service for the operator scope and the public
+	// address subscription links are built from.
+	adminBots := adminbot.New(db, clientsSvc, shopSvc, log)
+	adminBots.Start(ctx)
+
 	notifier.Send(notify.Event{
 		Kind:  notify.KindPanel,
 		Title: "Panel started",
@@ -337,7 +345,7 @@ func run() error {
 		clientsSvc, ifaceSvc, changes,
 		// Restart is a tidy stop: the service manager is set to bring the
 		// panel back, and this run's history is saved on the way out.
-		func() { stop() }, engine, balancers, shopSvc, shopBots)
+		func() { stop() }, engine, balancers, shopSvc, shopBots, adminBots)
 	if err != nil {
 		return err
 	}
@@ -413,6 +421,7 @@ func buildServer(
 	balancers *egress.Balancers,
 	shopSvc *shop.Shop,
 	shopBots *shopbot.Manager,
+	adminBots *adminbot.Manager,
 ) (*http.Server, http.Handler, error) {
 	// Who may speak for somebody else. Done before anything serves, so no
 	// request is ever handled with the wrong idea of where it came from.
@@ -430,6 +439,7 @@ func buildServer(
 		Clients:        clientsSvc,
 		Shop:           shopSvc,
 		ShopBot:        shopBots,
+		AdminBot:       adminBots,
 		Interfaces:     ifaceSvc,
 		Catalog:        catalog,
 		Enforcer:       enforcer,
