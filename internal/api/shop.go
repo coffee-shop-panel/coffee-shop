@@ -1,12 +1,14 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/abolfazl/w-ui/internal/database/model"
+	"github.com/abolfazl/w-ui/internal/service"
 	"github.com/abolfazl/w-ui/internal/shop"
 )
 
@@ -192,6 +194,7 @@ type shopPlanView struct {
 	ID          uint   `json:"id"`
 	OperatorID  uint   `json:"operatorId"`
 	Name        string `json:"name"`
+	Section     string `json:"section"`
 	QuotaBytes  uint64 `json:"quotaBytes"`
 	Days        int    `json:"days"`
 	PriceToman  int64  `json:"priceToman"`
@@ -203,6 +206,7 @@ type shopPlanView struct {
 func planView(p shop.Plan) shopPlanView {
 	return shopPlanView{
 		ID: p.ID, OperatorID: p.OperatorID, Name: p.Name,
+		Section:    shop.NormalizeSection(p.Section),
 		QuotaBytes: p.QuotaBytes, Days: p.Days, PriceToman: p.PriceToman,
 		DeviceLimit: p.DeviceLimit, Enabled: p.Enabled, Sort: p.Sort,
 	}
@@ -240,7 +244,7 @@ func (s *Server) handleShopPlanSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	plan := shop.Plan{
-		ID: body.ID, OperatorID: op.ID, Name: body.Name,
+		ID: body.ID, OperatorID: op.ID, Name: body.Name, Section: body.Section,
 		QuotaBytes: body.QuotaBytes, Days: body.Days, PriceToman: body.PriceToman,
 		DeviceLimit: body.DeviceLimit, Enabled: body.Enabled, Sort: body.Sort,
 	}
@@ -271,35 +275,42 @@ func (s *Server) handleShopPlanDelete(w http.ResponseWriter, r *http.Request) {
 // token is left out on purpose: it is the key to the order's one public
 // link, and the page has no use for it.
 type shopOrderView struct {
-	ID            uint      `json:"id"`
-	OperatorID    uint      `json:"operatorId"`
-	BuyerTGID     int64     `json:"buyerTgId"`
-	BuyerName     string    `json:"buyerName"`
-	PlanID        uint      `json:"planId"`
-	PlanName      string    `json:"planName"`
-	QuotaBytes    uint64    `json:"quotaBytes"`
-	Days          int       `json:"days"`
-	PriceToman    int64     `json:"priceToman"`
-	DeviceLimit   int       `json:"deviceLimit"`
-	Kind          string    `json:"kind"`
-	Method        string    `json:"method"`
-	Status        string    `json:"status"`
-	ReceiptFileID string    `json:"receiptFileId"`
-	Authority     string    `json:"authority"`
-	RefID         string    `json:"refId"`
-	ClientID      uint      `json:"clientId"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	ID            uint   `json:"id"`
+	OperatorID    uint   `json:"operatorId"`
+	BuyerTGID     int64  `json:"buyerTgId"`
+	BuyerName     string `json:"buyerName"`
+	PlanID        uint   `json:"planId"`
+	PlanName      string `json:"planName"`
+	Section       string `json:"section"`
+	QuotaBytes    uint64 `json:"quotaBytes"`
+	Days          int    `json:"days"`
+	PriceToman    int64  `json:"priceToman"`
+	DeviceLimit   int    `json:"deviceLimit"`
+	Kind          string `json:"kind"`
+	Method        string `json:"method"`
+	Status        string `json:"status"`
+	ReceiptFileID string `json:"receiptFileId"`
+	// HasReceipt says the receipt picture itself is kept in the panel,
+	// at the receipt endpoint -- the file id above only names it on
+	// Telegram, where this page cannot show it from.
+	HasReceipt bool      `json:"hasReceipt"`
+	Authority  string    `json:"authority"`
+	RefID      string    `json:"refId"`
+	ClientID   uint      `json:"clientId"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 func orderView(o *shop.Order) shopOrderView {
 	return shopOrderView{
 		ID: o.ID, OperatorID: o.OperatorID,
 		BuyerTGID: o.BuyerTGID, BuyerName: o.BuyerName,
-		PlanID: o.PlanID, PlanName: o.PlanName, QuotaBytes: o.QuotaBytes,
-		Days: o.Days, PriceToman: o.PriceToman, DeviceLimit: o.DeviceLimit,
+		PlanID: o.PlanID, PlanName: o.PlanName, Section: shop.NormalizeSection(o.Section),
+		QuotaBytes: o.QuotaBytes,
+		Days:       o.Days, PriceToman: o.PriceToman, DeviceLimit: o.DeviceLimit,
 		Kind: o.Kind, Method: o.Method, Status: o.Status,
-		ReceiptFileID: o.ReceiptFileID, Authority: o.Authority, RefID: o.RefID,
+		ReceiptFileID: o.ReceiptFileID, HasReceipt: o.HasReceipt,
+		Authority: o.Authority, RefID: o.RefID,
 		ClientID: o.ClientID, CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
 	}
 }
@@ -415,6 +426,129 @@ func (s *Server) handleShopStats(w http.ResponseWriter, r *http.Request) {
 		"pending":      st.Pending,
 		"buyers":       st.Buyers,
 	})
+}
+
+// shopBuyerView is one buyer as the caller's page lists them: the
+// customer they are, and the business they have done with this seller.
+type shopBuyerView struct {
+	ClientID    uint       `json:"clientId"`
+	Name        string     `json:"name"`
+	TelegramID  int64      `json:"telegramId"`
+	Status      string     `json:"status"`
+	ExpiresAt   *time.Time `json:"expiresAt"`
+	UsedBytes   uint64     `json:"usedBytes"`
+	QuotaBytes  uint64     `json:"quotaBytes"`
+	Orders      int        `json:"orders"`
+	LastOrderAt time.Time  `json:"lastOrderAt"`
+}
+
+// handleShopBuyers lists the caller's buyers -- nobody else's, because
+// the store builds the list out of the caller's own delivered orders
+// under the caller's own scope.
+func (s *Server) handleShopBuyers(w http.ResponseWriter, r *http.Request) {
+	op, ok := s.shopOperator(w, r)
+	if !ok {
+		return
+	}
+	buyers, err := s.shop.BuyersFor(r.Context(), op.ID)
+	if err != nil {
+		fail(w, s.log, err)
+		return
+	}
+	items := make([]shopBuyerView, 0, len(buyers))
+	for _, b := range buyers {
+		items = append(items, shopBuyerView{
+			ClientID: b.ClientID, Name: b.Name, TelegramID: b.TelegramID,
+			Status: b.Status, ExpiresAt: b.ExpiresAt,
+			UsedBytes: b.UsedBytes, QuotaBytes: b.QuotaBytes,
+			Orders: b.Orders, LastOrderAt: b.LastOrderAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+// shopAnnounceBody is an announcement the operator sends their buyers
+// through their own bot: a text, and one buyer to send it to -- absent
+// (zero, which is nobody's Telegram id) means all of them.
+type shopAnnounceBody struct {
+	BuyerTGID int64  `json:"buyerTgId"`
+	Text      string `json:"text"`
+}
+
+// maxAnnounceChars is the longest announcement: a notice is a sentence
+// or three, and a bot that can be made to send essays is a bot that
+// will be reported for them.
+const maxAnnounceChars = 2000
+
+func (s *Server) handleShopAnnounce(w http.ResponseWriter, r *http.Request) {
+	op, ok := s.shopOperator(w, r)
+	if !ok {
+		return
+	}
+	// The announcement travels by the bot; a panel built without the
+	// bot manager has no way to send one, which is the gateway
+	// callback's answer too: not refused, not there.
+	if s.shopBot == nil {
+		writeError(w, http.StatusNotFound, "this panel has no sales bot")
+		return
+	}
+	var body shopAnnounceBody
+	if !decode(w, r, &body) {
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		writeError(w, http.StatusBadRequest, "the announcement text is empty")
+		return
+	}
+	if len([]rune(text)) > maxAnnounceChars {
+		writeError(w, http.StatusBadRequest, "an announcement is at most 2000 characters")
+		return
+	}
+	sent, err := s.shopBot.SendAnnouncement(r.Context(), op.ID, body.BuyerTGID, text)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalid) || errors.Is(err, service.ErrNotFound) {
+			fail(w, s.log, err)
+			return
+		}
+		// A refusal with a reason, not a fault: this operator's bot is
+		// not running, or Telegram would not take the message, and the
+		// sentence is the operator's to act on -- the node-pin handler
+		// answers its refusals the same way.
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sent": sent})
+}
+
+// handleShopOrderReceipt serves the receipt picture kept for one of the
+// caller's orders, so it can be looked at in the panel before the order
+// is approved. Another operator's order is the approve handlers' 404,
+// and an order with no receipt kept is a 404 of its own: in neither
+// case is there a picture here for this caller.
+func (s *Server) handleShopOrderReceipt(w http.ResponseWriter, r *http.Request) {
+	op, ok := s.shopOperator(w, r)
+	if !ok {
+		return
+	}
+	order, ok := s.ownOrder(w, r, op)
+	if !ok {
+		return
+	}
+	contentType, data, err := s.shop.ReceiptFor(r.Context(), order.ID)
+	if err != nil {
+		fail(w, s.log, err)
+		return
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	// The picture is a buyer's proof of payment, shown to its seller
+	// alone: private, and never cached on the way.
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 // The gateway's way back in.

@@ -645,6 +645,19 @@ func (s *Server) routes() []Route {
 			Summary: "The operator's bot sales: today, in total, and what " +
 				"is still waiting on them.",
 			handler: s.handleShopStats},
+		{Method: "GET", Path: "/api/shop/orders/{id}/receipt", Group: "Shop", Auth: true,
+			Summary: "The receipt photo the buyer sent for one of the " +
+				"operator's card orders, as stored by the bot.",
+			handler: s.handleShopOrderReceipt},
+		{Method: "GET", Path: "/api/shop/buyers", Group: "Shop", Auth: true,
+			Summary: "The customers the operator's bot has sold to, with " +
+				"the state of each one's subscription.",
+			handler: s.handleShopBuyers},
+		{Method: "POST", Path: "/api/shop/announce", Group: "Shop", Auth: true,
+			Summary: "Send a message through the operator's own bot: to " +
+				"one buyer, or to every buyer when no buyer is named.",
+			Body:    `{"buyerTgId":123456789,"text":"…"}`,
+			handler: s.handleShopAnnounce},
 
 		// ── Nodes ──
 		{Method: "GET", Path: "/api/nodes", Group: "Nodes", Auth: true, Machine: true,

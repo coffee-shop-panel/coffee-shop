@@ -337,6 +337,166 @@ func TestShopApproveOwnOrderDelivers(t *testing.T) {
 	}
 }
 
+// A plan's section travels with the save: the page names the half of
+// the shop the plan belongs to, the answer reads it back normalised,
+// and a section the shop does not have is a validation refusal.
+func TestShopPlanSaveSection(t *testing.T) {
+	f := newShopFixture(t, false)
+
+	rec := shopDo(f.srv, f.srv.handleShopPlanSave,
+		asAdmin(f.seller, http.MethodPost, "/api/shop/plans",
+			map[string]any{"name": "v2", "section": "v2ray", "enabled": true}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", rec.Code, rec.Body)
+	}
+	var out shopPlanView
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Section != shop.SectionV2ray {
+		t.Errorf("the saved plan's section is %q, want v2ray", out.Section)
+	}
+
+	rec = shopDo(f.srv, f.srv.handleShopPlanSave,
+		asAdmin(f.seller, http.MethodPost, "/api/shop/plans",
+			map[string]any{"name": "bad", "section": "satellite"}))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("an unknown section: status %d, want 400 (body %s)", rec.Code, rec.Body)
+	}
+}
+
+// The buyers list is the caller's own delivered sales and nobody
+// else's: one seller's page never names another seller's customers.
+func TestShopBuyersListsOnlyTheCallers(t *testing.T) {
+	f := newShopFixture(t, false)
+	ctx := context.Background()
+	if err := f.store.SaveConfig(ctx, &shop.Config{
+		OperatorID: f.seller.ID, Enabled: true, Token: "111:x",
+		InterfaceIDs: []uint{f.ifaces[0].ID},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	order := shopTestOrder(t, f, f.seller.ID)
+	order.Status = shop.StatusPaid
+	if err := f.store.UpdateOrder(ctx, order); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.Fulfill(ctx, order.ID); err != nil {
+		t.Fatalf("Fulfill: %v", err)
+	}
+
+	buyersOf := func(op *model.Admin) []shopBuyerView {
+		rec := shopDo(f.srv, f.srv.handleShopBuyers,
+			asAdmin(op, http.MethodGet, "/api/shop/buyers", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("buyers for %s: status %d, body %s", op.Username, rec.Code, rec.Body)
+		}
+		var out struct {
+			Items []shopBuyerView `json:"items"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out.Items
+	}
+
+	mine := buyersOf(f.seller)
+	if len(mine) != 1 {
+		t.Fatalf("the seller lists %d buyers, want the one who bought", len(mine))
+	}
+	b := mine[0]
+	if b.TelegramID != 4242 || b.Orders != 1 || b.ClientID == 0 || b.Name == "" {
+		t.Errorf("the buyer reads %+v", b)
+	}
+	if theirs := buyersOf(f.other); len(theirs) != 0 {
+		t.Errorf("another operator lists %d of the seller's buyers", len(theirs))
+	}
+}
+
+// An announcement is validated before any bot is asked to carry it, and
+// a panel with no bot manager has none to send by: the text must be
+// there and of a size a notice can be, and the manager must exist.
+func TestShopAnnounceValidation(t *testing.T) {
+	noBot := newShopFixture(t, false)
+	rec := shopDo(noBot.srv, noBot.srv.handleShopAnnounce,
+		asAdmin(noBot.seller, http.MethodPost, "/api/shop/announce",
+			map[string]any{"text": "سلام"}))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("no bot manager: status %d, want 404 (body %s)", rec.Code, rec.Body)
+	}
+
+	f := newShopFixture(t, true)
+	for name, body := range map[string]map[string]any{
+		"empty":    {"text": ""},
+		"blank":    {"text": "   "},
+		"overlong": {"text": strings.Repeat("x", 2001)},
+	} {
+		rec := shopDo(f.srv, f.srv.handleShopAnnounce,
+			asAdmin(f.seller, http.MethodPost, "/api/shop/announce", body))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s text: status %d, want 400 (body %s)", name, rec.Code, rec.Body)
+		}
+	}
+}
+
+// A receipt kept in the panel is served to its own order's operator
+// with its bytes and type; to another operator the order is not there,
+// and an order with nothing kept has nothing to serve.
+func TestShopOrderReceiptServing(t *testing.T) {
+	f := newShopFixture(t, false)
+	ctx := context.Background()
+	order := shopTestOrder(t, f, f.seller.ID)
+	picture := []byte("\xff\xd8fake-jpeg")
+	if err := f.store.SaveReceipt(ctx, order.ID, "image/jpeg", picture); err != nil {
+		t.Fatal(err)
+	}
+	plain := shopTestOrder(t, f, f.seller.ID)
+
+	get := func(op *model.Admin, id uint) *httptest.ResponseRecorder {
+		req := asAdmin(op, http.MethodGet, "/api/shop/orders/receipt", nil)
+		req.SetPathValue("id", strconv.Itoa(int(id)))
+		return shopDo(f.srv, f.srv.handleShopOrderReceipt, req)
+	}
+
+	rec := get(f.seller, order.ID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("the owner's receipt: status %d, body %s", rec.Code, rec.Body)
+	}
+	if rec.Body.String() != string(picture) {
+		t.Errorf("the served bytes are %q, want the receipt that was kept", rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/jpeg" {
+		t.Errorf("content type %q, want image/jpeg", ct)
+	}
+	if cc := rec.Header().Get("Cache-Control"); cc != "private, no-store" {
+		t.Errorf("cache control %q, want private, no-store", cc)
+	}
+
+	if rec := get(f.other, order.ID); rec.Code != http.StatusNotFound {
+		t.Errorf("another operator's receipt: status %d, want 404", rec.Code)
+	}
+	if rec := get(f.seller, plain.ID); rec.Code != http.StatusNotFound {
+		t.Errorf("an order with no receipt kept: status %d, want 404", rec.Code)
+	}
+
+	// The orders list says which orders have a picture to open.
+	rec = shopDo(f.srv, f.srv.handleShopOrders,
+		asAdmin(f.seller, http.MethodGet, "/api/shop/orders", nil))
+	var list struct {
+		Items []shopOrderView `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	marked := map[uint]bool{}
+	for _, o := range list.Items {
+		marked[o.ID] = o.HasReceipt
+	}
+	if !marked[order.ID] || marked[plain.ID] {
+		t.Errorf("hasReceipt marks %v, want only order %d marked", marked, order.ID)
+	}
+}
+
 // The gateway's way back: an order nobody has is a plain 404, and a
 // buyer the gateway turned away gets the failure page, in Persian, that
 // tells them what to do if money left their account anyway.

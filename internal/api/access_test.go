@@ -72,6 +72,9 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		"GET /api/shop/orders",
 		"POST /api/shop/orders/{id}/approve",
 		"POST /api/shop/orders/{id}/reject",
+		"GET /api/shop/orders/{id}/receipt",
+		"GET /api/shop/buyers",
+		"POST /api/shop/announce",
 		"GET /api/shop/stats",
 
 		// The few under an owner's heading they cannot work without.
