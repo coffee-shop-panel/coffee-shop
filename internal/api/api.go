@@ -15,6 +15,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/abolfazl/w-ui/internal/adminbot"
 	"github.com/abolfazl/w-ui/internal/backend"
 	"github.com/abolfazl/w-ui/internal/backup"
 	"github.com/abolfazl/w-ui/internal/egress"
@@ -99,6 +100,11 @@ type Server struct {
 	// were not there rather than failing.
 	shop    *shop.Shop
 	shopBot *shopbot.Manager
+	// adminBot runs the per-operator management bots — the second bot
+	// family, the one an operator manages their own customers through.
+	// Nil on a panel built without it, and its endpoints answer as if
+	// the feature were not there, like the shop's.
+	adminBot *adminbot.Manager
 }
 
 // Options configures a Server.
@@ -149,6 +155,12 @@ type Options struct {
 	// the shop endpoints off rather than breaking the panel.
 	Shop    *shop.Shop
 	ShopBot *shopbot.Manager
+
+	// AdminBot carries the per-operator management bots: the manager
+	// that runs them and answers for their state, which the «بات
+	// مدیریت» page reads and writes. Nil turns its endpoints off
+	// rather than breaking the panel.
+	AdminBot *adminbot.Manager
 
 	// Changes is what the rest of the panel says when something a customer
 	// sees changed; the open subscription pages listen to it.
@@ -210,6 +222,7 @@ func New(o Options) *Server {
 		template:    o.Template,
 		shop:        o.Shop,
 		shopBot:     o.ShopBot,
+		adminBot:    o.AdminBot,
 		basePath:    o.BasePath,
 		tlsCert:     o.TLSCert,
 		tlsKey:      o.TLSKey,

@@ -143,6 +143,8 @@ GET    /api/shop/stats                                Shop           auth=true  
 GET    /api/shop/orders/{id}/receipt                  Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 GET    /api/shop/buyers                               Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 POST   /api/shop/announce                             Shop           auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+GET    /api/admin-bot/config                          AdminBot       auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+PUT    /api/admin-bot/config                          AdminBot       auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 GET    /api/nodes                                     Nodes          auth=true  operator=false | none=401 token=yes reseller=403 admin=403 owner=yes
 POST   /api/nodes                                     Nodes          auth=true  operator=true  | none=401 token=403 reseller=403 admin=403 owner=yes
 PATCH  /api/nodes/{id}                                Nodes          auth=true  operator=true  | none=401 token=403 reseller=403 admin=403 owner=yes

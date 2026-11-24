@@ -66,6 +66,8 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		// narrowed to the caller in the handler.
 		"GET /api/shop/config",
 		"PUT /api/shop/config",
+		"GET /api/admin-bot/config",
+		"PUT /api/admin-bot/config",
 		"GET /api/shop/plans",
 		"POST /api/shop/plans",
 		"DELETE /api/shop/plans/{id}",

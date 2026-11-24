@@ -659,6 +659,19 @@ func (s *Server) routes() []Route {
 			Body:    `{"buyerTgId":123456789,"text":"…"}`,
 			handler: s.handleShopAnnounce},
 
+		// ── AdminBot ──
+		// Every operator's own management bot: a second Telegram bot,
+		// separate from the sales bot, that works their own customers.
+		{Method: "GET", Path: "/api/admin-bot/config", Group: "AdminBot", Auth: true,
+			Summary: "The signed-in operator's own management bot: its " +
+				"settings, with the token itself never shown.",
+			handler: s.handleAdminBotConfig},
+		{Method: "PUT", Path: "/api/admin-bot/config", Group: "AdminBot", Auth: true,
+			Summary: "Save the operator's management-bot settings. An " +
+				"empty token keeps the one already stored.",
+			Body:    `{"enabled":true,"token":"…","adminChatId":123456789}`,
+			handler: s.handleAdminBotConfigSave},
+
 		// ── Nodes ──
 		{Method: "GET", Path: "/api/nodes", Group: "Nodes", Auth: true, Machine: true,
 			Summary: "Every server this panel watches, with what the last probe found.",
@@ -964,6 +977,9 @@ var (
 		// plans, their orders -- and every handler narrows to the caller,
 		// so the heading is as safe to open as the customer list.
 		"Shop": true,
+		// The management bot is likewise the operator's own -- its two
+		// handlers read and write only the caller's row.
+		"AdminBot": true,
 	}
 
 	// operatorRoutes are the few endpoints under an owner's heading that a
