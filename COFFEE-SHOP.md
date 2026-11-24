@@ -70,6 +70,18 @@ can still be merged in.
   buyer or broadcast, sent through the seller's own bot) round out
   the shop page.
 
+- `feat(v3.6.0)` a second bot per operator: the **management bot**
+  («بات مدیریت»), with its own BotFather token and its own panel page,
+  separate from the sales bot. Only the operator's own numeric
+  Telegram ID may use it — everyone else is refused and nothing else
+  ever happens for strangers. Under the operator's own scope it lists
+  and searches their customers and opens a detail screen per customer:
+  subscription link, cut off / restore, extend days, add volume,
+  reset usage, delete (the destructive two behind a confirm). A
+  step-by-step wizard creates a customer on the operator's own
+  tunnels, and a stats screen totals their book against their
+  customer cap.
+
 ## Releasing
 
 Builds are made with the version and the signing public key compiled in:
