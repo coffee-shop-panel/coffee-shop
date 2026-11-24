@@ -72,7 +72,9 @@ async function load(quiet = false) {
     }
     loadError.value = null
   } catch (e) {
-    loadError.value = e
+    // As on the nodes page: a background poll failing must not replace the
+    // rows on screen with an error. Only a first load says so.
+    if (!quiet) loadError.value = e
     if (!quiet) notify(e.message, 'error')
   } finally {
     loading.value = false

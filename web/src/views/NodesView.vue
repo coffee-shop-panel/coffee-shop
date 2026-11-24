@@ -48,7 +48,10 @@ async function load(quiet = false) {
     nodes.value = quiet ? mergeRows(nodes.value, fresh, pending.value) : fresh
     loadError.value = null
   } catch (e) {
-    loadError.value = e
+    // A background poll failing must not hide the fleet: the rows on screen
+    // are still good, and the next poll replaces the error, if any, when it
+    // succeeds. Only a first load has nothing to show, so only it says so.
+    if (!quiet) loadError.value = e
   } finally {
     loading.value = false
   }

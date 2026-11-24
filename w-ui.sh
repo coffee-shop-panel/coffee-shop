@@ -169,8 +169,10 @@ ENV_FILE=$CONF_DIR/wui.env
 CERT_ROOT=$CONF_DIR/certs
 SERVICE=wui
 SERVICE_USER=wui
-REPO=AbolfazlTafakori/w-ui
-REPO_RAW=https://raw.githubusercontent.com/${REPO}/main
+# The fork's own repo and branch: the upstream ones this carried would make
+# the menu script install and update upstream w-ui over the fork.
+REPO=coffee-shop-panel/coffee-shop
+REPO_RAW=https://raw.githubusercontent.com/${REPO}/coffee-shop
 log_folder="${WUI_LOG_FOLDER:=/var/log/wui}"
 mkdir -p "${log_folder}"
 iplimit_banned_log_path="${log_folder}/wui-banned.log"

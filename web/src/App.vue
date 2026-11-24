@@ -177,7 +177,7 @@ function toggleGroup(item) {
   openGroups.value = next
 }
 
-const REPO_URL = 'https://github.com/AbolfazlTafakori/w-ui'
+const REPO_URL = 'https://github.com/coffee-shop-panel/coffee-shop'
 const PINNED_KEY = 'wui.sidebar.pinned'
 
 // The rail is narrow until pointed at. Pinning is a deliberate choice to give

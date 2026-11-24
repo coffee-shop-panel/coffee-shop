@@ -64,6 +64,10 @@ export function useInterfaceActions({ interfaces, selected, busy, load, open }) 
     busy.value = true
     try {
       await spec.run()
+    } catch (err) {
+      // Without this a failed confirmation closed the dialog and said
+      // nothing: the operator was left believing it had worked.
+      notify(err.message, 'error')
     } finally {
       busy.value = false
       ask.value = null
@@ -94,7 +98,21 @@ export function useInterfaceActions({ interfaces, selected, busy, load, open }) 
       subject: tn('interface.nTunnels', interfaces.value.length),
       confirmLabel: t('outbound.reset'),
       run: async () => {
-        for (const i of interfaces.value) await api.post(`/api/interfaces/${i.id}/reset-usage`)
+        // One tunnel failing must not leave the rest un-reset with no word
+        // said: each is tried, and the failures are reported together.
+        const failed = []
+        for (const i of interfaces.value) {
+          try {
+            await api.post(`/api/interfaces/${i.id}/reset-usage`)
+          } catch (err) {
+            failed.push(`${i.name}: ${err.message}`)
+          }
+        }
+        if (failed.length) {
+          notify(failed.join('\n'), 'error')
+        } else {
+          notify(t('interface.resetUsageDone'), 'success')
+        }
         await load()
       },
     }

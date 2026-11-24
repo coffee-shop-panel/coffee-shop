@@ -8,7 +8,7 @@
 # and the panel itself. Safe to re-run — it upgrades in place rather than starting
 # over, and every step checks whether it is already done.
 #
-#   curl -fsSL https://raw.githubusercontent.com/AbolfazlTafakori/w-ui/main/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/coffee-shop-panel/coffee-shop/coffee-shop/install.sh | sudo bash
 #
 # It asks first how to install:
 #
@@ -83,7 +83,7 @@ have_systemd() {
 
 BIN_PATH=/usr/local/bin/wui
 MENU_PATH=/usr/local/bin/w-ui
-MENU_URL="${WUI_MENU_URL:-https://raw.githubusercontent.com/AbolfazlTafakori/w-ui/main/w-ui.sh}"
+MENU_URL="${WUI_MENU_URL:-https://raw.githubusercontent.com/coffee-shop-panel/coffee-shop/coffee-shop/w-ui.sh}"
 DATA_DIR=/var/lib/wui
 CONF_DIR=/etc/wui
 UNIT=/etc/systemd/system/wui.service
@@ -95,9 +95,10 @@ RELEASE_URL="${WUI_RELEASE_URL:-}"
 ASSET_URL=""
 SUMS_URL=""
 # Where to fetch from when nothing else was asked for. Overridable, because a
-# fork or a mirror is a normal thing to install from.
-REPO="${WUI_REPO:-AbolfazlTafakori/w-ui}"
-BRANCH="${WUI_BRANCH:-main}"
+# fork or a mirror is a normal thing to install from. This fork's defaults
+# are its own repo and branch: the upstream ones would install upstream.
+REPO="${WUI_REPO:-coffee-shop-panel/coffee-shop}"
+BRANCH="${WUI_BRANCH:-coffee-shop}"
 
 # The panel binary's own default, kept only for an older install whose unit
 # names no port. A new install never gets it: unless the operator types a
@@ -2848,7 +2849,7 @@ write_unit() {
   cat >"$UNIT" <<UNITFILE
 [Unit]
 Description=W-UI — WireGuard and OpenVPN panel
-Documentation=https://github.com/abolfazl/w-ui
+Documentation=https://github.com/coffee-shop-panel/coffee-shop
 After=network-online.target nftables.service postgresql.service
 Wants=network-online.target
 

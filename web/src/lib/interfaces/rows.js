@@ -47,7 +47,6 @@ const sorters = {
   clients: (a, b) => (a.clients || 0) - (b.clients || 0),
   traffic: (a, b) => (a.usedBytes || 0) - (b.usedBytes || 0),
   speed: (a, b) => speedOf(a) - speedOf(b),
-  expiry: () => 0,
 }
 
 // Their sortable headers. A click goes ascending, another descending, a

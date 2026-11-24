@@ -106,6 +106,10 @@ export function useClientActions({ page, stats, selected, busy, load, loadGroups
     busy.value = true
     try {
       await spec.run()
+    } catch (err) {
+      // Without this a failed confirmation closed the dialog and said
+      // nothing: the operator was left believing it had worked.
+      notify(err.message, 'error')
     } finally {
       busy.value = false
       ask.value = null
@@ -138,6 +142,10 @@ export function useClientActions({ page, stats, selected, busy, load, loadGroups
     hold(c.id)
     try {
       await api.resetTraffic(c.id)
+      // The row renders what the customer has used, so that is the number
+      // that has to read zero at once — the per-direction counters are not
+      // shown anywhere on it.
+      c.usedBytes = 0
       c.rxBytes = 0
       c.txBytes = 0
       notify(t('client.trafficReset'), 'success')

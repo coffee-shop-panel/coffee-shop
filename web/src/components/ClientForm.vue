@@ -122,6 +122,20 @@ const busy = ref(false)
 const rotating = ref(false)
 const rotated = ref('')
 
+// What the expiry box held when the form opened, and whether the operator
+// has changed it since. An expired customer shows an empty box — there are
+// no hours left to show — and an empty box means "no expiry" on the wire,
+// so without this an edit that never touched the box would silently clear
+// a date the operator never meant to change.
+const openedExpires = { in: form.value.expiresIn, unit: form.value.expiresUnit }
+const expiryTouched = ref(false)
+watch(
+  () => [form.value.expiresIn, form.value.expiresUnit],
+  ([v, u]) => {
+    if (v !== openedExpires.in || u !== openedExpires.unit) expiryTouched.value = true
+  },
+)
+
 // How many users the plan has files for, counted the way the panel does:
 // the customer's files on one tunnel, in the order they were issued.
 const userCount = computed(() => {
@@ -378,8 +392,21 @@ async function submit() {
     // Empty or 0 is no expiry, on creation and on an edit alike: null on the
     // wire clears a date the customer had. While On hold is on the same box
     // is the plan length, counted from their first connection instead.
+    // One exception: an expired customer shows an empty expiry box, so an
+    // edit that never touched it keeps the date it had rather than clearing
+    // it — clearing takes changing the box, which is what expiryTouched says.
     const hours = form.value.startOnFirstUse ? 0 : unitToHours(form.value.expiresIn, form.value.expiresUnit)
-    const expiresAt = hours > 0 ? new Date(Date.now() + hours * 3600e3).toISOString() : null
+    const keepExpiredDate =
+      editing.value &&
+      !form.value.startOnFirstUse &&
+      !!props.client.expiresAt &&
+      hoursLeft(props.client.expiresAt) === 0 &&
+      !expiryTouched.value
+    const expiresAt = keepExpiredDate
+      ? props.client.expiresAt
+      : hours > 0
+        ? new Date(Date.now() + hours * 3600e3).toISOString()
+        : null
 
     await emit('submit', {
       name: form.value.name.trim(),

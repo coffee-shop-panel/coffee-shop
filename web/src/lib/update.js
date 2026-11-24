@@ -51,6 +51,10 @@ export function useUpdate(version) {
   const installing = ref(null)
   let followTimer = null
   let followStarted = 0
+  // When the panel last answered a progress ask. The comeback bound is
+  // measured from there, not from the install starting: a download that
+  // takes a while is still answering, and only silence says it is gone.
+  let lastAnswer = 0
   // How long a panel may take to come back before the page stops waiting and
   // says so. A restart takes seconds; this is for one that did not happen.
   const COME_BACK_MS = 3 * 60 * 1000
@@ -77,10 +81,14 @@ export function useUpdate(version) {
   // single look on opening the dialog: it follows only if one is under way.
   async function followInstall(probe = false) {
     clearTimeout(followTimer)
-    if (!probe && !followStarted) followStarted = Date.now()
+    if (!probe && !followStarted) {
+      followStarted = Date.now()
+      lastAnswer = Date.now()
+    }
     let res = null
     try {
       res = await api.get('/api/system/update/progress')
+      lastAnswer = Date.now()
     } catch {
       // Not answering is expected once the install is in place: the panel is
       // restarting. Before that it is a network hiccup, and asking again is
@@ -92,6 +100,7 @@ export function useUpdate(version) {
       if (!p || !['downloading', 'verifying', 'installing', 'restarting'].includes(p.stage)) return
       installing.value = { ...p }
       followStarted = Date.now()
+      lastAnswer = Date.now()
       updateOpen.value = true
     } else if (res) {
       const from = installing.value?.from
@@ -116,10 +125,14 @@ export function useUpdate(version) {
         return
       }
       if (p.stage) installing.value = { ...installing.value, ...p }
-    } else if (installing.value && installing.value.stage !== 'downloading') {
+    } else if (installing.value) {
+      // A panel that stops answering has either restarted or gone down;
+      // either way it is not downloading any more, and the wait for it to
+      // come back is bounded below. (It used to stay "downloading" here,
+      // which the bound never applied to, so the page polled forever.)
       installing.value = { ...installing.value, stage: 'restarting' }
     }
-    if (Date.now() - followStarted > COME_BACK_MS && installing.value?.stage === 'restarting') {
+    if (Date.now() - lastAnswer > COME_BACK_MS && installing.value?.stage === 'restarting') {
       installing.value = { ...installing.value, stage: 'failed', error: t('update.notBack') }
       followStarted = 0
       return
@@ -141,7 +154,9 @@ export function useUpdate(version) {
   })
 
   // What to run once, as root, on a server that has no update helper yet.
-  const updateCommand = 'bash <(curl -fsSL https://raw.githubusercontent.com/AbolfazlTafakori/w-ui/main/update.sh)'
+  // The fork's own script, on the branch the fork lives on: the upstream
+  // address this used to carry would replace the fork with upstream w-ui.
+  const updateCommand = 'bash <(curl -fsSL https://raw.githubusercontent.com/coffee-shop-panel/coffee-shop/coffee-shop/update.sh)'
   async function copyUpdateCommand() {
     try {
       await navigator.clipboard.writeText(updateCommand)

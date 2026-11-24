@@ -353,7 +353,9 @@ async function saveCode() {
       kind: c.kind,
       value: Math.round(Number(c.value)),
       maxUses: Math.max(0, Math.round(Number(c.maxUses) || 0)),
-      expiresAt: c.expiresDate ? new Date(`${c.expiresDate}T23:59:59.999Z`).toISOString() : null,
+      // End of the chosen day in the seller's own time, not UTC: the Z this
+      // had made the code stay live three and a half hours into the next day.
+      expiresAt: c.expiresDate ? new Date(`${c.expiresDate}T23:59:59.999`).toISOString() : null,
       enabled: !!c.enabled,
     })
     const res = await api.shopCodes().catch(() => null)

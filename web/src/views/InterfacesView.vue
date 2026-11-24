@@ -189,9 +189,15 @@ useLive(load, {
 
 const totals = computed(() => totalsOf(interfaces.value))
 
-const allSelected = computed(() => !!interfaces.value.length && selected.value.size === interfaces.value.length)
+// The header checkbox is for the rows on this tab, not the whole page: the
+// other tab's rows are not on screen, and ticking it used to select — and
+// bulk-delete — tunnels the operator never saw checked.
+const allSelected = computed(() => !!visible.value.length && visible.value.every((i) => selected.value.has(i.id)))
 function toggleAll(checked) {
-  selected.value = checked ? new Set(interfaces.value.map((i) => i.id)) : new Set()
+  const next = new Set(selected.value)
+  if (checked) visible.value.forEach((i) => next.add(i.id))
+  else visible.value.forEach((i) => next.delete(i.id))
+  selected.value = next
 }
 function toggleOne(id, checked) {
   const next = new Set(selected.value)
@@ -380,7 +386,6 @@ async function submitForm(input) {
         <option value="clients">{{ t('nav.clients') }}</option>
         <option value="traffic">{{ t('client.traffic') }}</option>
         <option value="speed">{{ t('client.speed') }}</option>
-        <option value="expiry">{{ t('iface.col.duration') }}</option>
       </select>
       <button v-if="sort.key" class="btn sm" :aria-label="t('client.sort.label')" @click="flipSortDir">{{ sort.dir === 'asc' ? '↑' : '↓' }}</button>
     </div>

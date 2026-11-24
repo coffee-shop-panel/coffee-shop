@@ -73,7 +73,7 @@ const helperTimeout = 2 * time.Minute
 var ErrCannotInstall = errors.New("this panel runs without permission to replace its own binary, " +
 	"and the update helper is not installed on this server. Run the update script once on the " +
 	"server as root; from then on updates install from here: " +
-	"bash <(curl -fsSL https://raw.githubusercontent.com/" + Repo + "/main/update.sh)")
+	"bash <(curl -fsSL https://raw.githubusercontent.com/" + Repo + "/coffee-shop/update.sh)")
 
 // How an update gets into place on this server.
 type installMode int

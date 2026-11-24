@@ -8,7 +8,7 @@
 # because a panel on plain HTTP is a panel handing its password to the wire.
 #
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/AbolfazlTafakori/w-ui/main/update.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/coffee-shop-panel/coffee-shop/coffee-shop/update.sh)
 #   bash <(curl -fsSL .../update.sh) v1.2.0      a particular version
 #   WUI_UPDATE_TAG=dev-latest bash <(curl -fsSL .../update.sh)
 #                                               the rolling build of the latest commit
@@ -18,8 +18,11 @@
 # the same box.
 set -eu
 
-REPO="${WUI_REPO:-AbolfazlTafakori/w-ui}"
-REF="${WUI_REF:-main}"
+# The fork's own releases, on the branch the fork lives on: the upstream
+# defaults this file carried would fetch upstream's installer and releases,
+# replacing the fork with the panel it forked from.
+REPO="${WUI_REPO:-coffee-shop-panel/coffee-shop}"
+REF="${WUI_REF:-coffee-shop}"
 TAG="${1:-${WUI_UPDATE_TAG:-}}"
 [[ -z "$TAG" || "$TAG" == v* || "$TAG" == dev-latest ]] || TAG="v$TAG"
 
