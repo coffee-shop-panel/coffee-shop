@@ -15,8 +15,11 @@ package shopbot
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"strings"
+	"time"
 
 	"github.com/abolfazl/w-ui/internal/database/model"
 	"github.com/abolfazl/w-ui/internal/shop"
@@ -39,6 +42,7 @@ func (b *bot) sellerPanel(ctx context.Context) (string, tgKeyboard) {
 		{{Text: ordersBtn, Data: "sp:orders"}},
 		{{Text: btnSpBuyers, Data: "sp:buyers"}, {Text: btnSpStats, Data: "sp:stats"}},
 		{{Text: btnSpPlans, Data: "sp:plans"}, {Text: btnSpCast, Data: "sp:cast"}},
+		{{Text: btnSpLottery, Data: "sp:lotto"}},
 		{{Text: btnSpTest, Data: "sp:shop"}},
 	}
 }
@@ -98,6 +102,11 @@ func (b *bot) sellerPanelCallback(ctx context.Context, cb *tgCallback, sess *ses
 		b.editOrSend(ctx, cb, txtSpCastAsk, panelBackKeyboard())
 	case data == "sp:casty":
 		b.spCastSend(ctx, cb, sess)
+	case data == "sp:lotto":
+		b.answer(ctx, cb, "")
+		b.spLottery(ctx, cb)
+	case data == "sp:lotdraw":
+		b.spLotteryDraw(ctx, cb)
 	case strings.HasPrefix(data, "sp:ord:"):
 		if id, ok := parseCallbackID(data, "sp:ord:"); ok {
 			b.answer(ctx, cb, "")
@@ -408,6 +417,106 @@ func (b *bot) spBuyerDetail(ctx context.Context, cb *tgCallback, clientID uint) 
 		{{Text: btnSpPanel, Data: "sp:home"}},
 	}
 	b.editOrSend(ctx, cb, text, kb)
+}
+
+// lotteryWindow is how far back a lottery's pool reaches: the
+// buyers of the last month are the shop's living audience, and a
+// draw among them is a thank-you the recent buyers can win.
+const lotteryWindow = 30 * 24 * time.Hour
+
+// lotteryPoolAndPrize reads the draw's two facts together, because
+// both screens -- the offer and the draw itself -- need the same
+// answer: who is in, and what the winner gets. An empty pool or a
+// shop with no plan to price the prize from is (nil, 0), and both
+// screens word that as "no draw today" rather than an error.
+func (b *bot) lotteryPoolAndPrize(ctx context.Context) ([]int64, int64) {
+	cfg := b.cfg()
+	pool, err := b.mgr.shop.LotteryPool(ctx, cfg.OperatorID, time.Now().Add(-lotteryWindow))
+	if err != nil {
+		b.log.Warn("shop bot could not read the lottery pool", "error", err)
+		return nil, 0
+	}
+	if len(pool) == 0 {
+		return nil, 0
+	}
+	price, err := b.mgr.shop.CheapestPlanPrice(ctx, cfg.OperatorID)
+	if err != nil {
+		b.log.Warn("shop bot could not price the lottery prize", "error", err)
+		return nil, 0
+	}
+	return pool, price
+}
+
+// spLottery offers the draw: the pool's size and the prize, with
+// the one button that makes it real. The numbers are read at the
+// offer and again at the draw -- a pool that emptied in between
+// draws nothing.
+func (b *bot) spLottery(ctx context.Context, cb *tgCallback) {
+	pool, price := b.lotteryPoolAndPrize(ctx)
+	if len(pool) == 0 {
+		b.editOrSend(ctx, cb, txtSpLottoEmpty, panelBackKeyboard())
+		return
+	}
+	kb := tgKeyboard{
+		{{Text: btnSpLottoDraw, Data: "sp:lotdraw"}},
+		{{Text: btnSpPanel, Data: "sp:home"}},
+	}
+	b.editOrSend(ctx, cb, fmt.Sprintf(txtSpLottoReady,
+		faNum(int64(len(pool))), formatPrice(price)), kb)
+}
+
+// spLotteryDraw is the draw itself: one name out of the pool, drawn
+// by crypto/rand, the prize into their wallet, the news to the
+// winner, and the name to the seller. The credit is the shop's own
+// act, so the money is exactly the prize and lands exactly once --
+// the draw is one tap, and a second tap is a second lottery, which
+// is the seller's choice to make, not an accident to guard against.
+func (b *bot) spLotteryDraw(ctx context.Context, cb *tgCallback) {
+	cfg := b.cfg()
+	pool, price := b.lotteryPoolAndPrize(ctx)
+	if len(pool) == 0 {
+		b.answer(ctx, cb, "")
+		b.editOrSend(ctx, cb, txtSpLottoEmpty, panelBackKeyboard())
+		return
+	}
+	pick, err := rand.Int(rand.Reader, big.NewInt(int64(len(pool))))
+	if err != nil {
+		b.log.Warn("shop bot could not draw the lottery", "error", err)
+		_ = b.api.answerCallbackQuery(ctx, cb.ID, txtError, true)
+		return
+	}
+	winner := pool[pick.Int64()]
+	if err := b.mgr.shop.CreditWallet(ctx, cfg.OperatorID, winner, price); err != nil {
+		b.log.Warn("shop bot could not pay the lottery prize", "winner", winner, "error", err)
+		_ = b.api.answerCallbackQuery(ctx, cb.ID, txtError, true)
+		return
+	}
+	b.answer(ctx, cb, "")
+
+	balance := int64(0)
+	if w, werr := b.mgr.shop.WalletFor(ctx, cfg.OperatorID, winner); werr == nil {
+		balance = w.BalanceToman
+	}
+	b.send(ctx, winner, fmt.Sprintf(txtLottoWon,
+		formatPrice(price), formatPrice(balance)), b.menuKeyboard(ctx))
+
+	// The winner's name, for the seller's screen: the shop's buyer
+	// list knows it, and the bare id stands when it does not.
+	name := ""
+	if buyers, berr := b.mgr.shop.BuyersFor(ctx, cfg.OperatorID); berr == nil {
+		for i := range buyers {
+			if buyers[i].TelegramID == winner {
+				name = buyers[i].Name
+				break
+			}
+		}
+	}
+	if name == "" {
+		name = fmt.Sprint(winner)
+	}
+	_, kb := b.sellerPanel(ctx)
+	b.editOrSend(ctx, cb, fmt.Sprintf(txtSpLottoWinner,
+		escapeHTML(name), winner, formatPrice(price)), kb)
 }
 
 func (b *bot) spPlans(ctx context.Context, cb *tgCallback) {

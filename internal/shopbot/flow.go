@@ -288,6 +288,8 @@ func (b *bot) handleCallback(ctx context.Context, cb *tgCallback) {
 		b.editOrSend(ctx, cb, text, kb)
 	case data == "trial":
 		b.claimTrial(ctx, cb)
+	case data == "wheel":
+		b.spinWheel(ctx, cb)
 	case data == "tutorial":
 		b.answer(ctx, cb, "")
 		b.sendLong(ctx, chatID, b.cfg().TutorialText)
@@ -391,9 +393,10 @@ func parseCallbackID(data, prefix string) (uint, bool) {
 // menuKeyboard is the main menu, offered at /start and under every
 // finished flow. What it holds beyond the three standing doors is
 // the shop's own: the trial button exists only in a shop that offers
-// a trial, and the teaching buttons only where the seller has
-// written the words -- a menu that offers what the shop does not
-// have is a menu that lies.
+// a trial, the wheel only in one whose wheel is on, and the
+// teaching buttons only where the seller has written the words --
+// a menu that offers what the shop does not have is a menu that
+// lies.
 func (b *bot) menuKeyboard(ctx context.Context) tgKeyboard {
 	cfg := b.cfg()
 	kb := tgKeyboard{
@@ -402,6 +405,9 @@ func (b *bot) menuKeyboard(ctx context.Context) tgKeyboard {
 	}
 	if cfg.TrialEnabled {
 		kb = append(kb, []tgButton{{Text: btnTrial, Data: "trial"}})
+	}
+	if cfg.WheelEnabled {
+		kb = append(kb, []tgButton{{Text: btnWheel, Data: "wheel"}})
 	}
 	var docs []tgButton
 	if strings.TrimSpace(cfg.TutorialText) != "" {
