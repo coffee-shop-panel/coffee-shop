@@ -139,7 +139,54 @@ func TestFilesAreNamedAfterTheCustomer(t *testing.T) {
 		{"l2tp-ui-test", "awg2", "x.conf", []string{"awg2"}, "l2tp-ui-te-awg2.conf"},
 		{"a very long customer name", "wg0", "phone.ovpn", []string{"phone"}, "a-very-long-customer-name-phone.ovpn"},
 		{"\"; rm -rf /", "wg0", "d.conf", nil, "rm--rf.conf"},
-		{"Ali", "wg0", "d.conf", []string{"Germany 2"}, "Ali-Germany-2.conf"},
+		{"Ali", "wg0", "d.conf", []string{"Germany 2"}, "Germany-Direct.conf"},
+	} {
+		got := deviceFilename(tc.client, tc.tunnel, tc.base, tc.parts...)
+		if got != tc.want {
+			t.Errorf("deviceFilename(%q, %q, %q, %q) = %q, want %q", tc.client, tc.tunnel, tc.base, tc.parts, got, tc.want)
+		}
+		if strings.HasSuffix(got, ".conf") {
+			name := strings.TrimSuffix(got, ".conf")
+			if len(name) > confNameMax || confName(name) != name {
+				t.Errorf("%q is not a name a WireGuard app takes", got)
+			}
+		}
+	}
+}
+
+// A WireGuard file whose names tell where the tunnel reaches is named
+// for that place alone: the country, and the path to it -- direct, or
+// tunnelled through the Iran relay. These are the hosts as they are named
+// on Ali's panel, so the files his customers download are the ones this
+// list says.
+func TestWireGuardFilesAreNamedForTheirPlace(t *testing.T) {
+	for _, tc := range []struct {
+		client, tunnel, base string
+		parts                []string
+		want                 string
+	}{
+		{"Ali", "wg0", "device-1.conf", []string{"wg0", "🥇 🇹🇷 ترکیه • گیمینگ ⚡ — مستقیم"}, "Turkey-Direct.conf"},
+		{"Ali", "wg0", "device-1.conf", []string{"wg0", "🥇 🇹🇷 ترکیه • گیمینگ ⚡ — رله ایران"}, "Turkey-Tunnel.conf"},
+		{"Ali", "wg0", "device-1.conf", []string{"wg0", "🥉 🇳🇱 هلند • گیمینگ 🌷 — مستقیم"}, "Holland-Direct.conf"},
+		{"Ali", "wg0", "device-1.conf", []string{"wg0", "🥉 🇳🇱 هلند • گیمینگ 🌷 — رله ایران"}, "Holland-Tunnel.conf"},
+		{"Ali", "wg0", "device-1.conf", []string{"wg0", "🇺🇸 آمریکا • هوش مصنوعی 🤖 — مستقیم"}, "America-Direct.conf"},
+		{"Ali", "wg0", "device-1.conf", []string{"wg0", "🇦🇺 سیدنی • وب‌گردی 🏄 — مستقیم"}, "Sydney-Direct.conf"},
+		{"Ali", "wg0", "device-1.conf", []string{"wg0", "🥈 🇸🇪 سوئد • گیمینگ ❄️ — مستقیم"}, "Sweden-Direct.conf"},
+		// Sweden through the relay names two places; the file is Sweden's.
+		{"Ali", "wg0", "device-1.conf", []string{"wg0", "🥈 🇸🇪 سوئد • گیمینگ ❄️ — رله ایران"}, "Sweden-Tunnel.conf"},
+		// The tunnel's own name can be the one that tells.
+		{"Ali", "ترکیه", "device-1.conf", nil, "Turkey-Direct.conf"},
+		// English names read the same, in either case.
+		{"Ali", "wg0", "device-1.conf", []string{"Turkey — Relay"}, "Turkey-Tunnel.conf"},
+		{"Ali", "wg0", "device-1.conf", []string{"singapore direct"}, "SG-Direct.conf"},
+		// A place too long with its path: the code stands in for it.
+		{"Ali", "wg0", "device-1.conf", []string{"سنگاپور — مستقیم"}, "SG-Direct.conf"},
+		// No place in any name: the name the file would have had.
+		{"Ali", "wg0", "device-1.conf", []string{"wg0"}, "Ali-wg0.conf"},
+		// Other files are not WireGuard files, wherever they reach: their
+		// names are not this scheme's to give.
+		{"Ali", "wg0", "device-1.ovpn", []string{"Turkey"}, "Ali-Turkey.ovpn"},
+		{"Ali", "wg0", "device-1.txt", []string{"Turkey"}, "Ali-Turkey.txt"},
 	} {
 		got := deviceFilename(tc.client, tc.tunnel, tc.base, tc.parts...)
 		if got != tc.want {

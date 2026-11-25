@@ -593,7 +593,7 @@ function timeAgo(d) {
 /* ---------- api ---------- */
 var CC = { 'آلمان': 'DE', 'هلند': 'NL', 'فنلاند': 'FI', 'فرانسه': 'FR', 'انگلیس': 'UK', 'بریتانیا': 'UK', 'ترکیه': 'TR', 'امارات': 'AE', 'آمریکا': 'US', 'سوئد': 'SE', 'کانادا': 'CA', 'ژاپن': 'JP', 'سنگاپور': 'SG', 'لهستان': 'PL', 'روسیه': 'RU', 'ایران': 'IR', 'ارمنستان': 'AM', 'ایتالیا': 'IT', 'اسپانیا': 'ES' };
 function asciiSlug(s) { return String(s || '').replace(/[^A-Za-z0-9_=+.-]+/g, ''); }
-function cfgFileName(node, i) {
+function cfgLegacyName(node, i) {
   var label = asciiSlug((S.info && S.info.label) || '').slice(0, 8) || 'wg';
   var name = String(node.name || '');
   var c = '';
@@ -601,6 +601,79 @@ function cfgFileName(node, i) {
   if (!c) c = asciiSlug(name).slice(0, 6);
   if (!c) c = 'n' + (node.node_id != null ? node.node_id : i + 1);
   return (label + '-' + c).slice(0, 15) + '.conf';
+}
+/* A downloaded WireGuard file is named for the place it reaches and the
+   path to it -- Turkey-Direct, Sweden-Tunnel -- nothing else: the apps
+   make the tunnel's name of the file's, take at most fifteen characters
+   of it, and a customer scanning their tunnels reads places. The first
+   spelling found in the node's name wins, because a relay's name names
+   two places ("… سوئد … رله ایران" is Sweden, reached through Iran). */
+var PLACES = [
+  ['Turkey', 'TR', ['ترکیه', 'Turkey']],
+  ['Sweden', 'SE', ['سوئد', 'Sweden']],
+  ['Holland', 'NL', ['هلند', 'Holland', 'Netherlands']],
+  ['America', 'US', ['آمریکا', 'America', 'USA', 'United States']],
+  ['Germany', 'DE', ['آلمان', 'Germany']],
+  ['France', 'FR', ['فرانسه', 'France']],
+  ['England', 'GB', ['انگلیس', 'بریتانیا', 'England', 'Britain', 'UK']],
+  ['Finland', 'FI', ['فنلاند', 'Finland']],
+  ['Italy', 'IT', ['ایتالیا', 'Italy']],
+  ['Spain', 'ES', ['اسپانیا', 'Spain']],
+  ['Canada', 'CA', ['کانادا', 'Canada']],
+  ['Japan', 'JP', ['ژاپن', 'Japan']],
+  ['Singapore', 'SG', ['سنگاپور', 'Singapore']],
+  ['Poland', 'PL', ['لهستان', 'Poland']],
+  ['Russia', 'RU', ['روسیه', 'Russia']],
+  ['Emirates', 'AE', ['امارات', 'Emirates', 'UAE']],
+  ['Armenia', 'AM', ['ارمنستان', 'Armenia']],
+  ['Iran', 'IR', ['ایران', 'Iran']],
+  ['Sydney', 'AU', ['سیدنی', 'Sydney']]
+];
+function cfgPlace(node) {
+  var low = String((node && node.name) || '').toLowerCase();
+  var hit = null, at = -1;
+  PLACES.forEach(function (p) {
+    p[2].forEach(function (w) {
+      var j = low.indexOf(w.toLowerCase());
+      if (j > -1 && (at < 0 || j < at)) { hit = p; at = j; }
+    });
+  });
+  if (!hit) return null;
+  var variant = 'Direct';
+  ['رله', 'تونل', 'relay', 'tunnel'].forEach(function (m) { if (low.indexOf(m) > -1) variant = 'Tunnel'; });
+  return { display: hit[0], code: hit[1], variant: variant };
+}
+function cfgPlaceBase(node) {
+  var p = cfgPlace(node);
+  if (!p) return null;
+  var base = p.display + '-' + p.variant;
+  /* Too long with its path (Singapore-Direct is sixteen): the code
+     stands in for the name, and the tunnel is the same to the customer. */
+  return base.length <= 15 ? base : p.code + '-' + p.variant;
+}
+function cfgBaseName(node, i) {
+  return cfgPlaceBase(node) || cfgLegacyName(node, i).replace(/\.conf$/, '');
+}
+function cfgDupBase(node, base, n) {
+  var cand = base + '-' + n;
+  if (cand.length <= 15) return cand;
+  var p = cfgPlace(node);
+  if (p) {
+    cand = p.code + '-' + p.variant + '-' + n;
+    if (cand.length <= 15) return cand;
+  }
+  /* No room for the dash either: the number joins the name's end
+     (Turkey-Direct2), cut from the front of the name, never off the
+     number that tells the two files apart. */
+  return base.slice(0, 15 - String(n).length) + n;
+}
+function cfgFileName(node, i) {
+  var base = cfgBaseName(node, i), n = 1, list = S.nodes || [];
+  for (var j = 0; j < i && j < list.length; j++) {
+    if (list[j] && cfgBaseName(list[j], j) === base) n++;
+  }
+  if (n > 1) base = cfgDupBase(node, base, n);
+  return base + '.conf';
 }
 function api(path) {
   if (demo) return demoApi(path);
@@ -972,18 +1045,22 @@ function onClick(e) {
     case 'qr-link': showQr(t('qrLink'), pageLink(), t('qrLinkCap')); break;
     case 'app': openApps(b.getAttribute('data-p')); break;
     case 'node-dl': withNode(b, function (txt, n, i) {
-      var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' }), a = document.createElement('a');
+      var isLink = !!linkUri(txt);
+      // A WireGuard file does not travel as text: some Android browsers
+      // take a text download at its word and save the tunnel as
+      // Name.conf.txt, which no WireGuard app will import.
+      var blob = new Blob([txt], { type: isLink ? 'text/plain;charset=utf-8' : 'application/octet-stream' }), a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       // A link is not a WireGuard file: saving it as one would hand the
       // customer a .conf that no app can read as one.
-      a.download = linkUri(txt) ? cfgFileName(n, i).replace(/\.conf$/, '.txt') : cfgFileName(n, i);
+      a.download = isLink ? cfgLegacyName(n, i).replace(/\.conf$/, '.txt') : cfgFileName(n, i);
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); toast(t('dled'));
     }); break;
     case 'node-copy': withNode(b, function (txt) { doCopy(txt); }); break;
     case 'node-qr': withNode(b, function (txt, n) { showQr(n.name || t('qr'), txt, t('qrCfg')); }); break;
     case 'node-v2': withNode(b, function (txt, n, i) { var u = nodeUri(txt, n, i); if (u) openV2(u); else toast(t('cfgErr')); }); break;
-    case 'v2-rec': { var r = recNode(); if (r.n) { toast(t('fetching')); getConfig(r.n, 'n' + r.i).then(function (txt) { if (r.n.amnezia) { var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = cfgFileName(r.n, r.i); document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); toast(t('dled')); return; } var u = nodeUri(txt, r.n, r.i); if (u) openV2(u); else toast(t('cfgErr')); }).catch(function () { toast(t('cfgErr')); }); } break; }
+    case 'v2-rec': { var r = recNode(); if (r.n) { toast(t('fetching')); getConfig(r.n, 'n' + r.i).then(function (txt) { if (r.n.amnezia) { var blob = new Blob([txt], { type: 'application/octet-stream' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = cfgFileName(r.n, r.i); document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); toast(t('dled')); return; } var u = nodeUri(txt, r.n, r.i); if (u) openV2(u); else toast(t('cfgErr')); }).catch(function () { toast(t('cfgErr')); }); } break; }
     case 'copy-all': toast(t('fetching')); Promise.all(S.nodes.map(function (n, i) { return getConfig(n, 'n' + i).then(function (txt) { return n.amnezia ? txt : nodeUri(txt, n, i); }); }))
       .then(function (list) { doCopy(list.filter(Boolean).join('\n'), t('v2boxTip')); }).catch(function () { toast(t('cfgErr')); }); break;
     case 'v2-sub-add': { var s = v2boxSubLink(); if (s) { var nm = (S.info && S.info.label) || CFG.brand; var u = 'v2box://install-sub?url=' + encodeURIComponent(s) + '&name=' + encodeURIComponent(nm); doCopy(s, t('v2boxTip')).then(function () { location.href = u; }); } break; }

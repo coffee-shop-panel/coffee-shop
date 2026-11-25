@@ -1485,6 +1485,14 @@ func deviceFilename(client, tunnel, base string, parts ...string) string {
 		}
 		return name + ext
 	}
+	// Named for its place when the names it carries tell one: the country
+	// the tunnel reaches, and whether the path to it is direct or relayed
+	// -- nothing else. A customer scanning their tunnels reads places,
+	// and the name they had before was a sentence the apps cut to fifteen
+	// characters in the middle anyway.
+	if name, ok := confPlaceName(tunnel, keep); ok {
+		return name + ext
+	}
 	who := confName(client)
 	var tail []string
 	for _, p := range keep {
@@ -1539,6 +1547,107 @@ func fitConfName(who, suffix string) string {
 		return cut(who, room) + "-" + suffix
 	}
 	return cut(suffix, confNameMax)
+}
+
+// confCountry is a place a tunnel can reach, as the file that reaches it
+// is named: the English name the file wears, the two-letter code for when
+// that name and its path together run past what a WireGuard app takes,
+// and the names the place is known by in the names the nodes and hosts
+// carry, in either script.
+type confCountry struct {
+	display string
+	code    string
+	names   []string
+}
+
+var confCountries = []confCountry{
+	{"Turkey", "TR", []string{"ترکیه", "Turkey"}},
+	{"Sweden", "SE", []string{"سوئد", "Sweden"}},
+	{"Holland", "NL", []string{"هلند", "Holland", "Netherlands"}},
+	{"America", "US", []string{"آمریکا", "America", "USA", "United States"}},
+	{"Germany", "DE", []string{"آلمان", "Germany"}},
+	{"France", "FR", []string{"فرانسه", "France"}},
+	{"England", "GB", []string{"انگلیس", "بریتانیا", "England", "Britain", "UK"}},
+	{"Finland", "FI", []string{"فنلاند", "Finland"}},
+	{"Italy", "IT", []string{"ایتالیا", "Italy"}},
+	{"Spain", "ES", []string{"اسپانیا", "Spain"}},
+	{"Canada", "CA", []string{"کانادا", "Canada"}},
+	{"Japan", "JP", []string{"ژاپن", "Japan"}},
+	{"Singapore", "SG", []string{"سنگاپور", "Singapore"}},
+	{"Poland", "PL", []string{"لهستان", "Poland"}},
+	{"Russia", "RU", []string{"روسیه", "Russia"}},
+	{"Emirates", "AE", []string{"امارات", "Emirates", "UAE"}},
+	{"Armenia", "AM", []string{"ارمنستان", "Armenia"}},
+	{"Iran", "IR", []string{"ایران", "Iran"}},
+	{"Sydney", "AU", []string{"سیدنی", "Sydney"}},
+}
+
+// confPlaceName names a WireGuard file for the place it reaches --
+// Turkey-Direct, Sweden-Tunnel -- from the names the tunnel and its hosts
+// carry. The host's name is read first: it is the one that says both
+// where the tunnel goes and how it gets there. Then the other parts,
+// then the tunnel's own name. False when none of them names a place, and
+// the file keeps the name it would have had.
+func confPlaceName(tunnel string, parts []string) (string, bool) {
+	texts := make([]string, 0, len(parts)+1)
+	for i := len(parts) - 1; i >= 0; i-- {
+		texts = append(texts, parts[i])
+	}
+	texts = append(texts, tunnel)
+	for _, text := range texts {
+		if c, ok := confCountryIn(text); ok {
+			return c.fileName(confVariantIn(texts)), true
+		}
+	}
+	return "", false
+}
+
+// fileName is the country's file name on one path: the display name, or
+// the two-letter code where the two together run past confNameMax --
+// Singapore-Direct is sixteen characters, and SG-Direct is the same
+// tunnel to the customer who imports it.
+func (c confCountry) fileName(variant string) string {
+	if name := c.display + "-" + variant; len(name) <= confNameMax {
+		return name
+	}
+	return c.code + "-" + variant
+}
+
+// confCountryIn finds the place a name speaks of. The earliest mention
+// wins: a relay's name mentions two places -- "سوئد • گیمینگ — رله ایران"
+// is Sweden reached through Iran, and Sweden is the place the file is
+// for.
+func confCountryIn(text string) (confCountry, bool) {
+	low := strings.ToLower(text)
+	var hit *confCountry
+	at := -1
+	for i := range confCountries {
+		for _, name := range confCountries[i].names {
+			if j := strings.Index(low, strings.ToLower(name)); j >= 0 && (at < 0 || j < at) {
+				hit, at = &confCountries[i], j
+			}
+		}
+	}
+	if hit == nil {
+		return confCountry{}, false
+	}
+	return *hit, true
+}
+
+// confVariantIn is the path a set of names describes: Tunnel when any of
+// them says the traffic is relayed -- رله, تونل, relay, tunnel -- and
+// Direct otherwise; a name that says مستقیم or direct and a name that
+// says nothing at all mean the same path.
+func confVariantIn(texts []string) string {
+	for _, text := range texts {
+		low := strings.ToLower(text)
+		for _, marker := range []string{"رله", "تونل", "relay", "tunnel"} {
+			if strings.Contains(low, marker) {
+				return "Tunnel"
+			}
+		}
+	}
+	return "Direct"
 }
 
 // fileParts is what tells one of a customer's files from their others:

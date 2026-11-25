@@ -259,6 +259,30 @@ v5 rather than a version per feature.
   it for everyone at once. The composer and its history sit under
   the operator list on the Admins & Resellers pages.
 
+### Downloaded WireGuard files are named for their place
+
+A `.conf` whose tunnel or host names a country is named for that
+country alone, plus the path to it: `Turkey-Direct.conf`,
+`Sweden-Tunnel.conf` — Direct unless a name says the traffic is
+relayed (رله, تونل, relay, tunnel). The country is read from the
+host's name first, then the other file parts, then the tunnel's own
+name, in either script, and the earliest mention wins (a relay's
+name names the relay's country too, last). A display name that runs
+past the fifteen characters a WireGuard app takes, path included,
+falls back to its two-letter code (`SG-Direct`). The scheme lives
+twice, once per side of the download: `confPlaceName` in
+`internal/service/subscription.go` names the files behind the direct
+config links, and `cfgFileName` in the coffee page names the page's
+own downloads, where a second file of a name already taken is
+suffixed `-2`, `-3` (the code form, then the bare number, if the
+dash form would not fit). Files that are not WireGuard files —
+`.ovpn`, the link `.txt` files — keep the names they had, and a
+.conf with no country in any of its names keeps its old name too.
+On the coffee page a WireGuard download no longer travels as
+`text/plain`: some Android browsers save a text download as
+`Name.conf.txt`, so the blob is `application/octet-stream` in both
+download paths; link downloads stay text and keep their names.
+
 ### The coffee-shop design port (shipped in 3.7.3)
 
 The panel is being re-skinned to the coffee-shop design mockups, wave by
