@@ -24,6 +24,13 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		"POST /api/auth/totp/confirm",
 		"POST /api/auth/totp/disable",
 		"POST /api/auth/totp/start",
+		// Their own passkeys: registered, listed and revoked under the
+		// caller's id alone, so one operator's keys are never another's
+		// business -- the same scoping the account routes above have.
+		"POST /api/passkeys/register/options",
+		"POST /api/passkeys/register/verify",
+		"GET /api/passkeys",
+		"DELETE /api/passkeys/{id}",
 
 		// The two pages that are theirs.
 		"GET /api/clients",

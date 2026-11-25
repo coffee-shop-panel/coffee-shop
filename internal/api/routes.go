@@ -91,6 +91,34 @@ func (s *Server) routes() []Route {
 			Summary: "Turn the second factor off.", Body: `{"password":"…"}`,
 			Note:    "The password is required again, so a borrowed session cannot remove it.",
 			handler: s.handleTOTPDisable},
+		{Method: "POST", Path: "/api/passkeys/register/options", Group: "Authentication", Auth: true, Operator: true,
+			Summary: "Begin registering a passkey for the signed-in operator. Returns the creation options.",
+			Body:    `{"name":"My phone"}`,
+			Note: "The name is the label the key is listed under. Passkeys only work " +
+				"when the panel is opened over HTTPS, and the ceremony must be " +
+				"finished within five minutes.",
+			handler: s.handlePasskeyRegisterOptions},
+		{Method: "POST", Path: "/api/passkeys/register/verify", Group: "Authentication", Auth: true, Operator: true,
+			Summary: "Finish registering a passkey and store its public half.",
+			Body:    `{"id":"…","rawId":"…","response":{"attestationObject":"…","clientDataJSON":"…"},"type":"public-key"}`,
+			handler: s.handlePasskeyRegisterVerify},
+		{Method: "GET", Path: "/api/passkeys", Group: "Authentication", Auth: true, Operator: true,
+			Summary: "The signed-in operator's own passkeys.",
+			handler: s.handlePasskeyList},
+		{Method: "DELETE", Path: "/api/passkeys/{id}", Group: "Authentication", Auth: true, Operator: true,
+			Summary: "Revoke one of the signed-in operator's own passkeys.",
+			handler: s.handlePasskeyDelete},
+		{Method: "POST", Path: "/api/passkeys/login/options", Group: "Authentication",
+			Summary: "Begin a passkey sign-in. Returns the request options; no username is needed.",
+			Note: "The credential the device offers names its owner. The ceremony " +
+				"must be finished within five minutes, and only over HTTPS.",
+			handler: s.handlePasskeyLoginOptions},
+		{Method: "POST", Path: "/api/passkeys/login/verify", Group: "Authentication",
+			Summary: "Finish a passkey sign-in and exchange the assertion for a token.",
+			Body:    `{"id":"…","rawId":"…","response":{"authenticatorData":"…","clientDataJSON":"…","signature":"…","userHandle":"…"},"type":"public-key"}`,
+			Note: "Answers with the same shape as POST /api/auth/login. An operator " +
+				"the owner has switched off is refused, as at the password door.",
+			handler: s.handlePasskeyLogin},
 
 		// ── Customers ──
 		{Method: "GET", Path: "/api/clients", Group: "Customers", Auth: true,

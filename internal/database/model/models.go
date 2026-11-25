@@ -126,6 +126,52 @@ type Node struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// PasskeyCredential is one passkey an operator registered: the public half
+// of a WebAuthn credential, kept so its owner can sign in with a
+// fingerprint, a face or a device PIN instead of the password.
+//
+// The private half never leaves the operator's own device, so what is
+// stored here is not a secret -- but the credential id and the public key
+// are still kept out of the JSON, because the endpoints that answer with
+// these rows answer with a view of them, and a key nobody needs to read is
+// a key nobody can copy out of a response by accident.
+type PasskeyCredential struct {
+	ID uint `gorm:"primaryKey" json:"id"`
+
+	// AdminID is the operator the passkey signs in as. A passkey belongs
+	// to exactly one operator and is never shared or moved.
+	AdminID uint `gorm:"index;not null" json:"adminId"`
+
+	// CredentialID is the authenticator's own id for this credential,
+	// unique across every operator: it is how a sign-in assertion names
+	// whose key it is, before anyone has said a username.
+	CredentialID []byte `gorm:"uniqueIndex;not null" json:"-"`
+	PublicKey    []byte `gorm:"not null" json:"-"`
+
+	// SignCount is the authenticator's counter at its last sign-in. The
+	// library compares each new assertion against it, so a counter that
+	// goes backwards is how a cloned authenticator shows itself.
+	SignCount uint32 `gorm:"not null;default:0" json:"signCount"`
+
+	// Transports is how the authenticator is reached -- internal, usb,
+	// ble, nfc, hybrid -- comma-joined, as the browser reported them at
+	// registration. A hint for the next ceremony, nothing more.
+	Transports string `gorm:"size:255;not null;default:''" json:"transports"`
+
+	// BackupEligible and BackupState are the credential's backup flags,
+	// kept so the credential can be rebuilt for the library exactly as
+	// the authenticator described it.
+	BackupEligible bool `gorm:"not null;default:false" json:"backupEligible"`
+	BackupState    bool `gorm:"not null;default:false" json:"backupState"`
+
+	// Name is the operator's own label for the key -- "the phone", "the
+	// laptop" -- so the list in the settings can be told apart.
+	Name string `gorm:"size:64;not null" json:"name"`
+
+	CreatedAt  time.Time  `json:"createdAt"`
+	LastUsedAt *time.Time `json:"lastUsedAt"`
+}
+
 // APIToken is a long-lived credential for machine access.
 //
 // A session token expires and is bound to a person signing in; a node talking to
@@ -1331,6 +1377,7 @@ func AllModels() []any {
 		&ShopCodeUse{},
 		&ShopNotice{},
 		&AdminBot{},
+		&PasskeyCredential{},
 	}
 }
 

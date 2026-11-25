@@ -2,7 +2,8 @@
 import logo from '../assets/logo.png'
 import { nextTick, ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { store, t, signIn, pickLoginLocale } from '../lib/store.js'
+import { store, t, signIn, signInWithPasskey, pickLoginLocale } from '../lib/store.js'
+import { passkeySupported } from '../lib/passkey.js'
 import { localeName, localeFlag } from '../lib/locales.js'
 import AntIcon from '../components/AntIcon.vue'
 import { themeMode, cycleTheme } from '../lib/theme.js'
@@ -18,6 +19,13 @@ const needCode = ref(false)
 const busy = ref(false)
 const langOpen = ref(false)
 const showPw = ref(false)
+
+// The fingerprint door, offered only where it can work: a browser with
+// the API, on an encrypted origin. Anywhere else the panel's endpoints
+// refuse the ceremony too, so the button simply is not drawn.
+const canPasskey = passkeySupported()
+const pkBusy = ref(false)
+const pkError = ref('')
 
 // The headline cycles a word at a time, the way the classic panel's does. It is the one
 // piece of motion on an otherwise still screen, so it carries the page.
@@ -48,14 +56,38 @@ async function submit() {
       document.getElementById('login-code')?.focus()
       return
     }
-    // Only a path on this panel: a link crafted with another site in it
-    // would otherwise be followed straight after a correct password.
-    const next = typeof route.query.next === 'string' ? route.query.next : ''
-    router.replace(/^\/(?![/\\])/.test(next) ? next : '/')
+    goNext()
   } catch (err) {
     error.value = err.message
   } finally {
     busy.value = false
+  }
+}
+
+// goNext is where a sign-in of either kind lands.
+// Only a path on this panel: a link crafted with another site in it
+// would otherwise be followed straight after a correct password.
+function goNext() {
+  const next = typeof route.query.next === 'string' ? route.query.next : ''
+  router.replace(/^\/(?![/\\])/.test(next) ? next : '/')
+}
+
+async function passkeySignIn() {
+  pkError.value = ''
+  pkBusy.value = true
+  try {
+    await signInWithPasskey()
+    goNext()
+  } catch (err) {
+    // A dismissed fingerprint prompt is the browser's own error, and it
+    // means "not now" rather than "no": a quiet word, in the operator's
+    // language, where the panel's refusals arrive in the server's.
+    pkError.value =
+      err?.name === 'NotAllowedError'
+        ? t('auth.passkeyCancelled')
+        : err.message || t('auth.passkeyFailed')
+  } finally {
+    pkBusy.value = false
   }
 }
 
@@ -158,6 +190,20 @@ const version = computed(() => store.meta?.version || '')
             </button>
           </div>
         </form>
+
+        <!-- The fingerprint door, under the password door: the same
+             session, without the typing. Drawn only where the browser
+             and the encrypted origin allow it at all. -->
+        <div v-if="canPasskey" class="passkey-block">
+          <div class="passkey-divider"><span>{{ t('login.or') }}</span></div>
+          <p v-if="pkError" class="error" role="alert">{{ pkError }}</p>
+          <button class="abtn large block" type="button" :disabled="pkBusy" @click="passkeySignIn">
+            <span v-if="pkBusy" class="spin"></span>
+            <template v-else>
+              <AntIcon name="SafetyOutlined" /> {{ t('auth.passkey') }}
+            </template>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -407,6 +453,25 @@ const version = computed(() => store.meta?.version || '')
 }
 .submit-row {
   margin-bottom: 0;
+}
+/* The passkey door: a quiet divider, then the same-sized button in the
+   page's plain style -- the password stays the headline act. */
+.passkey-block {
+  margin-top: 20px;
+}
+.passkey-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  color: var(--faint);
+  font-size: 12px;
+}
+.passkey-divider::before,
+.passkey-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--line-soft);
 }
 /* A refusal is a banner, not a footnote: the design's bad tint, bordered. */
 .error {

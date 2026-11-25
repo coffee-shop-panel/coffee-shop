@@ -51,6 +51,12 @@ func TestOnlySigningInIsOpen(t *testing.T) {
 		"POST /api/auth/login":   true,
 		"GET /api/meta":          true,
 		"GET /api/i18n/{locale}": true,
+		// The passkey door, like the password door: reaching it is the
+		// point of signing in, and what it answers with is a ceremony
+		// challenge or a refusal -- a session only ever follows a proved
+		// assertion.
+		"POST /api/passkeys/login/options": true,
+		"POST /api/passkeys/login/verify":  true,
 		// ok or not, for an uptime checker; the reasons only to someone
 		// signed in.
 		"GET /api/health": true,
@@ -123,6 +129,7 @@ func TestRoutesThatTakeABodyShowOne(t *testing.T) {
 		"POST /api/sharing/history/import":           true, // reads this server's log; nothing to send
 		"POST /api/shop/orders/{id}/approve":         true, // the order is the whole request
 		"POST /api/shop/orders/{id}/reject":          true, // the order is the whole request
+		"POST /api/passkeys/login/options":           true, // the challenge is the whole answer; nothing to send
 	}
 	for _, r := range newRouteServer().routes() {
 		if r.Method != http.MethodPost && r.Method != http.MethodPatch && r.Method != http.MethodPut {

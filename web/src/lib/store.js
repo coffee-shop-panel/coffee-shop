@@ -162,6 +162,24 @@ export async function signIn(username, password, code) {
   // yet; the caller asks for the code and calls again.
   if (res.needCode) return { needCode: true }
 
+  return finishSignIn(res)
+}
+
+// signInWithPasskey is the fingerprint door: the panel issues a ceremony,
+// the browser's authenticator answers it, and the answer is exchanged for
+// the same session the password door gives. The ceremony itself -- the
+// buffers and their encodings -- is lib/passkey.js's.
+export async function signInWithPasskey() {
+  const { getPasskey } = await import('./passkey.js')
+  const options = await api.passkeyLoginOptions()
+  const assertion = await getPasskey(options)
+  const res = await api.passkeyLoginVerify(assertion)
+  return finishSignIn(res)
+}
+
+// finishSignIn is what every door does once the panel has answered with
+// a session: keep the token, learn who this is, and settle the language.
+async function finishSignIn(res) {
   setToken(res.token)
   store.admin = res.admin
   loadPanelSettings()

@@ -522,3 +522,13 @@ AdminBot
 	adminChatId int64
 	createdAt time.Time
 	updatedAt time.Time
+PasskeyCredential
+	id uint
+	adminId uint
+	signCount uint32
+	transports string
+	backupEligible bool
+	backupState bool
+	name string
+	createdAt time.Time
+	lastUsedAt *time.Time

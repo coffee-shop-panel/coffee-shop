@@ -171,6 +171,20 @@ v5 rather than a version per feature.
 - **fix(overview):** the Overview page's interfaces summary starts
   folded, behind a show/hide toggle whose choice is kept in
   localStorage — the 23-row list no longer fills the dashboard.
+- **feat(passkey):** operators can sign in with a passkey — a
+  fingerprint, a face or a device PIN — instead of the password
+  (WebAuthn via go-webauthn, discoverable credentials, user
+  verification required). Keys are registered and revoked in the
+  security settings, are scoped to their owner, and the sign-in page
+  offers the fingerprint button only on an encrypted origin: the
+  relying party is derived from each request's host, and every passkey
+  endpoint refuses plain HTTP. A passkey sign-in mints the session
+  through the same code as the password door (binding and epoch
+  included), is throttled and recorded in the activity log the same
+  way, and an operator the owner has switched off is refused.
+- **fix(overview):** the Overview page's recent-activity feed starts
+  folded too, behind the same show/hide toggle, its choice kept in
+  localStorage.
 
 ### The coffee-shop design port (shipped in 3.7.3)
 

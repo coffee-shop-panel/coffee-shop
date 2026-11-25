@@ -105,6 +105,13 @@ type Server struct {
 	// Nil on a panel built without it, and its endpoints answer as if
 	// the feature were not there, like the shop's.
 	adminBot *adminbot.Manager
+	// passkeys is the operators' WebAuthn credential store, and pkPending
+	// the ceremonies begun and not yet finished. The store is nil on a
+	// panel built without a database, and the passkey endpoints then
+	// answer as if the feature were not there.
+	passkeys  *operators.Passkeys
+	pkMu      sync.Mutex
+	pkPending map[string]*passkeyCeremony
 }
 
 // Options configures a Server.
@@ -186,6 +193,7 @@ func New(o Options) *Server {
 		nodes:     fleet.NewNodes(o.DB, o.Logger),
 		activity:  service.NewActivity(o.DB, o.Logger),
 		admins:    operators.NewAdmins(o.DB, o.Logger),
+		passkeys:  operators.NewPasskeys(o.DB, o.Logger),
 		prober:    o.Prober,
 		throttle:  newThrottle(),
 		notifier:  o.Notifier,

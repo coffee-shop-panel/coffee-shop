@@ -11,6 +11,12 @@ POST   /api/auth/password                             Authentication auth=true  
 POST   /api/auth/totp/start                           Authentication auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
 POST   /api/auth/totp/confirm                         Authentication auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
 POST   /api/auth/totp/disable                         Authentication auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
+POST   /api/passkeys/register/options                 Authentication auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
+POST   /api/passkeys/register/verify                  Authentication auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
+GET    /api/passkeys                                  Authentication auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
+DELETE /api/passkeys/{id}                             Authentication auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
+POST   /api/passkeys/login/options                    Authentication auth=false operator=false | none=yes token=yes reseller=yes admin=yes owner=yes
+POST   /api/passkeys/login/verify                     Authentication auth=false operator=false | none=yes token=yes reseller=yes admin=yes owner=yes
 GET    /api/clients                                   Customers      auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 POST   /api/clients                                   Customers      auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 GET    /api/clients/{id}                              Customers      auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes

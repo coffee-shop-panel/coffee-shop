@@ -144,7 +144,11 @@ async function send(method, path, body) {
     )
   }
 
-  if (res.status === 401 && !path.endsWith('/auth/login')) {
+  if (
+    res.status === 401 &&
+    !path.endsWith('/auth/login') &&
+    !path.endsWith('/passkeys/login/verify')
+  ) {
     // The session is gone. Every request in flight is about to fail for this
     // one reason, so it is announced once here rather than by each page that
     // happens to catch it first — which is how the operator ended up reading
@@ -481,6 +485,18 @@ export const api = {
 
   login: (username, password, code) =>
     request('POST', '/api/auth/login', { username, password, code: code || '' }),
+  // Passkeys: the two ceremonies, each in two steps. The options are the
+  // panel's challenge; the verify body is the browser's answer to it, as
+  // lib/passkey.js serialised it.
+  passkeyLoginOptions: () => request('POST', '/api/passkeys/login/options', {}),
+  passkeyLoginVerify: (assertion) =>
+    request('POST', '/api/passkeys/login/verify', assertion),
+  passkeyRegisterOptions: (name) =>
+    request('POST', '/api/passkeys/register/options', { name }),
+  passkeyRegisterVerify: (attestation) =>
+    request('POST', '/api/passkeys/register/verify', attestation),
+  passkeys: () => request('GET', '/api/passkeys'),
+  passkeyDelete: (id) => request('DELETE', `/api/passkeys/${id}`),
   me: () => request('GET', '/api/auth/me'),
   updateMe: (input) => request('PATCH', '/api/auth/me', input),
   changePassword: (currentPassword, newPassword) =>
