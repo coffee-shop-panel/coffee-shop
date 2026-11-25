@@ -130,6 +130,7 @@ func TestRoutesThatTakeABodyShowOne(t *testing.T) {
 		"POST /api/shop/orders/{id}/approve":         true, // the order is the whole request
 		"POST /api/shop/orders/{id}/reject":          true, // the order is the whole request
 		"POST /api/passkeys/login/options":           true, // the challenge is the whole answer; nothing to send
+		"POST /api/announcements/{id}/dismiss":       true, // acts on the id in the path
 	}
 	for _, r := range newRouteServer().routes() {
 		if r.Method != http.MethodPost && r.Method != http.MethodPatch && r.Method != http.MethodPut {

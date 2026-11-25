@@ -18,6 +18,10 @@ import ErrorState from '../components/ErrorState.vue'
 import PageSpin from '../components/PageSpin.vue'
 
 const data = ref(null)
+// The owner's announcements standing over this dashboard. Their own
+// state, loaded beside the figures and never instead of them: a
+// failed fetch leaves the page exactly as it was, bannerless.
+const notices = ref([])
 const loading = ref(true)
 // Only fatal when there is nothing to show instead: a refresh that fails
 // over figures already on the page leaves them standing, with a warning.
@@ -33,6 +37,28 @@ async function load(quiet = false) {
     if (!quiet) notify(err.message, 'error')
   } finally {
     loading.value = false
+  }
+  // The banners ride the same cycle, in their own try: the server
+  // answers with what this operator has not dismissed, so a list
+  // that arrives is always the standing set.
+  try {
+    notices.value = (await api.announcementsMine({ background: quiet })) || []
+  } catch {
+    // A banner that cannot be read is a banner not shown; the
+    // dashboard's own failure handling above is the page's voice.
+  }
+}
+
+// Putting a banner away: it leaves the screen at once, and the
+// dismissal is written behind it. If the write fails the banner is
+// back on the next load -- the server, not the screen, is the
+// record of what was dismissed.
+async function dismissNotice(a) {
+  notices.value = notices.value.filter((x) => x.id !== a.id)
+  try {
+    await api.announcementDismiss(a.id)
+  } catch {
+    // Left to the next load to show again, as the comment above says.
   }
 }
 
@@ -138,6 +164,22 @@ function activityTone(a) {
         <RouterLink to="/clients" class="btn primary">{{ t('client.menu.addClients') }}</RouterLink>
       </div>
     </div>
+
+    <!-- The owner's announcements, above everything else on the page:
+         they are the one thing on this dashboard that is not the
+         operator's own business but the owner's word about it, and
+         each stands until this operator puts it away. -->
+    <section v-for="a in notices" :key="a.id" class="card notice">
+      <span class="ico-tile warn"><AntIcon name="BellOutlined" /></span>
+      <div class="col" style="flex: 1">
+        <b>{{ t('announce.fromOwner') }}</b>
+        <span style="white-space: pre-line">{{ a.text }}</span>
+        <span class="faint xs">{{ date(a.createdAt, store.locale) }}</span>
+      </div>
+      <button type="button" class="btn xs" :aria-label="t('announce.dismiss')" @click="dismissNotice(a)">
+        <Icon name="close" :size="12" />
+      </button>
+    </section>
 
     <!-- The figures an operator arrives asking about, each leading to the
          customer list already narrowed to it. -->
@@ -259,5 +301,11 @@ function activityTone(a) {
   font-size: 0.45em;
   font-weight: 500;
   color: var(--muted);
+}
+.notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
 }
 </style>

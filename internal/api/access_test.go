@@ -110,6 +110,12 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		// The activity record, narrowed in the store to their own lines:
 		// what they did, never what anybody else did.
 		"GET /api/activity",
+		// The owner's announcements standing over their dashboard, and
+		// putting one away: the list is narrowed to what the caller has
+		// not dismissed, and a dismissal writes the caller's row alone.
+		// Composing one is not here -- that stays the owner's.
+		"GET /api/announcements/mine",
+		"POST /api/announcements/{id}/dismiss",
 		"GET /api/clients/{id}/subscription",
 		"POST /api/clients/{id}/subscription/rotate",
 	}

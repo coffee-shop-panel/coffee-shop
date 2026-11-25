@@ -24,6 +24,7 @@ import Icon from '../components/Icon.vue'
 import ErrorState from '../components/ErrorState.vue'
 import PageSpin from '../components/PageSpin.vue'
 import ResellerForm from '../components/ResellerForm.vue'
+import AnnouncementsCard from '../components/resellers/AnnouncementsCard.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import MoreMenu from '../components/MoreMenu.vue'
 import ResellersTable from '../components/resellers/ResellersTable.vue'
@@ -460,6 +461,11 @@ async function saved() {
           />
         </div>
       </section>
+
+      <!-- The owner's word to every operator, under the list of the
+           operators it goes to: publish one, and the history of what
+           was said, with the way to take one back. -->
+      <AnnouncementsCard />
     </template>
   </div>
 

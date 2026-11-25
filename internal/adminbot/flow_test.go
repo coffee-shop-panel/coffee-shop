@@ -168,6 +168,10 @@ type fakeAdminTG struct {
 	sent    []fakeAdminMsg
 	edits   []fakeAdminMsg
 	answers []fakeAdminAnswer
+	// blocked is the chats Telegram refuses to deliver to: an
+	// operator who blocked their own bot. A send to one fails the
+	// way Telegram fails it, and nothing is recorded as delivered.
+	blocked map[int64]bool
 }
 
 type fakeAdminMsg struct {
@@ -182,7 +186,7 @@ type fakeAdminAnswer struct {
 
 func newFakeAdminTG(t *testing.T) *fakeAdminTG {
 	t.Helper()
-	f := &fakeAdminTG{}
+	f := &fakeAdminTG{blocked: map[int64]bool{}}
 	srv := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(srv.Close)
 	old := APIBase
@@ -197,6 +201,12 @@ func (f *fakeAdminTG) serve(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&params)
 
 	chatID, _ := params["chat_id"].(float64)
+	if method == "sendMessage" && f.blocked[int64(chatID)] {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"ok":false,"error_code":403,"description":"Forbidden: bot was blocked by the user"}`)
+		return
+	}
 	flat := ""
 	if text, ok := params["text"].(string); ok {
 		flat += text

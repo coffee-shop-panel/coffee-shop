@@ -534,6 +534,16 @@ export const api = {
   activity: (before = 0, limit = 100) =>
     request('GET', `/api/activity?limit=${limit}` + (before ? `&before=${before}` : '')),
 
+  // The owner's announcements to every operator. The writing half is
+  // the owner's alone; the reading half is the caller's own standing
+  // banners -- what they have not dismissed -- and a dismissal, which
+  // lands on the caller's row and nobody else's.
+  announcements: () => request('GET', '/api/announcements'),
+  announcementCreate: (text) => request('POST', '/api/announcements', { text }),
+  announcementDelete: (id) => request('DELETE', `/api/announcements/${id}`),
+  announcementsMine: (opts) => request('GET', '/api/announcements/mine', undefined, opts),
+  announcementDismiss: (id) => request('POST', `/api/announcements/${id}/dismiss`),
+
   // The operator's own Telegram sales bot: its settings, the plans it
   // sells and the orders it has taken. Every operator runs their own bot,
   // so each of these is answered for the caller alone -- a reseller's shop

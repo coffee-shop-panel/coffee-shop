@@ -546,3 +546,13 @@ ClientPreset
 	updatedAt time.Time
 JSONField[[]uint]
 	V []uint
+Announcement
+	id uint
+	text string
+	createdBy uint
+	createdAt time.Time
+AnnouncementRead
+	id uint
+	announcementId uint
+	operatorId uint
+	createdAt time.Time

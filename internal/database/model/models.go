@@ -210,6 +210,35 @@ type ClientPreset struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// Announcement is one message the owner sends to every operator on
+// the panel: a maintenance window, a tunnel coming down, a price
+// changing -- the things a reseller hears about from their customers
+// if nobody tells them first. It is text and nothing else: no
+// schedule, no audience picker, because an announcement is for the
+// whole room or it is a conversation, not an announcement.
+//
+// CreatedBy is the owner who sent it. There is only ever one owner,
+// but the row says who spoke rather than leaving a later reader to
+// assume it.
+type Announcement struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Text      string    `gorm:"type:text;not null" json:"text"`
+	CreatedBy uint      `gorm:"not null" json:"createdBy"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// AnnouncementRead is one operator's dismissal of one announcement:
+// the banner leaves their panel and never returns, for them alone.
+// The composite unique index is what makes a dismissal a fact of the
+// schema rather than a hope -- a second dismissal of the same
+// announcement by the same operator writes nothing new.
+type AnnouncementRead struct {
+	ID             uint      `gorm:"primaryKey" json:"id"`
+	AnnouncementID uint      `gorm:"uniqueIndex:idx_announcement_read_once;not null" json:"announcementId"`
+	OperatorID     uint      `gorm:"uniqueIndex:idx_announcement_read_once;not null" json:"operatorId"`
+	CreatedAt      time.Time `json:"createdAt"`
+}
+
 // APIToken is a long-lived credential for machine access.
 //
 // A session token expires and is bound to a person signing in; a node talking to
@@ -1357,7 +1386,11 @@ type ShopNotice struct {
 	OperatorID uint `gorm:"uniqueIndex:idx_shop_notice_once;not null" json:"operatorId"`
 	ClientID   uint `gorm:"uniqueIndex:idx_shop_notice_once;not null" json:"clientId"`
 	// Kind is which reminder this was: expiry3, expiry1, expired or
-	// volume90 -- the bands the reminder scan works in.
+	// volume90 -- the bands the reminder scan works in -- or one of
+	// the management bots' alert kinds (op_expiry3, op_expiry1,
+	// op_expired, op_volume90): the same occasions told to the
+	// operator instead of the buyer, kept apart by the kind so
+	// neither message stands in for the other.
 	Kind string `gorm:"uniqueIndex:idx_shop_notice_once;size:16;not null" json:"kind"`
 	// Stamp is what the reminder was about: the plan's end date
 	// (YYYY-MM-DD) for the expiry kinds, the quota's size for
@@ -1434,6 +1467,8 @@ func AllModels() []any {
 		&AdminBot{},
 		&PasskeyCredential{},
 		&ClientPreset{},
+		&Announcement{},
+		&AnnouncementRead{},
 	}
 }
 

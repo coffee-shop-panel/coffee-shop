@@ -163,6 +163,17 @@ const (
 	txtStatsUsed           = "مجموع مصرف مشتری‌ها: %s"
 )
 
+// The alerts: the bot speaks first, to the operator this time -- a
+// customer of theirs is running out, of days or of volume, and the
+// renewal is the operator's to chase while there is still time to
+// chase it. Each names the customer, what is happening, and the
+// figure that matters: how long is left, or how much is spent.
+const (
+	txtAlertExpiring = "⏰ مشتری «%s» رو به پایان است — %s.\n📅 تاریخ انقضا: %s"
+	txtAlertExpired  = "⛔ اشتراک مشتری «%s» به پایان رسیده است.\n📅 تاریخ انقضا: %s"
+	txtAlertVolume   = "📛 مشتری «%s» به سقف حجمش نزدیک شده است: %s از %s مصرف شده (%s٪)."
+)
+
 // Help.
 const txtHelp = "❓ راهنمای بات مدیریت\n\n" +
 	"این بات فقط برای خودتان کار می‌کند و هر کاری که اینجا می‌کنید دقیقاً با دسترسی خودتان در پنل انجام می‌شود:\n\n" +

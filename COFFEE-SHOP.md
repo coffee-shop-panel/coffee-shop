@@ -237,7 +237,27 @@ v5 rather than a version per feature.
   activity log's extend line names the request, never the customers
   it touched, and the management bot extends below the API, so the
   figure is labelled with the source it honestly has rather than
-  padded with a guess.
+  padded with a guess. The last wave speaks to the operator twice
+  over. Their management bot now watches their own book
+  (`internal/adminbot/alerts.go`, a scan on the buyer reminders'
+  thirty-minute cadence, riding the manager's context): a customer
+  ending within three days, within one day, ended, or nine-tenths
+  spent earns the operator one alert in their own chat, naming the
+  customer and the figure — deduped through the shop's notices
+  table under its own kinds (`op_expiry3`, `op_expiry1`,
+  `op_expired`, `op_volume90`), because the same ending told to the
+  seller is not the reminder told to the buyer, and neither may
+  stand in for the other. Operators with no management bot, or no
+  chat named on it, are simply not alerted. And the owner can
+  address the room: announcements (`Announcement` /
+  `AnnouncementRead`, `POST/GET/DELETE /api/announcements` — the
+  owner's alone — and `GET /api/announcements/mine`,
+  `POST /api/announcements/{id}/dismiss` for every operator) stand
+  as banners over each non-owner's dashboard until that operator
+  dismisses them; a dismissal is the caller's own row and hides the
+  banner for them alone, and taking an announcement back removes
+  it for everyone at once. The composer and its history sit under
+  the operator list on the Admins & Resellers pages.
 
 ### The coffee-shop design port (shipped in 3.7.3)
 

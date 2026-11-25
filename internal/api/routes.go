@@ -654,6 +654,32 @@ func (s *Server) routes() []Route {
 				"never narrowed by anything the request carries.",
 			handler: s.handleActivity},
 
+		// ── Announcements ──
+		// The owner's word to every operator, and each operator's
+		// dismissal of it. The writing half is the owner's alone --
+		// this heading is nobody else's, so the gates keep it so --
+		// and the reading half is in operatorRoutes below: the list
+		// it serves is narrowed to the caller's own dismissals.
+		{Method: "GET", Path: "/api/announcements", Group: "Announcements", Auth: true, Operator: true,
+			Summary: "Every announcement the owner has sent the operators, newest first.",
+			handler: s.handleAnnouncementList},
+		{Method: "POST", Path: "/api/announcements", Group: "Announcements", Auth: true, Operator: true,
+			Summary: "Send an announcement to every operator on the panel.",
+			Body:    `{"text":"The Turkey tunnel is down for maintenance tonight, 02:00-03:00."}`,
+			Note: "Text only, for the whole room: it stands over every " +
+				"operator's dashboard until they dismiss it, or the owner " +
+				"takes it back.",
+			handler: s.handleAnnouncementCreate},
+		{Method: "DELETE", Path: "/api/announcements/{id}", Group: "Announcements", Auth: true, Operator: true,
+			Summary: "Take an announcement back: it leaves every operator's panel.",
+			handler: s.handleAnnouncementDelete},
+		{Method: "GET", Path: "/api/announcements/mine", Group: "Announcements", Auth: true, Operator: true,
+			Summary: "The announcements the signed-in operator has not dismissed.",
+			handler: s.handleAnnouncementMine},
+		{Method: "POST", Path: "/api/announcements/{id}/dismiss", Group: "Announcements", Auth: true, Operator: true,
+			Summary: "Dismiss one announcement for the signed-in operator.",
+			handler: s.handleAnnouncementDismiss},
+
 		// ── Shop ──
 		// Every operator's own sales bot. The handlers narrow everything
 		// to the caller -- their bot, their plans, their orders -- which
@@ -1082,6 +1108,13 @@ var (
 		// narrows it in the store by the caller's id, so a reseller reading
 		// it is reading what they did, never what anybody else did.
 		"GET /api/activity": true,
+		// The owner's announcements, for the banners over the caller's
+		// own dashboard: the list is narrowed in the store to what the
+		// caller has not dismissed, and a dismissal lands on the
+		// caller's own row alone. Writing one stays the owner's --
+		// those routes are not here.
+		"GET /api/announcements/mine":          true,
+		"POST /api/announcements/{id}/dismiss": true,
 		// One customer's subscription link, and reissuing it.
 		"GET /api/clients/{id}/subscription":         true,
 		"POST /api/clients/{id}/subscription/rotate": true,
