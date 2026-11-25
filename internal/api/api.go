@@ -112,6 +112,10 @@ type Server struct {
 	passkeys  *operators.Passkeys
 	pkMu      sync.Mutex
 	pkPending map[string]*passkeyCeremony
+	// presets is the operators' saved shapes for the new-customer form,
+	// scoped to their owner in the store. Nil without a database, like
+	// the passkeys, and its endpoints answer the same way.
+	presets *operators.ClientPresets
 }
 
 // Options configures a Server.
@@ -194,6 +198,7 @@ func New(o Options) *Server {
 		activity:  service.NewActivity(o.DB, o.Logger),
 		admins:    operators.NewAdmins(o.DB, o.Logger),
 		passkeys:  operators.NewPasskeys(o.DB, o.Logger),
+		presets:   operators.NewClientPresets(o.DB, o.Logger),
 		prober:    o.Prober,
 		throttle:  newThrottle(),
 		notifier:  o.Notifier,

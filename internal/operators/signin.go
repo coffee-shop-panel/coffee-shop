@@ -118,6 +118,21 @@ func (s *Admins) ChangeCredentials(ctx context.Context, admin *model.Admin, user
 	return nil
 }
 
+// SetShopBrand stores the name an operator sells under and the contact
+// their customers are given, both shown on those customers' subscription
+// pages. It writes the caller's own row and no other: the handler takes
+// the operator from the session, and this takes the row from the
+// operator it is handed, so there is no id in the request to point at
+// somebody else's brand.
+func (s *Admins) SetShopBrand(ctx context.Context, admin *model.Admin, name, contact string) error {
+	if err := s.db.WithContext(ctx).Model(admin).
+		Updates(map[string]any{"shop_name": name, "support_contact": contact}).Error; err != nil {
+		return fmt.Errorf("store shop brand: %w", err)
+	}
+	admin.ShopName, admin.SupportContact = name, contact
+	return nil
+}
+
 // SetLocale keeps the operator's language, so it follows them to another
 // browser.
 func (s *Admins) SetLocale(ctx context.Context, admin *model.Admin, locale string) error {

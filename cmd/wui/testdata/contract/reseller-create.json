@@ -19,6 +19,8 @@
     "parentAdminId": 0,
     "quotaBytes": 0,
     "role": "reseller",
+    "shopName": "",
+    "supportContact": "",
     "updatedAt": "\u003cstring\u003e",
     "usedBytes": 0,
     "username": "contract-reseller",

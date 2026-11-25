@@ -31,6 +31,12 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		"POST /api/passkeys/register/verify",
 		"GET /api/passkeys",
 		"DELETE /api/passkeys/{id}",
+		// Their own presets for the new-customer form: saved, listed and
+		// deleted under the caller's id alone, the same scoping again --
+		// one operator's plan shapes are never another's business.
+		"GET /api/presets",
+		"POST /api/presets",
+		"DELETE /api/presets/{id}",
 
 		// The two pages that are theirs.
 		"GET /api/clients",

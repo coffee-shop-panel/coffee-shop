@@ -421,7 +421,7 @@ var T = {
     gTip2: 'برای گرفتن کانفیگ‌های تازه، در هیدیفای و V2Box روی پروفایل اشتراک بزنید و «به‌روزرسانی» را انتخاب کنید.',
     gTip3: 'لینک اشتراک مثل رمز عبور است؛ آن را با کسی به اشتراک نگذارید.',
     sActive: 'فعال', sExpired: 'منقضی', sLimited: 'حجم تمام شده', sDisabled: 'غیرفعال', sUnknown: 'نامشخص',
-    username: 'نام کاربری', copyLink: 'کپی لینک اشتراک', qrLink: 'QR اشتراک',
+    username: 'نام کاربری', seller: 'فروشنده', copyLink: 'کپی لینک اشتراک', qrLink: 'QR اشتراک',
     lastConn: 'آخرین اتصال', remaining: 'زمان باقی‌مانده', unlimited: 'نامحدود', never: 'هنوز متصل نشده',
     usage: 'وضعیت مصرف', used: 'مصرف', left: 'باقی‌مانده', total: 'حجم کل', totalUsed: 'مصرف کل', leftVol: 'حجم باقی‌مانده',
     devices: 'دستگاه فعال', devLimit: 'ظرفیت مجاز', expiry: 'تاریخ انقضا', nodesOn: 'نودهای آنلاین',
@@ -457,7 +457,7 @@ var T = {
     gTip2: 'To receive fresh configs, open the subscription profile in Hiddify or V2Box and choose Update.',
     gTip3: 'Your subscription link is like a password; do not share it with anyone.',
     sActive: 'Active', sExpired: 'Expired', sLimited: 'Quota used up', sDisabled: 'Disabled', sUnknown: 'Unknown',
-    username: 'Username', copyLink: 'Copy subscription link', qrLink: 'Subscription QR',
+    username: 'Username', seller: 'Seller', copyLink: 'Copy subscription link', qrLink: 'Subscription QR',
     lastConn: 'Last connection', remaining: 'Time left', unlimited: 'Unlimited', never: 'Never connected',
     usage: 'Usage', used: 'Used', left: 'Left', total: 'Total quota', totalUsed: 'Total used', leftVol: 'Remaining',
     devices: 'Active devices', devLimit: 'Device limit', expiry: 'Expires on', nodesOn: 'Nodes online',
@@ -788,6 +788,7 @@ function viewAccount() {
   h += '<span class="tag">' + esc(dl > 0 ? t('devCount', { a: nf(da, 0), b: nf(dl, 0) }) : t('devices') + ': ' + nf(da, 0)) + '</span>';
   h += '<span class="tag">' + esc(days == null ? t('unlimited') : t('daysLeft', { n: nf(days, 0) })) + '</span></div>';
   h += '<div class="uname-l">' + esc(t('username')) + '</div><h1 class="uname">' + esc(i.label || '—') + '</h1>';
+  if (i.seller_name) h += '<p class="sub" style="margin:-6px 0 10px">' + esc(t('seller')) + ': ' + esc(i.seller_name) + '</p>';
   h += '<div class="btns"><button class="btn dark" data-act="copy-link">' + ic('link') + esc(t('copyLink')) + '</button>';
   h += '<button class="btn light" data-act="qr-link">' + ic('qr') + esc(t('qrLink')) + '</button></div>';
   var renewSoon = (i.days_left != null && Number(i.days_left) <= 7) || (!unl && pct >= 90);

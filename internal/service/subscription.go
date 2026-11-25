@@ -807,6 +807,16 @@ type SubPage struct {
 	UpBytes    uint64
 	DownBytes  uint64
 	ExpiresAt  *time.Time
+
+	// SellerName and SellerSupport are the operator this customer
+	// belongs to, for the page's support corner: the name they sell
+	// under and where their customers reach them. Both are empty unless
+	// the customer is a seller's -- not the owner's -- and that seller
+	// has given their customers a contact; the owner's customers and a
+	// seller's who has not keep the panel's own support address, which
+	// the caller reads from the settings as it always has.
+	SellerName    string
+	SellerSupport string
 	// DeviceLimit is how many devices the plan is for: 0 is no limit.
 	DeviceLimit int
 	// LastOnline is the freshest handshake on any of the customer's devices.
@@ -1041,6 +1051,7 @@ func (s *Subscriptions) PageFor(ctx context.Context, token, subURL string) (*Sub
 		FilesSince:  s.filesSince(ctx, c),
 	}
 	page.UpBytes, page.DownBytes = c.UpDown()
+	page.SellerName, page.SellerSupport = s.sellerFor(ctx, c)
 	several := len(deviceNames(c.Accounts)) > 1
 	nth := map[uint]int{}
 	for _, d := range rendered {
@@ -1175,6 +1186,38 @@ func (s *Subscriptions) byToken(ctx context.Context, token string) (*model.Clien
 		return nil, fmt.Errorf("%w: no such subscription", ErrNotFound)
 	}
 	return &c, nil
+}
+
+// sellerFor is the operator a customer belongs to, as their page's
+// support corner shows them: the name they sell under and the contact
+// they gave their customers. Both come back empty -- and the page keeps
+// the panel's support address -- unless the customer is a seller's, and
+// that seller has set a contact. The owner's customers are the panel's,
+// however the owner has filled their own fields in; an operator who
+// never set a contact has changed nothing for their customers; and a
+// customer whose operator is gone is the panel's again. A failure to
+// read the operator is not the customer's problem, so it answers empty
+// rather than failing the page.
+func (s *Subscriptions) sellerFor(ctx context.Context, c *model.Client) (name, contact string) {
+	if c.OwnerID == 0 {
+		return "", ""
+	}
+	var a model.Admin
+	if err := s.db.WithContext(ctx).First(&a, c.OwnerID).Error; err != nil {
+		return "", ""
+	}
+	if a.Role == model.RoleOwner {
+		return "", ""
+	}
+	contact = strings.TrimSpace(a.SupportContact)
+	if contact == "" {
+		return "", ""
+	}
+	name = strings.TrimSpace(a.ShopName)
+	if name == "" {
+		name = a.Username
+	}
+	return name, contact
 }
 
 // encodeBundle puts the configurations into the shape asked for.

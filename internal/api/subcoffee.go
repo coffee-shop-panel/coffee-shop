@@ -198,7 +198,7 @@ func coffeeInfo(cfg service.SubSettings, page *service.SubPage, nodes []map[stri
 			hasLinks = true
 		}
 	}
-	return map[string]any{
+	info := map[string]any{
 		"label":             page.Name,
 		"status":            status,
 		"data_quota_bytes":  page.QuotaBytes,
@@ -212,6 +212,31 @@ func coffeeInfo(cfg service.SubSettings, page *service.SubPage, nodes []map[stri
 		"has_links":         hasLinks,
 		"nodes":             nodes,
 	}
+	// A seller's customer is sent to the seller, not to the panel: the
+	// support button and the renewal banner both read support_contact,
+	// so the seller's contact takes its place, and their name rides
+	// along for the line the page puts beside it. The fields are only
+	// here when they apply -- an owner's customer, and a seller's whose
+	// seller set no contact, get the answer above exactly as it was.
+	if page.SellerSupport != "" {
+		info["support_contact"] = sellerSupportLink(page.SellerSupport)
+		info["seller_name"] = page.SellerName
+	}
+	return info
+}
+
+// sellerSupportLink turns a seller's free-text support contact into the
+// link their customers are sent to. A Telegram handle is the common
+// case and the one that is not already a link: "@name" becomes its t.me
+// address. Anything else -- a full URL, a bare domain, a phone number --
+// passes through as written; the page's own supportHref reads those the
+// way it always has.
+func sellerSupportLink(raw string) string {
+	s := strings.TrimSpace(raw)
+	if len(s) > 1 && strings.HasPrefix(s, "@") {
+		return "https://t.me/" + s[1:]
+	}
+	return s
 }
 
 // serveCoffeeHiddify answers the page's one-tap Hiddify button: the whole

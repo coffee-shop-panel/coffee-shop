@@ -7,13 +7,17 @@
 // alone. The sections are the settings page's own, shared rather than
 // copied, so a key enrolled here and one enrolled there are one list.
 //
-// Nothing else lives here on purpose: this page is not a second settings
-// page, and it offers nothing the panel does not already offer the
-// operator somewhere.
+// Below the sign-in sections sits the shop card -- the name the
+// operator sells under and where their customers reach them -- for the
+// same reason: it is theirs alone to set, and this is the page every
+// operator has. Nothing else lives here on purpose: this page is not a
+// second settings page, and it offers nothing the panel does not
+// already offer the operator somewhere.
 import { computed } from 'vue'
 import { store, t } from '../lib/store.js'
 import AntIcon from '../components/AntIcon.vue'
 import PasskeysSection from '../components/settings/PasskeysSection.vue'
+import ShopSection from '../components/settings/ShopSection.vue'
 import TwoFactorSection from '../components/settings/TwoFactorSection.vue'
 
 const me = computed(() => store.admin)
@@ -45,6 +49,11 @@ const roleLabel = computed(() => (me.value?.role ? t(`admins.role.${me.value.rol
       <div class="card-head"><h2>{{ t('settings.tab.security') }}</h2></div>
       <TwoFactorSection />
       <PasskeysSection />
+    </section>
+
+    <section class="card calm account-card">
+      <div class="card-head"><h2>{{ t('account.shop') }}</h2></div>
+      <ShopSection />
     </section>
   </div>
 </template>

@@ -33,6 +33,9 @@ POST   /api/clients/servers/detach                    Clients        auth=true  
 POST   /api/clients/adjust                            Customers      auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 POST   /api/clients/extend                            Customers      auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 GET    /api/clients/ids                               Customers      auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
+GET    /api/presets                                   Customers      auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
+POST   /api/presets                                   Customers      auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
+DELETE /api/presets/{id}                              Customers      auth=true  operator=true  | none=401 token=403 reseller=yes admin=yes owner=yes
 POST   /api/clients/reset-all                         Customers      auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 POST   /api/clients/purge                             Customers      auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes
 POST   /api/clients/batch                             Customers      auth=true  operator=false | none=401 token=yes reseller=yes admin=yes owner=yes

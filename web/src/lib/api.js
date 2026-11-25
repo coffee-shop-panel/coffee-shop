@@ -497,6 +497,11 @@ export const api = {
     request('POST', '/api/passkeys/register/verify', attestation),
   passkeys: () => request('GET', '/api/passkeys'),
   passkeyDelete: (id) => request('DELETE', `/api/passkeys/${id}`),
+  // Presets: the signed-in operator's own saved shapes for the
+  // new-customer form. The panel keeps each operator's list apart.
+  presets: () => request('GET', '/api/presets'),
+  presetCreate: (input) => request('POST', '/api/presets', input),
+  presetDelete: (id) => request('DELETE', `/api/presets/${id}`),
   me: () => request('GET', '/api/auth/me'),
   updateMe: (input) => request('PATCH', '/api/auth/me', input),
   changePassword: (currentPassword, newPassword) =>

@@ -355,6 +355,92 @@ function applyPreset(p) {
   form.value.deviceLimit = p.devices
 }
 
+// The operator's own presets, kept on the panel: the plans they sell
+// often, saved from this very form and applied back into it. Personal
+// to whoever is signed in -- the panel keeps each operator's list
+// apart -- and a bookmark rather than a grant: the create behind the
+// form still refuses a tunnel the operator may not use, exactly as it
+// does for the values above.
+const myPresets = ref([])
+const chosenPreset = ref('')
+const savingPreset = ref(false)
+const presetName = ref('')
+const presetBusy = ref(false)
+
+onMounted(async () => {
+  if (editing.value) return
+  try {
+    myPresets.value = await api.presets()
+  } catch {
+    // The form is perfectly usable without them, as it is without the
+    // defaults: a convenience failing must not stop a customer being made.
+    myPresets.value = []
+  }
+})
+
+function applyMyPreset() {
+  const p = myPresets.value.find((x) => x.id === Number(chosenPreset.value))
+  if (!p) return
+  // Only the tunnels this form is offering. A preset saved while the
+  // operator held a tunnel they have since lost must not put it back.
+  const offered = new Set(props.interfaces.map((i) => i.id))
+  form.value.interfaceIds = (p.interfaceIds || []).filter((id) => offered.has(id))
+  if (p.quotaBytes) {
+    const q = quotaToUnit(p.quotaBytes)
+    form.value.quota = q.value
+    form.value.quotaUnit = q.unit
+  } else {
+    form.value.quota = ''
+  }
+  form.value.expiresIn = p.days || ''
+  form.value.expiresUnit = 'days'
+  form.value.deviceLimit = p.deviceLimit || ''
+}
+
+async function saveMyPreset() {
+  const name = presetName.value.trim()
+  if (!name) return
+  presetBusy.value = true
+  try {
+    // The plan's length as the form holds it: the expiry box, in
+    // whatever unit it is in, rounded up to whole days -- the count
+    // planDays makes of the same box for a plan on hold.
+    const hours = unitToHours(form.value.expiresIn, form.value.expiresUnit)
+    const made = await api.presetCreate({
+      name,
+      interfaceIds: [...form.value.interfaceIds],
+      quotaBytes: unitToBytes(form.value.quota, form.value.quotaUnit),
+      days: hours > 0 ? Math.ceil(hours / 24) : 0,
+      deviceLimit: Number(form.value.deviceLimit) || 0,
+    })
+    myPresets.value = [...myPresets.value, made]
+    chosenPreset.value = String(made.id)
+    presetName.value = ''
+    savingPreset.value = false
+    notify(t('client.presetSaved'), 'success')
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    presetBusy.value = false
+  }
+}
+
+async function deleteMyPreset() {
+  const p = myPresets.value.find((x) => x.id === Number(chosenPreset.value))
+  if (!p) return
+  if (!window.confirm(t('client.presetDeleteConfirm', { n: p.name }))) return
+  presetBusy.value = true
+  try {
+    await api.presetDelete(p.id)
+    myPresets.value = myPresets.value.filter((x) => x.id !== p.id)
+    chosenPreset.value = ''
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    presetBusy.value = false
+  }
+}
+
 // The devices of an existing customer, read-only here: they are issued and
 // removed on the customer's own page, where each has its files.
 const devices = computed(() => {
@@ -456,6 +542,23 @@ async function submit() {
               <button v-for="p in presets" :key="`${p.gb}-${p.days}`" type="button" class="abtn small" @click="applyPreset(p)">
                 <span class="ltr">{{ p.gb }}GB · {{ p.days }}d · {{ p.devices }}<AntIcon name="TeamOutlined" /></span>
               </button>
+            </div>
+
+            <div v-if="!editing" class="presets">
+              <span class="presets-label">{{ t('client.myPresets') }}</span>
+              <div class="aselect">
+                <select v-model="chosenPreset" :aria-label="t('client.myPresets')" @change="applyMyPreset">
+                  <option value="">{{ t('client.presetChoose') }}</option>
+                  <option v-for="p in myPresets" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
+                </select>
+              </div>
+              <button v-if="chosenPreset && !savingPreset" type="button" class="abtn small" :disabled="presetBusy" @click="deleteMyPreset">{{ t('action.delete') }}</button>
+              <button v-if="!savingPreset" type="button" class="abtn small" @click="savingPreset = true">{{ t('client.presetSave') }}</button>
+              <template v-else>
+                <label class="ainput"><input v-model="presetName" maxlength="64" :placeholder="t('client.presetNamePlaceholder')" @keyup.enter="saveMyPreset" /></label>
+                <button type="button" class="abtn small primary" :disabled="presetBusy || !presetName.trim()" @click="saveMyPreset">{{ t('action.save') }}</button>
+                <button type="button" class="abtn small" @click="savingPreset = false">{{ t('action.cancel') }}</button>
+              </template>
             </div>
 
             <div class="arow16">

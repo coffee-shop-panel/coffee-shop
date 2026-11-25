@@ -223,11 +223,22 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateMeRequest struct {
-	Locale string `json:"locale"`
+	Locale *string `json:"locale"`
+
+	// The shop fields are the operator's own brand: the name they sell
+	// under and where their customers reach them, both shown on those
+	// customers' subscription pages. Pointers, like the language: a
+	// field that was not sent is a field that was not changed.
+	ShopName       *string `json:"shopName"`
+	SupportContact *string `json:"supportContact"`
 }
 
-// handleUpdateMe stores the operator's interface language so it follows them to
-// another browser rather than living only in that one's local storage.
+// handleUpdateMe stores what an operator sets about themselves: their
+// interface language, so it follows them to another browser rather than
+// living only in that one's local storage, and their shop's name and
+// support contact. Every field is the caller's own -- the operator
+// comes from the session, and there is no id in the request to point
+// the write at anybody else.
 func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 	admin := adminFrom(r.Context())
 	if admin == nil {
@@ -240,17 +251,40 @@ func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	locale := strings.ToLower(strings.TrimSpace(req.Locale))
-	if !slicesContains(s.catalog.Locales(), locale) {
-		writeError(w, http.StatusBadRequest,
-			fmt.Sprintf("unsupported language %q; available: %s",
-				locale, strings.Join(s.catalog.Locales(), ", ")))
-		return
+	if req.Locale != nil {
+		locale := strings.ToLower(strings.TrimSpace(*req.Locale))
+		if !slicesContains(s.catalog.Locales(), locale) {
+			writeError(w, http.StatusBadRequest,
+				fmt.Sprintf("unsupported language %q; available: %s",
+					locale, strings.Join(s.catalog.Locales(), ", ")))
+			return
+		}
+		if err := s.admins.SetLocale(r.Context(), admin, locale); err != nil {
+			fail(w, s.log, err)
+			return
+		}
 	}
 
-	if err := s.admins.SetLocale(r.Context(), admin, locale); err != nil {
-		fail(w, s.log, err)
-		return
+	if req.ShopName != nil || req.SupportContact != nil {
+		name, contact := admin.ShopName, admin.SupportContact
+		if req.ShopName != nil {
+			name = strings.TrimSpace(*req.ShopName)
+		}
+		if req.SupportContact != nil {
+			contact = strings.TrimSpace(*req.SupportContact)
+		}
+		if len([]rune(name)) > 64 {
+			writeError(w, http.StatusBadRequest, "the shop name is too long; 64 characters at most")
+			return
+		}
+		if len([]rune(contact)) > 256 {
+			writeError(w, http.StatusBadRequest, "the support contact is too long; 256 characters at most")
+			return
+		}
+		if err := s.admins.SetShopBrand(r.Context(), admin, name, contact); err != nil {
+			fail(w, s.log, err)
+			return
+		}
 	}
 	// The same operator /me answers with. The bare record carries the label
 	// the owner files a reseller's customers under, which is kept from them.

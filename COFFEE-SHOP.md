@@ -208,6 +208,25 @@ v5 rather than a version per feature.
   exactly their own lines — entries stamped with their account id,
   plus their own sign-ins, which are recorded under their name alone —
   whatever filter the request carries, because no parameter is read.
+  The same wave gives a seller their own brand and their own plan
+  shapes. Every operator carries a shop name and a support contact
+  (`Admin.ShopName` / `Admin.SupportContact`, set on their My Account
+  page through `PATCH /api/auth/me`, which writes only the caller's
+  row): a reseller's customers' coffee subscription page then sends
+  them to the seller — the support button and the renewal banner read
+  the seller's contact (an `@handle` is made into its t.me link), and
+  a «فروشنده» line under the customer's name carries the seller's
+  name, or their username when they never set one. The owner's
+  customers, and a seller's whose seller set no contact, get the
+  panel's support setting exactly as before; the sub-info answer only
+  gains `seller_name` when it applies. And the new-customer form gains
+  the operator's own presets (`ClientPreset`, `GET/POST /api/presets`,
+  `DELETE /api/presets/{id}`): the tunnels, quota, length and device
+  count of a plan, saved from the form and applied back into it,
+  scoped to their owner in the store on every statement — a preset is
+  a bookmark, not a grant, and the create behind the form still
+  refuses a tunnel the operator may not use. The bulk form has its own
+  component and is untouched.
 
 ### The coffee-shop design port (shipped in 3.7.3)
 

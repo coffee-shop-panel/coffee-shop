@@ -252,6 +252,8 @@ Admin
 	canViewAllInterfaces bool
 	canViewAllClients bool
 	note string
+	shopName string
+	supportContact string
 	enabled bool
 	clientLimit int
 	quotaBytes uint64
@@ -532,3 +534,15 @@ PasskeyCredential
 	name string
 	createdAt time.Time
 	lastUsedAt *time.Time
+ClientPreset
+	id uint
+	adminId uint
+	name string
+	interfaceIds model.JSONField[[]uint]
+	quotaBytes uint64
+	days int
+	deviceLimit int
+	createdAt time.Time
+	updatedAt time.Time
+JSONField[[]uint]
+	V []uint

@@ -172,6 +172,44 @@ type PasskeyCredential struct {
 	LastUsedAt *time.Time `json:"lastUsedAt"`
 }
 
+// ClientPreset is one operator's saved shape for the new-customer form:
+// the tunnels, the quota, the length and the device count of a plan they
+// sell often, kept so the next sale is a choice rather than a retyping.
+//
+// A preset is personal. It belongs to the operator who saved it and no
+// list ever reaches across: the plans one reseller sells are their own
+// business, and a preset handed to another operator would put customers
+// on tunnels the second was never given -- the form narrows what a
+// preset asks for to the tunnels its owner may use, and the create
+// behind it refuses the rest regardless.
+type ClientPreset struct {
+	ID uint `gorm:"primaryKey" json:"id"`
+
+	// AdminID is the operator the preset belongs to.
+	AdminID uint `gorm:"index;not null" json:"adminId"`
+
+	// Name is the operator's own label -- "50 GB monthly", as they would
+	// say it to the customer.
+	Name string `gorm:"size:64;not null" json:"name"`
+
+	// InterfaceIDs is the tunnels the plan puts a customer on, as the
+	// form's own list of them.
+	InterfaceIDs JSONField[[]uint] `gorm:"type:text" json:"interfaceIds"`
+
+	// QuotaBytes is the plan's allowance; zero is no limit, as it is on
+	// the customer the preset makes.
+	QuotaBytes uint64 `gorm:"not null;default:0" json:"quotaBytes"`
+
+	// Days is the plan's length; zero is no expiry.
+	Days int `gorm:"not null;default:0" json:"days"`
+
+	// DeviceLimit is how many devices the plan is for; zero is no limit.
+	DeviceLimit int `gorm:"not null;default:0" json:"deviceLimit"`
+
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // APIToken is a long-lived credential for machine access.
 //
 // A session token expires and is bound to a person signing in; a node talking to
@@ -689,6 +727,23 @@ type Admin struct {
 	CanViewAllClients bool `gorm:"not null;default:false" json:"canViewAllClients"`
 
 	Note string `gorm:"size:256" json:"note"`
+
+	// ShopName is the name this operator sells under, shown to their own
+	// customers on their subscription page beside the way to reach them.
+	// Empty is their username, which is what the page falls back to: an
+	// operator who never set a name is still named, by the name they sign
+	// in with.
+	ShopName string `gorm:"size:64" json:"shopName"`
+
+	// SupportContact is where this operator's own customers reach them --
+	// a Telegram handle, a link, whatever they give out -- shown on those
+	// customers' subscription pages in place of the panel's support
+	// address. Empty leaves those pages with the panel's, so an operator
+	// who never set one has changed nothing for their customers. The
+	// owner's own customers always read the panel's setting; these two
+	// fields are a seller's, and the owner setting one here changes
+	// nothing on their own customers' pages.
+	SupportContact string `gorm:"size:256" json:"supportContact"`
 
 	// Enabled is the owner's switch over a reseller.
 	//
@@ -1378,6 +1433,7 @@ func AllModels() []any {
 		&ShopNotice{},
 		&AdminBot{},
 		&PasskeyCredential{},
+		&ClientPreset{},
 	}
 }
 

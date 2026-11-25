@@ -74,6 +74,10 @@ func (s *Server) routes() []Route {
 			Summary: "The signed-in administrator.", handler: s.handleMe},
 		{Method: "PATCH", Path: "/api/auth/me", Group: "Authentication", Auth: true, Operator: true,
 			Summary: "Change your own preferences.", Body: `{"locale":"fa"}`,
+			Note: "Also takes shopName and supportContact -- the name the " +
+				"operator sells under and where their customers reach them, " +
+				"shown on those customers' subscription pages. Each field is " +
+				"the caller's own; a field not sent is a field not changed.",
 			handler: s.handleUpdateMe},
 		{Method: "POST", Path: "/api/auth/password", Group: "Authentication", Auth: true, Operator: true,
 			Summary: "Change your username, your password, or both.",
@@ -198,6 +202,19 @@ func (s *Server) routes() []Route {
 			Summary: "Every customer the list's filter matches, across every page.",
 			Note:    "Takes the same query as GET /api/clients; what \"select all\" selects.",
 			handler: s.handleMatchingIDs},
+		{Method: "GET", Path: "/api/presets", Group: "Customers", Auth: true, Operator: true,
+			Summary: "The signed-in operator's own presets for the new-customer form.",
+			handler: s.handlePresetList},
+		{Method: "POST", Path: "/api/presets", Group: "Customers", Auth: true, Operator: true,
+			Summary: "Save the form's current shape as one of the operator's own presets.",
+			Body:    `{"name":"50 GB monthly","interfaceIds":[1,2],"quotaBytes":53687091200,"days":30,"deviceLimit":2}`,
+			Note: "A preset is personal: it is the caller's, and no list or delete " +
+				"reaches another operator's. Applying one fills the form; the " +
+				"create behind it still refuses a tunnel the operator may not use.",
+			handler: s.handlePresetCreate},
+		{Method: "DELETE", Path: "/api/presets/{id}", Group: "Customers", Auth: true, Operator: true,
+			Summary: "Remove one of the signed-in operator's own presets.",
+			handler: s.handlePresetDelete},
 		{Method: "POST", Path: "/api/clients/reset-all", Group: "Customers", Auth: true,
 			Summary: "Set every customer's usage back to zero.", handler: s.handleResetAll},
 		{Method: "POST", Path: "/api/clients/purge", Group: "Customers", Auth: true,
