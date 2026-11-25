@@ -56,7 +56,12 @@ func NewAdmins(db *gorm.DB, log *slog.Logger) *Admins {
 type AdminInput struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-	Note     string `json:"note"`
+
+	// Note is a free-text remark the owner keeps about this operator. Nil
+	// leaves it alone on an update, as the other optional fields do; an
+	// empty string clears it. A plain string could not tell the two apart,
+	// and an update that said nothing about the note wiped it.
+	Note *string `json:"note"`
 
 	Role model.AdminRole `json:"role"`
 
@@ -164,10 +169,15 @@ func (s *Admins) Create(ctx context.Context, in AdminInput) (*model.Admin, error
 		return nil, fmt.Errorf("service: hash password: %w", err)
 	}
 
+	note := ""
+	if in.Note != nil {
+		note = strings.TrimSpace(*in.Note)
+	}
+
 	admin := model.Admin{
 		Username:      username,
 		PasswordHash:  string(hash),
-		Note:          strings.TrimSpace(in.Note),
+		Note:          note,
 		Role:          in.Role,
 		ParentAdminID: parentAdmin,
 		Locale:        "en",
@@ -407,8 +417,8 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 		}
 		fields["username"] = username
 	}
-	if in.Note != "" || strings.TrimSpace(in.Note) != admin.Note {
-		fields["note"] = strings.TrimSpace(in.Note)
+	if in.Note != nil {
+		fields["note"] = strings.TrimSpace(*in.Note)
 	}
 
 	role := admin.Role
@@ -519,9 +529,14 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 
 	// An admin's pages change only when the owner sends a list; nil leaves
 	// them. An empty list is the owner unchecking every page, which is a real
-	// thing to want. Only an admin has pages to change.
+	// thing to want. Only an admin has pages to change, and the role that
+	// counts is the one this update leaves them with: promoting a reseller
+	// to admin with a list must apply it, and demoting an admin to reseller
+	// must clear what they had, or the grants would wait quietly for a
+	// later promotion to bring them back.
 	var menusUpdate []string
-	setMenusUpdate := admin.Role == model.RoleAdmin && in.MenuIDs != nil
+	setMenusUpdate := role == model.RoleAdmin && in.MenuIDs != nil
+	clearMenus := admin.Role == model.RoleAdmin && role != model.RoleAdmin
 	if setMenusUpdate {
 		clean, err := cleanMenus(in.MenuIDs)
 		if err != nil {
@@ -561,6 +576,9 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 		}
 		if setMenusUpdate {
 			return setMenus(tx, admin.ID, menusUpdate)
+		}
+		if clearMenus {
+			return setMenus(tx, admin.ID, nil)
 		}
 		return nil
 	})

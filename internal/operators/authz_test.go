@@ -16,6 +16,8 @@ import (
 	"github.com/abolfazl/w-ui/internal/fault"
 )
 
+func strptr(s string) *string { return &s }
+
 func authzDB(t *testing.T) *Admins {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: gormlogger.Discard})
@@ -138,7 +140,7 @@ func TestAnAdminManagesOnlyTheirOwnResellers(t *testing.T) {
 		if _, err := s.Get(asAli, id); !errors.Is(err, fault.ErrNotFound) {
 			t.Errorf("ali read operator %d: %v", id, err)
 		}
-		if _, err := s.Update(asAli, id, AdminInput{Note: "nope"}); !errors.Is(err, fault.ErrNotFound) {
+		if _, err := s.Update(asAli, id, AdminInput{Note: strptr("nope")}); !errors.Is(err, fault.ErrNotFound) {
 			t.Errorf("ali changed operator %d: %v", id, err)
 		}
 		if err := s.Delete(asAli, id, DeleteKeepClients, nil); !errors.Is(err, fault.ErrNotFound) {
@@ -147,11 +149,47 @@ func TestAnAdminManagesOnlyTheirOwnResellers(t *testing.T) {
 	}
 
 	// ali may change their own reseller, but not past their allowance.
-	if _, err := s.Update(asAli, r1.ID, AdminInput{Note: "fine"}); err != nil {
+	if _, err := s.Update(asAli, r1.ID, AdminInput{Note: strptr("fine")}); err != nil {
 		t.Errorf("ali could not change their own reseller: %v", err)
 	}
 	if _, err := s.Update(asAli, r1.ID, AdminInput{QuotaBytes: &tooMuch}); !errors.Is(err, fault.ErrInvalid) {
 		t.Errorf("ali raised their reseller past their own allowance: %v", err)
+	}
+}
+
+// An update that says nothing about the note leaves it alone; only a
+// note actually sent changes it, and an empty one clears it. A plain
+// string could not tell "not sent" from "sent empty", and an update that
+// changed anything else wiped the note.
+func TestAnUpdateThatOmitsTheNoteKeepsIt(t *testing.T) {
+	s := authzDB(t)
+	a, err := s.Create(context.Background(), AdminInput{
+		Username: "noted", Password: "correct-horse", Role: model.RoleReseller,
+		Note: strptr("met at the shop"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	on := true
+	if _, err := s.Update(context.Background(), a.ID, AdminInput{Enabled: &on}); err != nil {
+		t.Fatalf("update without a note: %v", err)
+	}
+	got, err := s.Get(context.Background(), a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Note != "met at the shop" {
+		t.Errorf("note = %q, want it kept", got.Note)
+	}
+	if _, err := s.Update(context.Background(), a.ID, AdminInput{Note: strptr("")}); err != nil {
+		t.Fatalf("update with an empty note: %v", err)
+	}
+	got, err = s.Get(context.Background(), a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Note != "" {
+		t.Errorf("note = %q, want it cleared", got.Note)
 	}
 }
 
