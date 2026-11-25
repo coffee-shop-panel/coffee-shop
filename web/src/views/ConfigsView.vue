@@ -85,7 +85,12 @@ onMounted(() => {
 })
 onBeforeUnmount(() => clearInterval(timer))
 
-watch(current, () => refresh())
+watch(current, () => {
+  // Quiet when the tab being opened already has something to show: a
+  // fresh load would set loading and blank the page on every switch.
+  const cached = current.value === 'logs' ? logs.value.length > 0 : !!configs.value
+  refresh(cached)
+})
 watch(level, () => loadLogs())
 
 async function copy() {

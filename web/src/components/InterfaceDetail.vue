@@ -13,6 +13,16 @@ const nf = (n) => Number(n || 0).toLocaleString(store.locale)
 const i = computed(() => props.iface)
 const awg = computed(() => i.value.awg || {})
 
+// A CIDR prefix as its dotted netmask: /24 is 255.255.255.0, /16 is
+// 255.255.0.0. A prefix outside 0-32 keeps the old value rather than
+// inventing one.
+function netmask(prefix) {
+  const p = Number(prefix)
+  if (!Number.isInteger(p) || p < 0 || p > 32) return '255.255.0.0'
+  const n = p === 0 ? 0 : (0xffffffff << (32 - p)) >>> 0
+  return [24, 16, 8, 0].map((s) => (n >>> s) & 0xff).join('.')
+}
+
 // The server-side config, rendered here rather than only inside the binary.
 // Until the kernel driver lands the operator still has to place this file on
 // the box by hand, and guessing at it from the fields would be worse.
@@ -76,7 +86,7 @@ const serverConfig = computed(() => {
       `port ${f.listenPort}`,
       `proto ${f.openvpn?.transport || 'udp'}`,
       'dev tun',
-      `server ${f.subnet.split('/')[0]} 255.255.0.0`,
+      `server ${f.subnet.split('/')[0]} ${netmask(f.subnet.split('/')[1])}`,
       `cipher ${f.openvpn?.cipherSuite || 'AES-256-GCM'}`,
       `auth ${f.openvpn?.auth || 'SHA256'}`,
       'verify-client-cert none',

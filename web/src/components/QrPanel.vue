@@ -69,7 +69,9 @@ function downloadText() {
   a.href = url
   a.download = props.downloadName
   a.click()
-  URL.revokeObjectURL(url)
+  // Kept a moment, as lib/api.js keeps its own: revoking in the same
+  // breath as the click can cancel the save before it has read a byte.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 function toPng() {
@@ -104,7 +106,9 @@ function saveBlob(blob) {
   a.href = url
   a.download = `${props.remark || 'qrcode'}.png`
   a.click()
-  URL.revokeObjectURL(url)
+  // Kept a moment, as lib/api.js keeps its own: revoking in the same
+  // breath as the click can cancel the save before it has read a byte.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 async function copyImage() {

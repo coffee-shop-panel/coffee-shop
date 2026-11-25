@@ -21,7 +21,10 @@ async function setBalancerEnabled(b, on) {
   const was = b.enabled
   b.enabled = on
   try {
-    await api.patch(`/api/balancers/${b.id}`, { tag: b.tag, strategy: b.strategy, members: b.memberList, note: b.note, enabled: on })
+    // The fallback rides along: the server writes it unconditionally on
+    // an update, so leaving it out would clear a fallback set on the
+    // engine page.
+    await api.patch(`/api/balancers/${b.id}`, { tag: b.tag, strategy: b.strategy, members: b.memberList, fallback: b.fallback || '', note: b.note, enabled: on })
   } catch (err) {
     b.enabled = was
     notify(err.message, 'error')

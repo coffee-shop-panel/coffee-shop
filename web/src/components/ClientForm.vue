@@ -20,8 +20,13 @@ const props = defineProps({
   interfaces: { type: Array, required: true },
   // When present the dialog edits that client instead of creating one.
   client: { type: Object, default: null },
+  // The page's save, awaited so the dialog stays busy -- and the Save
+  // button stays disabled -- until the request has finished. An emit
+  // returns nothing, so awaiting it would clear busy at once and a
+  // second click would sell the same customer twice.
+  onSubmit: { type: Function, required: true },
 })
-const emit = defineEmits(['close', 'submit'])
+const emit = defineEmits(['close'])
 
 const editing = computed(() => !!props.client)
 const tab = ref('basics')
@@ -494,7 +499,7 @@ async function submit() {
         ? new Date(Date.now() + hours * 3600e3).toISOString()
         : null
 
-    await emit('submit', {
+    await props.onSubmit({
       name: form.value.name.trim(),
       note: form.value.note.trim(),
       groups: form.value.groups,

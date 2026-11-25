@@ -100,8 +100,12 @@ async function draw(kindName) {
   }
 }
 async function drawShortId() {
-  const k = await api.post('/api/xray/keys', { kind: 'reality' })
-  x.reality.shortIds = x.reality.shortIds ? `${x.reality.shortIds}, ${k.shortId}` : k.shortId
+  try {
+    const k = await api.post('/api/xray/keys', { kind: 'reality' })
+    x.reality.shortIds = x.reality.shortIds ? `${x.reality.shortIds}, ${k.shortId}` : k.shortId
+  } catch (e) {
+    emit('error', e.message)
+  }
 }
 function drawFor(p) {
   if (p === 'shadowsocks') draw('shadowsocks')

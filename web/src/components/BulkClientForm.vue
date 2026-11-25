@@ -14,8 +14,15 @@ import Toggle from './Toggle.vue'
 import MultiSelect from './MultiSelect.vue'
 import HelpTip from './HelpTip.vue'
 
-const props = defineProps({ interfaces: { type: Array, required: true } })
-const emit = defineEmits(['close', 'submit'])
+const props = defineProps({
+  interfaces: { type: Array, required: true },
+  // The page's save, awaited so the dialog stays busy -- and the Save
+  // button stays disabled -- until the request has finished. An emit
+  // returns nothing, so awaiting it would clear busy at once and a
+  // second click would run the same batch again.
+  onSubmit: { type: Function, required: true },
+})
+const emit = defineEmits(['close'])
 
 const form = ref({
   count: 10,
@@ -141,7 +148,7 @@ async function submit() {
   try {
     const hours = form.value.startOnFirstUse ? 0 : unitToHours(form.value.expiresIn, form.value.expiresUnit)
     const expiresAt = hours > 0 ? new Date(Date.now() + hours * 3600e3).toISOString() : null
-    await emit('submit', {
+    await props.onSubmit({
       count: Number(form.value.count),
       method: form.value.method,
       prefix: form.value.prefix.trim(),

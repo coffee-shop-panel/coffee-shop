@@ -177,11 +177,16 @@ function clear() {
   hide()
 }
 // A month, three or a year from today -- or from the date already chosen,
-// when that is later: extending an account is the common case.
+// when that is later: extending an account is the common case. Clamped to
+// the last day of the target month: the 31st plus one month is the 28th
+// (or 29th), not the 3rd of the month after.
 function addMonths(n) {
   const from = Math.max(todayUTC(), toUTC(props.modelValue) ?? 0)
   const d = new Date(from)
+  const day = d.getUTCDate()
+  d.setUTCDate(1)
   d.setUTCMonth(d.getUTCMonth() + n)
+  d.setUTCDate(Math.min(day, new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()))
   emit('update:modelValue', toISO(d.getTime()))
   hide()
 }

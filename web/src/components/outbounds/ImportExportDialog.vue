@@ -36,17 +36,22 @@ async function runImport() {
   }
   busy.value = true
   let added = 0
+  // Each on its own, as the interfaces import does: one refused -- a tag
+  // or a field taken here -- says why and leaves the rest to be added.
+  const failed = []
   try {
     for (const item of list) {
-      await api.post('/api/outbounds', item)
-      added++
+      try {
+        await api.post('/api/outbounds', item)
+        added++
+      } catch (err) {
+        failed.push(`${item.tag || '?'}: ${err.message}`)
+      }
     }
-    notify(tn('outbound.imported', added), 'success')
-    emit('imported', added)
-    emit('close')
-  } catch (err) {
-    notify(err.message, 'error')
+    if (added) notify(tn('outbound.imported', added), 'success')
     if (added) emit('imported', added)
+    if (failed.length) notify(failed.join('\n'), 'error')
+    else emit('close')
   } finally {
     busy.value = false
   }

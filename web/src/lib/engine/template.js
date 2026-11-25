@@ -34,14 +34,18 @@ export function useTemplateDoc({ onApplied }) {
   const programs = ref(null)
   const busy = ref(false)
 
+  // Each on its own: one failing must not hide the other, which may
+  // have loaded fine and is what the page has to show.
   async function load() {
-    try {
-      doc.value = await api.get('/api/template', { background: true })
-      programs.value = await api.get('/api/configs', { background: true })
-      render()
-    } catch (e) {
-      notify(e.message, 'error')
-    }
+    const [docRes, progRes] = await Promise.allSettled([
+      api.get('/api/template', { background: true }),
+      api.get('/api/configs', { background: true }),
+    ])
+    if (docRes.status === 'fulfilled') doc.value = docRes.value
+    else notify(docRes.reason?.message || docRes.reason, 'error')
+    if (progRes.status === 'fulfilled') programs.value = progRes.value
+    else notify(progRes.reason?.message || progRes.reason, 'error')
+    if (doc.value || programs.value) render()
   }
 
   function render() {

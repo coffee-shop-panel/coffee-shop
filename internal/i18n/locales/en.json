@@ -875,6 +875,7 @@
   "hosts.lede": "The addresses configurations point at. With hosts, one customer gets one configuration, QR and subscription entry per host — when one is blocked, they switch to another.",
   "hosts.moveDown": "Move down",
   "hosts.moveUp": "Move up",
+  "hosts.nothingToCheck": "Nothing to check: this host has no addresses.",
   "hosts.reachable": "Reachable",
   "hosts.sections.advanced": "Advanced",
   "hosts.sections.basic": "Basic",

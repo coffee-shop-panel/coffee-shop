@@ -115,7 +115,9 @@ function downloadText(text, name) {
   a.href = url
   a.download = name
   a.click()
-  URL.revokeObjectURL(url)
+  // Kept a moment, as lib/api.js keeps its own: revoking in the same
+  // breath as the click can cancel the save before it has read a byte.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 async function downloadSub() {
   if (!sub.value?.link) return

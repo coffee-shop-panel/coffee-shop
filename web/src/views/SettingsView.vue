@@ -3,7 +3,7 @@
 // Save and Restart Panel and the standing warning, then a card holding the
 // category the sidebar chose -- General, Authentication, Telegram Bot, Email,
 // Subscription -- each a row of tabs over lists of setting rows.
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api } from '../lib/api.js'
 import { waitForRestart } from '../lib/restart.js'
 import { useDelayed } from '../lib/live.js'
@@ -47,9 +47,11 @@ watch(
     }
   },
 )
-window.addEventListener('hashchange', () => {
+function onHash() {
   if (!props.tab) active.value = tabFromHash()
-})
+}
+window.addEventListener('hashchange', onHash)
+onUnmounted(() => window.removeEventListener('hashchange', onHash))
 
 // The tab inside each category, as theirs: each remembers its own.
 const inner = ref({ general: '1', security: '1', telegram: '1', bale: '1', email: '1', subscription: '1' })

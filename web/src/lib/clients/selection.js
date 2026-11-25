@@ -15,7 +15,7 @@ export function useSelection({ page, selected, query, filtered, filterKey }) {
   )
   function toggleAll(checked) {
     allMatching.value = false
-    selected.value = checked ? new Set(page.value.items.map((c) => c.id)) : new Set()
+    selected.value = checked ? new Set((page.value?.items || []).map((c) => c.id)) : new Set()
   }
 
   // Every customer the filter matches, across every page -- or every customer,

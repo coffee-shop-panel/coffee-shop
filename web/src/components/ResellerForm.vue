@@ -65,7 +65,12 @@ function todayLocal() {
 }
 function monthFromToday() {
   const d = new Date()
+  // Clamped to the last day of the target month: the 31st plus one month
+  // is the 28th (or 29th), not the 3rd of the month after.
+  const day = d.getDate()
+  d.setDate(1)
   d.setMonth(d.getMonth() + 1)
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()))
   return localDay(d.toISOString())
 }
 

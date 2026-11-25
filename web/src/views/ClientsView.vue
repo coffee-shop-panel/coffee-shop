@@ -443,7 +443,7 @@ async function submitForm(input) {
       </div>
       <button v-if="filterCount || search || statusFilter || groupFilter" class="btn ghost danger" @click="clearFilters">{{ t('client.menu.clearAllFilters') }}</button>
       <span v-if="page" class="faint small spacer">
-        {{ t('client.menu.showingCount', { shown: page.total, total: stats?.clients ?? page.total }) }}
+        {{ t('client.menu.showingCount', { shown: page.items.length, total: stats?.clients ?? page.total }) }}
       </span>
     </div>
 
@@ -515,10 +515,10 @@ async function submitForm(input) {
     v-if="formFor"
     :interfaces="interfaces"
     :client="formFor.client"
+    :on-submit="submitForm"
     @close="formFor = null"
-    @submit="submitForm"
   />
-  <BulkClientForm v-if="bulkOpen" :interfaces="interfaces" @close="bulkOpen = false" @submit="submitBulk" />
+  <BulkClientForm v-if="bulkOpen" :interfaces="interfaces" :on-submit="submitBulk" @close="bulkOpen = false" />
   <ClientQrModal v-if="shareFor" :client="shareFor" :interfaces="interfaces" @close="shareFor = null" />
   <ClientInfoModal v-if="infoFor" :client="infoFor" :interfaces="interfaces" @close="infoFor = null" />
 

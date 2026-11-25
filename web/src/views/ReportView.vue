@@ -17,9 +17,10 @@ import PageSpin from '../components/PageSpin.vue'
 
 // The month on screen, "YYYY-MM". It starts at this month and walks
 // backwards freely; forwards stops at this month, because a month that
-// has not happened has no report worth inventing.
+// has not happened has no report worth inventing. Local, not UTC: in
+// Tehran the first hours of the 1st are still last month in UTC.
 function monthOf(d) {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 const thisMonth = monthOf(new Date())
 const month = ref(thisMonth)
@@ -45,7 +46,7 @@ const showSkeleton = useDelayed(computed(() => loading.value && !data.value))
 
 function shift(delta) {
   const [y, m] = month.value.split('-').map(Number)
-  const next = monthOf(new Date(Date.UTC(y, m - 1 + delta, 1)))
+  const next = monthOf(new Date(y, m - 1 + delta, 1))
   if (next > thisMonth) return
   month.value = next
   load()

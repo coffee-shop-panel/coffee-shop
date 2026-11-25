@@ -133,6 +133,12 @@ async function runConfirmed() {
 // nothing has failed yet.
 const checking = ref(null)
 async function check(g) {
+  // Nothing behind the entry, nothing to try: reporting success here
+  // would claim a host was reached that was never probed.
+  if (!(g.rowIds || []).length) {
+    notify(t('hosts.nothingToCheck'), 'error')
+    return
+  }
   checking.value = g.groupId
   try {
     const fails = []

@@ -21,7 +21,7 @@ const busy = ref(false)
 const fieldError = ref({})
 const formError = ref('')
 
-const form = ref({ tag: '', enabled: true, strategy: 'random', members: [], note: '', interfaces: [] })
+const form = ref({ tag: '', enabled: true, strategy: 'random', members: [], fallback: '', note: '', interfaces: [] })
 const STRATEGIES = ['random', 'leastPing']
 const ifaceOptions = ref([])
 
@@ -34,6 +34,10 @@ onMounted(async () => {
       enabled: b.enabled,
       strategy: b.strategy || 'random',
       members: b.memberList || [],
+      // Carried, not shown: the engine page owns the fallback field, and
+      // the server writes it unconditionally on an update, so dropping it
+      // here would clear a fallback set there.
+      fallback: b.fallback || '',
       note: b.note || '',
       interfaces: (b.interfaces || []).map(String),
     })

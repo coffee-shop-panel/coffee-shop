@@ -62,6 +62,9 @@ function readKind() {
 }
 watch(kind, (v) => {
   page.value = 1
+  // A selection belongs to the tab it was made on: left over, a bulk
+  // delete would reach tunnels of the other kind.
+  selected.value = new Set()
   try { localStorage.setItem(KIND_KEY, v) } catch { /* private window */ }
 })
 const isPanel = (i) => i.protocol === 'xray'
@@ -444,8 +447,8 @@ async function submitForm(input) {
     v-if="formFor"
     :iface="formFor.iface"
     :nodes="nodeList"
+    :on-submit="submitForm"
     @close="formFor = null"
-    @submit="submitForm"
   />
 
   <InterfaceDetail v-if="detailFor" :iface="detailFor" @close="detailFor = null" />

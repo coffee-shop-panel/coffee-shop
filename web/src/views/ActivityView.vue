@@ -12,8 +12,9 @@ import { dateTime } from '../lib/format.js'
 import ErrorState from '../components/ErrorState.vue'
 import PageSpin from '../components/PageSpin.vue'
 
-// One page of the log. It has to agree with the default api.activity asks
-// for: "a full page came back" is how this page knows there may be more.
+// One page of the log, shown. One more is asked for than shown: a full
+// page back is no proof there is another, and the extra row is how this
+// page knows there may be more.
 const PAGE = 100
 
 const items = ref([])
@@ -29,9 +30,11 @@ onMounted(load)
 async function load() {
   loading.value = true
   try {
-    const res = await api.activity()
-    items.value = res?.items || []
-    hasMore.value = items.value.length >= PAGE
+    // One more than a page: a full page back is no proof there is another.
+    const res = await api.activity(0, PAGE + 1)
+    const rows = res?.items || []
+    items.value = rows.slice(0, PAGE)
+    hasMore.value = rows.length > PAGE
     loadError.value = null
   } catch (e) {
     loadError.value = e
@@ -48,10 +51,10 @@ async function loadMore() {
   if (!last || moreBusy.value) return
   moreBusy.value = true
   try {
-    const res = await api.activity(last.id)
+    const res = await api.activity(last.id, PAGE + 1)
     const older = res?.items || []
-    items.value = [...items.value, ...older]
-    hasMore.value = older.length >= PAGE
+    items.value = [...items.value, ...older.slice(0, PAGE)]
+    hasMore.value = older.length > PAGE
   } catch (e) {
     notify(e.message, 'error')
   } finally {

@@ -19,8 +19,13 @@ const props = defineProps({
   // The servers a tunnel can be placed on. Empty or one means there is nothing
   // to choose, and the field is not shown at all.
   nodes: { type: Array, default: () => [] },
+  // The page's save, awaited so the dialog stays busy -- and the Save
+  // button stays disabled -- until the request has finished. An emit
+  // returns nothing, so awaiting it would clear busy at once and a
+  // second click would make the same tunnel twice.
+  onSubmit: { type: Function, required: true },
 })
-const emit = defineEmits(['close', 'submit'])
+const emit = defineEmits(['close'])
 
 const editing = computed(() => !!props.iface)
 
@@ -414,10 +419,10 @@ async function submit() {
         fieldError.value = e.message
         return
       }
-      await emit('submit', { name: form.value.name, nodeId: form.value.nodeId, listenPort: form.value.listenPort, xray })
+      await props.onSubmit({ name: form.value.name, nodeId: form.value.nodeId, listenPort: form.value.listenPort, xray })
       return
     }
-    await emit('submit', { ...form.value })
+    await props.onSubmit({ ...form.value })
   } finally {
     busy.value = false
   }

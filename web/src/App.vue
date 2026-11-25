@@ -485,7 +485,7 @@ function reload() {
           </div>
 
           <ul class="amenu-inline drawer-menu" role="menu">
-            <template v-for="item in nav" :key="item.key || item.to">
+            <template v-for="item in visibleNav" :key="item.key || item.to">
               <li v-if="!item.children" role="none">
                 <RouterLink :to="item.to" class="amenu-item" :class="{ selected: isActive(item) }" role="menuitem">
                   <AntIcon :name="item.icon" />

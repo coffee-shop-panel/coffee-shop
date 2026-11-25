@@ -108,7 +108,7 @@ const totals = computed(() =>
   tab.value === 'history'
     ? {
         records: events.value.length,
-        clients: new Set(events.value.map((r) => r.clientName)).size,
+        clients: new Set(events.value.map((r) => r.clientId)).size,
         held: events.value.filter((r) => r.kind === 'held').length,
       }
     : {

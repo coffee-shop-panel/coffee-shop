@@ -34,7 +34,9 @@ async function submit() {
       await api.post('/api/groups', { name: n, note: note.value.trim() })
       notify(t('group.created'), 'success')
     } else if (props.kind === 'rename') {
-      const res = await api.renameGroup(props.group.name, name.value)
+      const n = name.value.trim()
+      if (!n) return
+      const res = await api.renameGroup(props.group.name, n)
       notify(`${t('group.renamed')} — ${nf(res.affected)}`, 'success')
     } else {
       const op = props.kind === 'extend'
