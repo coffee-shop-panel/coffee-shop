@@ -1,6 +1,7 @@
 package nodes
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"regexp"
@@ -69,6 +70,23 @@ func TestTheEgressRuleMatchesThisPanelsClientsAndNoOneElse(t *testing.T) {
 		if got := pattern.MatchString(name); got != want {
 			t.Errorf("%q matched %v, want %v", name, got, want)
 		}
+	}
+}
+
+// The outbound at the top is OpenVPN: xray cannot carry it, so the node's
+// customers leave from the node itself, and that is the intended state —
+// not an error the round fails on forever.
+func TestEgressForOpenVPNLeavesDirectly(t *testing.T) {
+	db := testDB(t)
+	if err := db.Create(&model.Outbound{Tag: "hop", Kind: model.OutboundOpenVPN, Position: 0}).Error; err != nil {
+		t.Fatal(err)
+	}
+	egress, tag, err := egressFor(context.Background(), db)
+	if err != nil {
+		t.Fatalf("egressFor: %v", err)
+	}
+	if egress != nil || tag != "hop" {
+		t.Fatalf("egressFor = %v, %q, want nothing to put there under hop", egress, tag)
 	}
 }
 

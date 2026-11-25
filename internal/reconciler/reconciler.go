@@ -252,7 +252,7 @@ func (r *Reconciler) Start(ctx context.Context) {
 // types. This package is the only thing that talks to the data plane and
 // imports nothing that imports it back; the node package's types here would
 // be the first strand of a cycle.
-func (r *Reconciler) AddNodeReport(usage []fleet.NodeUsage, devices []fleet.NodeDeviceUsage) {
+func (r *Reconciler) AddNodeReport(nodeID uint, usage []fleet.NodeUsage, devices []fleet.NodeDeviceUsage) {
 	now := time.Now().UTC()
 	batch := make([]trafficUpdate, 0, len(usage)+len(devices))
 	for _, u := range usage {
@@ -260,14 +260,16 @@ func (r *Reconciler) AddNodeReport(usage []fleet.NodeUsage, devices []fleet.Node
 			continue
 		}
 		// A node reports what moved since its last report, one sync apart.
-		r.speed.fromNode(u.OriginID, u.Up, u.Down, r.nodeEvery, now)
+		r.speed.fromNode(nodeID, u.OriginID, u.Up, u.Down, r.nodeEvery, now)
 		batch = append(batch, trafficUpdate{Key: keyFromClientID(u.OriginID), Bytes: u.Bytes, Up: u.Up, Down: u.Down, At: now})
 	}
 	for _, d := range devices {
 		if d.OriginID == 0 || d.Up+d.Down == 0 {
 			continue
 		}
-		r.fileSpeed.fromNode(d.OriginID, d.Up, d.Down, r.nodeEvery, now)
+		// A file's speed is keyed by the file alone, so it reports under
+		// no node: the file lives on one tunnel, on one node.
+		r.fileSpeed.fromNode(0, d.OriginID, d.Up, d.Down, r.nodeEvery, now)
 		batch = append(batch,
 			trafficUpdate{AccountID: d.OriginID, DevUp: d.Up, DevDown: d.Down, At: now},
 			// A file that moved traffic on a node was used: what starts a
@@ -421,31 +423,33 @@ func (r *Reconciler) collect(ctx context.Context) (uint64, error) {
 	// Handshakes and endpoints come from the drivers, not from nftables, and
 	// are what the online indicator and the sharing detector read.
 	seen := map[uint]string{}
-	for ifaceID, b := range r.pool.All() {
-		stats, err := b.Stats(ctx)
-		if err != nil {
-			r.log.Warn("driver stats unavailable", "interface", ifaceID, "error", err)
-			continue
-		}
-		for i := range stats {
-			stats[i].Endpoint = r.realEndpoint(ifaceID, stats[i].Endpoint)
-		}
-		r.conc.observe(stats, now)
-		for _, s := range stats {
-			if s.LastHandshake.IsZero() {
+	if r.pool != nil {
+		for ifaceID, b := range r.pool.All() {
+			stats, err := b.Stats(ctx)
+			if err != nil {
+				r.log.Warn("driver stats unavailable", "interface", ifaceID, "error", err)
 				continue
 			}
-			r.writer.submit(trafficUpdate{
-				AccountID: s.AccountID,
-				Handshake: s.LastHandshake,
-				Endpoint:  s.Endpoint,
-				At:        now,
-			})
-			// Only a live session marks its address as in use: a peer that
-			// stopped hours ago still reports the address it last had, and
-			// refreshing that would count a switched-off phone as connected.
-			if s.Endpoint != "" && now.Sub(s.LastHandshake) < liveWindow() {
-				seen[s.AccountID] = s.Endpoint
+			for i := range stats {
+				stats[i].Endpoint = r.realEndpoint(ifaceID, stats[i].Endpoint)
+			}
+			r.conc.observe(stats, now)
+			for _, s := range stats {
+				if s.LastHandshake.IsZero() {
+					continue
+				}
+				r.writer.submit(trafficUpdate{
+					AccountID: s.AccountID,
+					Handshake: s.LastHandshake,
+					Endpoint:  s.Endpoint,
+					At:        now,
+				})
+				// Only a live session marks its address as in use: a peer that
+				// stopped hours ago still reports the address it last had, and
+				// refreshing that would count a switched-off phone as connected.
+				if s.Endpoint != "" && now.Sub(s.LastHandshake) < liveWindow() {
+					seen[s.AccountID] = s.Endpoint
+				}
 			}
 		}
 	}
@@ -505,6 +509,15 @@ func (r *Reconciler) evaluate(ctx context.Context) (exhausted, expired int64, er
 	// service just stopped — and "someone was cut off" is not a useful message.
 	exhaustedNames := r.namesMatching(ctx,
 		"status = ? AND quota_bytes > 0 AND (used_bytes >= quota_bytes OR id IN ?)", model.StatusActive, spent)
+	// Their ids too: the expired sweep below must not take the same clients
+	// in the same tick — a customer cut off for allowance and past their
+	// date would otherwise be counted twice, and both messages sent.
+	var justExhausted []uint
+	if err := db.Model(&model.Client{}).
+		Where("status = ? AND quota_bytes > 0 AND (used_bytes >= quota_bytes OR id IN ?)", model.StatusActive, spent).
+		Pluck("id", &justExhausted).Error; err != nil {
+		return 0, 0, err
+	}
 
 	res := db.Model(&model.Client{}).
 		Where("status = ? AND quota_bytes > 0 AND (used_bytes >= quota_bytes OR id IN ?)", model.StatusActive, spent).
@@ -521,13 +534,20 @@ func (r *Reconciler) evaluate(ctx context.Context) (exhausted, expired int64, er
 
 	// Passed as plain strings: a slice of a named string type is not expanded
 	// into an IN list, and the sweep silently matches nothing.
-	expiredNames := r.namesMatching(ctx,
-		"status IN (?) AND expires_at IS NOT NULL AND expires_at <= ?",
-		[]string{string(model.StatusActive), string(model.StatusExhausted)}, now)
+	expiredWhere := "status IN (?) AND expires_at IS NOT NULL AND expires_at <= ?"
+	expiredArgs := []any{[]string{string(model.StatusActive), string(model.StatusExhausted)}, now}
+	if len(justExhausted) > 0 {
+		// Clients cut off for allowance in this tick keep their exhausted
+		// state until a later tick: their expiry is evaluated then, not
+		// now. A client exhausted on an earlier tick is not in this list
+		// and still expires here.
+		expiredWhere += " AND id NOT IN ?"
+		expiredArgs = append(expiredArgs, justExhausted)
+	}
+	expiredNames := r.namesMatching(ctx, expiredWhere, expiredArgs...)
 
 	res2 := db.Model(&model.Client{}).
-		Where("status IN (?) AND expires_at IS NOT NULL AND expires_at <= ?",
-			[]string{string(model.StatusActive), string(model.StatusExhausted)}, now).
+		Where(expiredWhere, expiredArgs...).
 		Update("status", model.StatusExpired)
 	if res2.Error != nil {
 		return 0, 0, res2.Error
@@ -650,30 +670,32 @@ func (r *Reconciler) apply(ctx context.Context) (int, int, error) {
 	// wrong address, which is the one thing a foreign exit is bought to avoid.
 	r.applyRouting(ctx)
 
-	for ifaceID, b := range r.pool.All() {
-		want := d.perIface[ifaceID]
-		if want == nil {
-			want = []backend.DesiredAccount{}
-		}
-		rep, err := b.Sync(ctx, want)
-		if err != nil {
-			// A cancelled context is the panel shutting down, not a fault.
-			// Logged as an error it made every restart look like something
-			// broke, which is how a real failure gets read past.
-			if ctx.Err() != nil {
-				r.log.Debug("driver sync stopped by shutdown",
-					"interface", ifaceID, "error", err)
+	if r.pool != nil {
+		for ifaceID, b := range r.pool.All() {
+			want := d.perIface[ifaceID]
+			if want == nil {
+				want = []backend.DesiredAccount{}
+			}
+			rep, err := b.Sync(ctx, want)
+			if err != nil {
+				// A cancelled context is the panel shutting down, not a fault.
+				// Logged as an error it made every restart look like something
+				// broke, which is how a real failure gets read past.
+				if ctx.Err() != nil {
+					r.log.Debug("driver sync stopped by shutdown",
+						"interface", ifaceID, "error", err)
+					continue
+				}
+				// One broken interface must not stop the others from being
+				// reconciled, so this is logged and the loop continues.
+				r.log.Error("driver sync failed", "interface", ifaceID, "error", err)
 				continue
 			}
-			// One broken interface must not stop the others from being
-			// reconciled, so this is logged and the loop continues.
-			r.log.Error("driver sync failed", "interface", ifaceID, "error", err)
-			continue
-		}
-		if rep.Changed() {
-			r.log.Info("driver state changed",
-				"interface", ifaceID,
-				"added", rep.Added, "removed", rep.Removed, "updated", rep.Updated)
+			if rep.Changed() {
+				r.log.Info("driver state changed",
+					"interface", ifaceID,
+					"added", rep.Added, "removed", rep.Removed, "updated", rep.Updated)
+			}
 		}
 	}
 	// The gateways last: they stand beside tunnels that are up by now, and

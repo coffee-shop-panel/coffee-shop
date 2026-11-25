@@ -50,7 +50,7 @@ func TestSpeedIsTheRecentTicksEachWay(t *testing.T) {
 func TestANodesCustomerHasTheSpeedOfItsReport(t *testing.T) {
 	s := newSpeedTracker(2*time.Second, 20*time.Second)
 	now := time.Now()
-	s.fromNode(7, 20_000_000, 200_000_000, 20*time.Second, now)
+	s.fromNode(3, 7, 20_000_000, 200_000_000, 20*time.Second, now)
 	got := s.speeds([]uint{7}, now.Add(5*time.Second))
 	if got[7].Down != 10_000_000 || got[7].Up != 1_000_000 {
 		t.Errorf("node customer speed = %+v, want 10 MB/s down and 1 MB/s up", got[7])
@@ -116,6 +116,25 @@ func TestSpeedHoldsBetweenCollectionsAtAnyInterval(t *testing.T) {
 	}
 }
 
+// A customer live on two nodes is the two speeds added: a report from one
+// node replaces that node's earlier one, never the other node's.
+func TestACustomerOnTwoNodesHasBothSpeeds(t *testing.T) {
+	s := newSpeedTracker(2*time.Second, 20*time.Second)
+	now := time.Now()
+	s.fromNode(3, 7, 20_000_000, 200_000_000, 20*time.Second, now)
+	s.fromNode(4, 7, 20_000_000, 200_000_000, 20*time.Second, now)
+	got := s.speeds([]uint{7}, now.Add(5*time.Second))
+	if got[7].Down != 20_000_000 || got[7].Up != 2_000_000 {
+		t.Errorf("two-node customer speed = %+v, want 20 MB/s down and 2 MB/s up", got[7])
+	}
+	// The first node reports again, slower: only its own entry moves.
+	s.fromNode(3, 7, 10_000_000, 100_000_000, 20*time.Second, now.Add(5*time.Second))
+	got = s.speeds([]uint{7}, now.Add(5*time.Second))
+	if got[7].Down != 15_000_000 || got[7].Up != 1_500_000 {
+		t.Errorf("after one node reported again, speed = %+v, want 15 MB/s down and 1.5 MB/s up", got[7])
+	}
+}
+
 // moving answers for everything with a speed, from this server's ticks and
 // from nodes' reports alike, without being told whom to ask about.
 func TestMovingIsEverythingWithASpeed(t *testing.T) {
@@ -123,7 +142,7 @@ func TestMovingIsEverythingWithASpeed(t *testing.T) {
 	t0 := time.Now()
 	s.local(map[uint]usageDelta{}, t0)
 	s.local(map[uint]usageDelta{1: {Up: 2_000, Down: 4_000}, 2: {}}, t0.Add(2*time.Second))
-	s.fromNode(9, 20_000, 40_000, 20*time.Second, t0.Add(2*time.Second))
+	s.fromNode(3, 9, 20_000, 40_000, 20*time.Second, t0.Add(2*time.Second))
 	got := s.moving(t0.Add(2 * time.Second))
 	if len(got) != 2 || got[1].Up != 1_000 || got[1].Down != 2_000 || got[9].Up != 1_000 || got[9].Down != 2_000 {
 		t.Errorf("moving = %+v, want 1 and 9 at 1000 up and 2000 down a second", got)

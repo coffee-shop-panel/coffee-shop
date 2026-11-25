@@ -43,12 +43,20 @@ type remoteSpeed struct {
 	at    time.Time
 }
 
+// remoteNode is one node's report for one customer: a customer live on two
+// nodes has one entry a node, and their speed is the entries added, not the
+// last report to arrive.
+type remoteNode struct {
+	client uint
+	node   uint
+}
+
 type speedTracker struct {
 	window  time.Duration
 	mu      sync.Mutex
 	samples []speedSample // newest last, within window
 	last    time.Time     // when the previous local tick was read
-	remote  map[uint]remoteSpeed
+	remote  map[remoteNode]remoteSpeed
 	// nodeEvery is how far apart a node's reports are.
 	nodeEvery time.Duration
 }
@@ -57,7 +65,7 @@ type speedTracker struct {
 // newSpeedTracker follows speeds read every every here, and reported every
 // nodeEvery by the nodes.
 func newSpeedTracker(every, nodeEvery time.Duration) *speedTracker {
-	return &speedTracker{window: max(minSpeedWindow, 3*every), nodeEvery: nodeEvery, remote: map[uint]remoteSpeed{}}
+	return &speedTracker{window: max(minSpeedWindow, 3*every), nodeEvery: nodeEvery, remote: map[remoteNode]remoteSpeed{}}
 }
 
 // local records one tick of what this server's customers moved.
@@ -77,15 +85,18 @@ func (s *speedTracker) local(billed map[uint]usageDelta, now time.Time) {
 	s.prune(now)
 }
 
-// fromNode records what a node reported one customer moving over span.
-func (s *speedTracker) fromNode(clientID uint, up, down uint64, span time.Duration, now time.Time) {
+// fromNode records what a node reported one customer moving over span. The
+// node is part of the key: a report from one node replaces that node's
+// earlier one, and a customer live on two nodes is the two added together.
+// A file's speed is keyed by the file alone, so it reports under node 0.
+func (s *speedTracker) fromNode(nodeID, clientID uint, up, down uint64, span time.Duration, now time.Time) {
 	if span <= 0 {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	secs := span.Seconds()
-	s.remote[clientID] = remoteSpeed{
+	s.remote[remoteNode{client: clientID, node: nodeID}] = remoteSpeed{
 		speed: model.Speed{Up: uint64(float64(up) / secs), Down: uint64(float64(down) / secs)},
 		at:    now,
 	}
@@ -99,9 +110,9 @@ func (s *speedTracker) prune(now time.Time) {
 		}
 	}
 	s.samples = keep
-	for id, r := range s.remote {
+	for k, r := range s.remote {
 		if now.Sub(r.at) >= s.remoteSpeedStands() {
-			delete(s.remote, id)
+			delete(s.remote, k)
 		}
 	}
 }
@@ -124,8 +135,8 @@ func (s *speedTracker) moving(now time.Time) map[uint]model.Speed {
 			add(id)
 		}
 	}
-	for id := range s.remote {
-		add(id)
+	for k := range s.remote {
+		add(k.client)
 	}
 	return s.speedsLocked(ids)
 }
@@ -158,9 +169,14 @@ func (s *speedTracker) speedsLocked(ids []uint) map[uint]model.Speed {
 			secs := span.Seconds()
 			sp = model.Speed{Up: uint64(float64(up) / secs), Down: uint64(float64(down) / secs)}
 		}
-		if r, ok := s.remote[id]; ok {
-			sp.Up += r.speed.Up
-			sp.Down += r.speed.Down
+		// Every node the customer is live on adds its own speed: a report
+		// from one node replaces that node's earlier one, it never stands
+		// for the others.
+		for k, r := range s.remote {
+			if k.client == id {
+				sp.Up += r.speed.Up
+				sp.Down += r.speed.Down
+			}
 		}
 		if sp.Up+sp.Down > 0 {
 			out[id] = sp

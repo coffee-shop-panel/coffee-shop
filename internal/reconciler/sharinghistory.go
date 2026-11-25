@@ -164,8 +164,13 @@ func (r *Reconciler) notifySharing(rep SharingReport) {
 func recordSharing(ctx context.Context, db *gorm.DB, ev model.SharingEvent) (created bool, err error) {
 	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var open model.SharingEvent
+		// The gap is measured from the record's last sighting, not from when
+		// the sharing began: a live report's StartedAt is its earliest
+		// FirstSeen, which never moves, so measuring from it merged
+		// intermittent sharing over days into one ever-extending record.
+		// A held device starts when it is held, so the two agree there.
 		q := tx.Where("kind = ? AND client_name = ? AND device_name = ? AND last_seen >= ? AND started_at <= ?",
-			ev.Kind, ev.ClientName, ev.DeviceName, ev.StartedAt.Add(-historyGap), ev.LastSeen).
+			ev.Kind, ev.ClientName, ev.DeviceName, ev.LastSeen.Add(-historyGap), ev.LastSeen).
 			Order("last_seen DESC")
 		if ev.AccountID != 0 {
 			q = q.Where("account_id IN ?", []uint{0, ev.AccountID})

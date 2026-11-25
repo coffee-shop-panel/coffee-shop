@@ -168,13 +168,27 @@ func (s *Nodes) Get(ctx context.Context, id uint) (*model.Node, error) {
 func (s *Nodes) Update(ctx context.Context, id uint, in NodeInput) (*model.Node, error) {
 	var node model.Node
 	if err := s.db.WithContext(ctx).First(&node, id).Error; err != nil {
-		return nil, fmt.Errorf("%w: no node %d", fault.ErrNotFound, id)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("%w: no node %d", fault.ErrNotFound, id)
+		}
+		return nil, fmt.Errorf("service: load node: %w", err)
 	}
 	if node.Kind == model.KindLocal {
 		return nil, fmt.Errorf("%w: this panel's own entry cannot be edited", fault.ErrInvalid)
 	}
 	if err := s.validate(&in, false); err != nil {
 		return nil, err
+	}
+
+	// As Create: a rename onto another node's name, differing only by case
+	// included, is a field error, not a raw database error.
+	var clash int64
+	if err := s.db.WithContext(ctx).Model(&model.Node{}).
+		Where("LOWER(name) = LOWER(?) AND id <> ?", in.Name, id).Count(&clash).Error; err != nil {
+		return nil, fmt.Errorf("service: check node name: %w", err)
+	}
+	if clash > 0 {
+		return nil, fault.Field("name", "a node called %q already exists", in.Name)
 	}
 
 	updates := map[string]any{
@@ -251,7 +265,10 @@ func (s *Nodes) Update(ctx context.Context, id uint, in NodeInput) (*model.Node,
 func (s *Nodes) Delete(ctx context.Context, id uint) error {
 	var node model.Node
 	if err := s.db.WithContext(ctx).First(&node, id).Error; err != nil {
-		return fmt.Errorf("%w: no node %d", fault.ErrNotFound, id)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("%w: no node %d", fault.ErrNotFound, id)
+		}
+		return fmt.Errorf("service: load node: %w", err)
 	}
 	if node.Kind == model.KindLocal {
 		return fmt.Errorf("%w: this panel's own entry cannot be removed", fault.ErrInvalid)

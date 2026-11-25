@@ -312,7 +312,8 @@ func (s *Syncer) chargeXUI(ctx context.Context, node model.Node, usage []service
 	for _, nu := range byClient {
 		list = append(list, *nu)
 	}
-	s.onReport(chargeReport(list, devices, node.UsageCoefficient, clientOf))
+	charged, chargedDevices := chargeReport(list, devices, node.UsageCoefficient, clientOf)
+	s.onReport(node.ID, charged, chargedDevices)
 }
 
 // xuiClientFor is a file as a 3x-ui client.

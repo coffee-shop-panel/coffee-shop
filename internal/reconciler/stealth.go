@@ -67,8 +67,8 @@ func gatewayKey(i model.Interface) string {
 	name, port := i.StealthTransport()
 	p := i.Stealth.V
 	if p.Proven() {
-		key := fmt.Sprintf("%s|%d|%d|%s|%s|%s|%s|%s|%s|%s|%s", name, port, i.ListenPort, i.PrivateKey,
-			p.Path, p.Origin, p.Proxies, p.ClientHeader, p.Cookie, p.Key, p.PreviousKey)
+		key := fmt.Sprintf("%s|%d|%d|%s|%s|%s|%s|%s|%s|%s|%s|%s", name, port, i.ListenPort, i.PrivateKey,
+			p.Path, p.Origin, p.Proxies, p.ClientHeader, p.Cookie, p.Key, p.PreviousKey, p.Shape)
 		if name == model.TransportAnchor {
 			// Not the certificate: keepStealth hands a new one over.
 			key += fmt.Sprintf("|%s|%t", p.Host, p.ProxyProtocol)
@@ -100,12 +100,27 @@ func (r *Reconciler) keepStealth(d *desired) {
 		want[iface.ID] = true
 		key := gatewayKey(iface)
 		rg := g.running[iface.ID]
+		var before *runningGateway
 		if rg != nil && rg.key != key {
 			r.stopGateway(iface.ID, rg)
-			rg = nil
+			// Kept as before, so a gateway that could not start is
+			// still said once after its key changes, not on every pass.
+			before, rg = rg, nil
+		}
+		if rg != nil && rg.gw != nil && rg.done != nil {
+			select {
+			case <-rg.done:
+				// The gateway died: Serve returned, and with the key
+				// unchanged nothing restarts it. Start it again below,
+				// keeping the last start failure so a gateway that
+				// cannot start is said once, not every pass.
+				r.stopGateway(iface.ID, rg)
+				before, rg = rg, nil
+			default:
+			}
 		}
 		if rg == nil || rg.gw == nil {
-			rg = r.startGateway(iface, key, rg)
+			rg = r.startGateway(iface, key, before)
 			g.running[iface.ID] = rg
 		}
 		if rg.gw != nil {

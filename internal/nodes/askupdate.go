@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -87,16 +89,24 @@ func AskToUpdate(ctx context.Context, db *gorm.DB, id uint) (*UpdateResult, erro
 	}
 	defer resp.Body.Close()
 
+	// The status first: a refusal is answered in plain text or not at all,
+	// and decoding it as the result misreported it as a panel that did not
+	// answer like one, while an empty body on a success is a success with
+	// nothing more to say, not a broken answer.
+	if resp.StatusCode >= 300 {
+		var out UpdateResult
+		// A refusal with a reason is not a fault. The node saying it has
+		// no signing key, or that it is already current, is the answer.
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		if out.Notice == "" {
+			return nil, fmt.Errorf("%w: %s answered %s", service.ErrInvalid, node.Name, resp.Status)
+		}
+		return &out, nil
+	}
+
 	var out UpdateResult
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("%w: %s answered, but not like a W-UI panel", service.ErrInvalid, node.Name)
 	}
-
-	// A refusal with a reason is not a fault. The node saying it has no signing
-	// key, or that it is already current, is the answer.
-	if resp.StatusCode >= 300 && out.Notice == "" {
-		return nil, fmt.Errorf("%w: %s answered %s", service.ErrInvalid, node.Name, resp.Status)
-	}
-
 	return &out, nil
 }

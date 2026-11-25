@@ -45,7 +45,7 @@ func TestNodeUsageIsSpentFromTheSameAllowance(t *testing.T) {
 	}
 
 	r := newReconciler(t, db)
-	r.AddNodeReport([]fleet.NodeUsage{{OriginID: c.ID, Bytes: 2 << 30, Up: 512 << 20, Down: 1536 << 20}}, nil)
+	r.AddNodeReport(1, []fleet.NodeUsage{{OriginID: c.ID, Bytes: 2 << 30, Up: 512 << 20, Down: 1536 << 20}}, nil)
 	flush(t, r)
 
 	var got model.Client
@@ -76,7 +76,7 @@ func TestSpendingOnANodeCanExhaustACustomer(t *testing.T) {
 	}
 
 	r := newReconciler(t, db)
-	r.AddNodeReport([]fleet.NodeUsage{{OriginID: c.ID, Bytes: 1 << 30, Up: 0, Down: 1 << 30}}, nil)
+	r.AddNodeReport(1, []fleet.NodeUsage{{OriginID: c.ID, Bytes: 1 << 30, Up: 0, Down: 1 << 30}}, nil)
 	flush(t, r)
 	r.Tick(context.Background())
 
@@ -104,7 +104,7 @@ func TestNothingIsWrittenForANodeThatCarriedNothing(t *testing.T) {
 	}
 
 	r := newReconciler(t, db)
-	r.AddNodeReport([]fleet.NodeUsage{{OriginID: c.ID, Bytes: 0, Up: 0, Down: 0}}, nil)
+	r.AddNodeReport(1, []fleet.NodeUsage{{OriginID: c.ID, Bytes: 0, Up: 0, Down: 0}}, nil)
 	flush(t, r)
 
 	var samples int64
@@ -145,13 +145,13 @@ func TestTrafficOnANodeStartsAPlanThatStartsOnFirstUse(t *testing.T) {
 	r := newReconciler(t, db)
 
 	// Counted with nothing moved: not used.
-	r.AddNodeReport(nil, []fleet.NodeDeviceUsage{{OriginID: acc.ID}})
+	r.AddNodeReport(1, nil, []fleet.NodeDeviceUsage{{OriginID: acc.ID}})
 	flush(t, r)
 	if n, err := r.activate(context.Background(), time.Now().UTC()); err != nil || n != 0 {
 		t.Fatalf("started %d plans with no traffic (%v)", n, err)
 	}
 
-	r.AddNodeReport([]fleet.NodeUsage{{OriginID: c.ID, Bytes: 300, Up: 100, Down: 200}},
+	r.AddNodeReport(1, []fleet.NodeUsage{{OriginID: c.ID, Bytes: 300, Up: 100, Down: 200}},
 		[]fleet.NodeDeviceUsage{{OriginID: acc.ID, Up: 100, Down: 200}})
 	flush(t, r)
 	var got model.Account
@@ -179,7 +179,7 @@ func TestTheAppsFiguresAddUpToWhatWasCharged(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := newReconciler(t, db)
-	r.AddNodeReport([]fleet.NodeUsage{
+	r.AddNodeReport(1, []fleet.NodeUsage{
 		{OriginID: c.ID, Bytes: 1000},                    // no direction told
 		{OriginID: c.ID, Bytes: 500, Up: 100},            // part of it told
 		{OriginID: c.ID, Bytes: 300, Up: 120, Down: 180}, // all of it told

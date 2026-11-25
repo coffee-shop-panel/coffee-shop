@@ -62,8 +62,10 @@ type Syncer struct {
 	// onReport is where what a node counted is handed back to the caller,
 	// charged at the node's price: what each customer spent, folded into the
 	// same per-customer total the local kernel feeds, and what each of their
-	// files carried, by the file's id on this panel.
-	onReport func([]fleet.NodeUsage, []fleet.NodeDeviceUsage)
+	// files carried, by the file's id on this panel. The node's id rides
+	// along so a customer's speed is the nodes they are live on added,
+	// not the last report to arrive.
+	onReport func(uint, []fleet.NodeUsage, []fleet.NodeDeviceUsage)
 
 	// Sessions is where what a node reports live on it is handed back, for
 	// the connections limit. Holds answers which devices the panel has
@@ -87,7 +89,7 @@ type Syncer struct {
 }
 
 // NewSyncer builds the loop. onReport is called with whatever a node reports.
-func NewSyncer(db *gorm.DB, onReport func([]fleet.NodeUsage, []fleet.NodeDeviceUsage), log *slog.Logger) *Syncer {
+func NewSyncer(db *gorm.DB, onReport func(uint, []fleet.NodeUsage, []fleet.NodeDeviceUsage), log *slog.Logger) *Syncer {
 	return &Syncer{
 		db:       db,
 		log:      log,
@@ -262,7 +264,8 @@ func (s *Syncer) one(ctx context.Context, node model.Node) {
 			// never held back for want of their files' owners.
 			s.log.Warn("could not read whose files a node reported", "node", node.Name, "error", err)
 		}
-		s.onReport(chargeReport(reply.Usage, reply.Devices, node.UsageCoefficient, clientOf))
+		usage, devices := chargeReport(reply.Usage, reply.Devices, node.UsageCoefficient, clientOf)
+		s.onReport(node.ID, usage, devices)
 	}
 	s.report(node, nil)
 }

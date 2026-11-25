@@ -103,7 +103,11 @@ func egressFor(ctx context.Context, db *gorm.DB) (map[string]any, string, error)
 		}
 		out = map[string]any{"protocol": "wireguard", "settings": settings}
 	case model.OutboundOpenVPN:
-		return nil, ob.Tag, fmt.Errorf("the outbound at the top, %s, is OpenVPN, which xray cannot carry; its customers on this node leave from the node itself", ob.Tag)
+		// Not an error: xray cannot carry an OpenVPN hop, so the node's
+		// customers leave from the node itself, and that is the intended
+		// state — the round must not fail forever for it, as the template
+		// it cannot read would otherwise make it do.
+		return nil, ob.Tag, nil
 	default:
 		if err := json.Unmarshal([]byte(ob.Config), &out); err != nil || out == nil {
 			return nil, ob.Tag, fmt.Errorf("the outbound %s could not be read for xray", ob.Tag)

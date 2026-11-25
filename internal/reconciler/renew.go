@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/abolfazl/w-ui/internal/database/model"
 	"github.com/abolfazl/w-ui/internal/service"
 )
@@ -127,16 +129,28 @@ func (r *Reconciler) renew(ctx context.Context, now time.Time) (int, error) {
 		}
 		// Conditional on the renewal it was read for, so a reset made by
 		// hand in between is not undone by one made on its old date.
-		res := db.Model(&model.Client{}).
-			Where("id = ? AND (last_reset_at IS NULL OR last_reset_at < ?)", p.ID, at).
-			Updates(fields)
-		if res.Error != nil {
-			return len(renewed), fmt.Errorf("renew %s: %w", p.Name, res.Error)
-		}
-		if res.RowsAffected > 0 {
-			if err := service.ZeroFileUsage(db, "id = ?", p.ID); err != nil {
-				return len(renewed), fmt.Errorf("renew %s: %w", p.Name, err)
+		// The client's row and its files' rows are renewed together: a
+		// failure zeroing the files rolls the client's renewal back too,
+		// so the next round retries it instead of leaving the files on
+		// the old period's bytes, unretried.
+		renewedThis := false
+		err := db.Transaction(func(tx *gorm.DB) error {
+			res := tx.Model(&model.Client{}).
+				Where("id = ? AND (last_reset_at IS NULL OR last_reset_at < ?)", p.ID, at).
+				Updates(fields)
+			if res.Error != nil {
+				return res.Error
 			}
+			if res.RowsAffected == 0 {
+				return nil
+			}
+			renewedThis = true
+			return service.ZeroFileUsage(tx, "id = ?", p.ID)
+		})
+		if err != nil {
+			return len(renewed), fmt.Errorf("renew %s: %w", p.Name, err)
+		}
+		if renewedThis {
 			renewed = append(renewed, p.Name)
 		}
 	}

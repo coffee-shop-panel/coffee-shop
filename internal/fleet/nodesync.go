@@ -207,6 +207,11 @@ func (s *NodeSync) upsertInterface(tx *gorm.DB, nodeID uint, in NodeInterface) (
 	iface.PublicKey = in.PublicKey
 	if in.AWG != nil {
 		iface.AWG = model.JSON(*in.AWG)
+	} else {
+		// Taken as it comes, absence too: a tunnel that stopped being
+		// AmneziaWG stops carrying its AmneziaWG settings, as stealth
+		// below.
+		iface.AWG = model.JSONField[model.AWGParams]{}
 	}
 	// Taken as it comes, absence too: a stealth transport the panel turned
 	// off is off here.
@@ -216,6 +221,10 @@ func (s *NodeSync) upsertInterface(tx *gorm.DB, nodeID uint, in NodeInterface) (
 	}
 	if in.OpenVPN != nil {
 		iface.OpenVPN = model.JSON(*in.OpenVPN)
+	} else {
+		// As AWG above: a tunnel that stopped being OpenVPN stops
+		// carrying its OpenVPN settings.
+		iface.OpenVPN = model.JSONField[model.OpenVPNParams]{}
 	}
 	if in.Protocol == model.ProtocolL2TP {
 		if in.L2TP == nil || in.L2TP.PSK == "" {
@@ -235,6 +244,10 @@ func (s *NodeSync) upsertInterface(tx *gorm.DB, nodeID uint, in NodeInterface) (
 			return nil, fault.Field("interface.protocol", "this server already carries an L2TP tunnel; it can carry one")
 		}
 		iface.L2TP = model.JSON(*in.L2TP)
+	} else {
+		// A tunnel that stopped being L2TP stops carrying its pre-shared
+		// key, as AWG above.
+		iface.L2TP = model.JSONField[model.L2TPParams]{}
 	}
 	if in.Protocol == model.ProtocolIKEv2 {
 		if in.IKEv2 == nil || in.IKEv2.ServerCert == "" || in.IKEv2.ServerKey == "" {
@@ -246,6 +259,8 @@ func (s *NodeSync) upsertInterface(tx *gorm.DB, nodeID uint, in NodeInterface) (
 		v := *in.IKEv2
 		v.CAKey = ""
 		iface.IKEv2 = model.JSON(v)
+	} else {
+		iface.IKEv2 = model.JSONField[model.IKEv2Params]{}
 	}
 	if in.Protocol == model.ProtocolOpenConnect {
 		if in.OpenConnect == nil || in.OpenConnect.Cert == "" || in.OpenConnect.Key == "" {
@@ -255,6 +270,8 @@ func (s *NodeSync) upsertInterface(tx *gorm.DB, nodeID uint, in NodeInterface) (
 			return nil, err
 		}
 		iface.OpenConnect = model.JSON(*in.OpenConnect)
+	} else {
+		iface.OpenConnect = model.JSONField[model.OpenConnectParams]{}
 	}
 	if in.Protocol == model.ProtocolPPTP {
 		// One PPTP tunnel a server, for the same reason: TCP 1723 is fixed.

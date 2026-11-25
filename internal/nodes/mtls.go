@@ -108,15 +108,25 @@ func EnsureIdentity(db *gorm.DB) (*Identity, error) {
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range map[string]string{
-		KeyMTLSCACert:     id.CACertPEM,
-		KeyMTLSCAKey:      id.caKeyPEM,
-		KeyMTLSClientCert: id.ClientCertPEM,
-		KeyMTLSClientKey:  id.ClientKeyPEM,
-	} {
-		if err := database.PutSetting(db, k, v); err != nil {
-			return nil, err
+	// All four in one transaction: a failure or a crash halfway through
+	// the old one-by-one store left a partial set, and the next call
+	// minted a brand-new authority, invalidating the one operators had
+	// already pasted into every node.
+	err = db.Transaction(func(tx *gorm.DB) error {
+		for k, v := range map[string]string{
+			KeyMTLSCACert:     id.CACertPEM,
+			KeyMTLSCAKey:      id.caKeyPEM,
+			KeyMTLSClientCert: id.ClientCertPEM,
+			KeyMTLSClientKey:  id.ClientKeyPEM,
+		} {
+			if err := database.PutSetting(tx, k, v); err != nil {
+				return err
+			}
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return &id.Identity, nil
 }

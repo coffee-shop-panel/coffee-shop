@@ -435,7 +435,7 @@ var T = {
     v2boxGuide: 'با دکمهٔ «افزودن به V2Box» همهٔ کانفیگ‌های این اشتراک (VLESS، تروجان و بقیهٔ پروتکل‌ها — به‌جز وایرگارد) یکجا وارد V2Box می‌شود. برای v2rayNG هم کافی است دکمهٔ کپی را بزنید و همین لینک اشتراک را در برنامه اضافه کنید. کانفیگ‌های وایرگارد فقط از فهرست کانفیگ‌های همین صفحه قابل استفاده‌اند.',
     v2boxAdd: 'افزودن کانفیگ پیشنهادی به V2Box', v2boxSubAdd: 'افزودن لینک ساب به V2Box', v2boxCopySub: 'کپی لینک ساب V2Box',
     hidSubAdd: 'افزودن همه کانفیگ‌ها به هیدیفای', hidTip: 'لینک هیدیفای کپی شد؛ اگه اپ باز نشد، لینک رو دستی تو هیدیفای وارد کن',
-    qrCfg: 'این QR را در برنامه WireGuard اسکن کن', qrLinkCap: 'این QR لینک اشتراک است', close: 'بستن',
+    qrCfg: 'این QR را در برنامه WireGuard اسکن کن', qrCfgAwg: 'این QR را در برنامه AmneziaWG اسکن کن', qrCfgV2: 'این QR را در V2Box یا v2rayNG اسکن کن', qrLinkCap: 'این QR لینک اشتراک است', close: 'بستن',
     nf: 'اشتراک پیدا نشد', nfSub: 'لینک اشتراک نامعتبر است یا حذف شده.', neterr: 'اتصال به پنل برقرار نشد', retry: 'تلاش دوباره',
     noSupport: 'راه پشتیبانی تنظیم نشده', noNodes: 'هنوز کانفیگی برای این اشتراک ساخته نشده.', gb: 'گیگابایت', mb: 'مگابایت', kb: 'کیلوبایت', b: 'بایت',
     p_android: 'اندروید', p_ios: 'iOS', p_windows: 'ویندوز', p_macos: 'مک', p_linux: 'لینوکس', ago: 'پیش'
@@ -471,7 +471,7 @@ var T = {
     v2boxGuide: 'The "Add to V2Box" button imports every config of this subscription (VLESS, Trojan and the other protocols — except WireGuard) into V2Box at once. For v2rayNG, tap copy and add the same subscription link in the app. WireGuard configs are only available from the config list on this page.',
     v2boxAdd: 'Add recommended config to V2Box', v2boxSubAdd: 'Add sub link to V2Box', v2boxCopySub: 'Copy V2Box sub link',
     hidSubAdd: 'Add all configs to Hiddify', hidTip: 'Hiddify link copied; if the app did not open, paste the link into Hiddify manually',
-    qrCfg: 'Scan this QR in the WireGuard app', qrLinkCap: 'This QR is the subscription link', close: 'Close',
+    qrCfg: 'Scan this QR in the WireGuard app', qrCfgAwg: 'Scan this QR in the AmneziaWG app', qrCfgV2: 'Scan this QR in V2Box or v2rayNG', qrLinkCap: 'This QR is the subscription link', close: 'Close',
     nf: 'Subscription not found', nfSub: 'The link is invalid or was removed.', neterr: 'Couldn\'t reach the panel', retry: 'Try again',
     noSupport: 'No support contact set', noNodes: 'No configs have been created for this subscription yet.', gb: 'GB', mb: 'MB', kb: 'KB', b: 'B',
     p_android: 'Android', p_ios: 'iOS', p_windows: 'Windows', p_macos: 'macOS', p_linux: 'Linux', ago: 'ago'
@@ -734,6 +734,7 @@ function toWgUri(txt, name) {
   if (c.i.address) qs.push('address=' + encodeURIComponent(c.i.address.replace(/\s+/g, '')).replace(/%2C/gi, ','));
   if (c.i.mtu) qs.push('mtu=' + encodeURIComponent(c.i.mtu));
   if (c.p.presharedkey) qs.push('presharedkey=' + encodeURIComponent(c.p.presharedkey));
+  if (c.p.persistentkeepalive) qs.push('keepalive=' + encodeURIComponent(c.p.persistentkeepalive));
   return 'wireguard://' + encodeURIComponent(c.i.privatekey) + '@' + m[1] + ':' + m[2] + '?' + qs.join('&') + '#' + encodeURIComponent(name);
 }
 
@@ -919,7 +920,7 @@ function viewConfigs() {
     h += '<button class="mini g" data-act="node-dl" data-i="' + idx + '">' + ic('dl') + esc(t('dl')) + '</button>';
     h += '<button class="mini" data-act="node-copy" data-i="' + idx + '">' + ic('copy') + esc(t('copy')) + '</button>';
     h += '<button class="mini" data-act="node-qr" data-i="' + idx + '">' + ic('qr') + esc(t('qr')) + '</button>';
-    if (n.amnezia) h += '<button class="mini" data-act="node-dl" data-i="' + idx + '">' + ic('dl') + esc(t('dl')) + '</button></div></div>';
+    if (n.amnezia) h += '</div></div>';
     else h += '<button class="mini" data-act="node-v2" data-i="' + idx + '">' + ic('zap') + esc(t('v2box')) + '</button></div></div>';
   });
   if (S.nodes.length > showN) h += '<button class="btn light full" data-act="more-nodes">' + esc(t('moreBtn')) + ' (' + nf(Math.min(showN, S.nodes.length), 0) + ' / ' + nf(S.nodes.length, 0) + ')</button>';
@@ -1058,10 +1059,10 @@ function onClick(e) {
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); toast(t('dled'));
     }); break;
     case 'node-copy': withNode(b, function (txt) { doCopy(txt); }); break;
-    case 'node-qr': withNode(b, function (txt, n) { showQr(n.name || t('qr'), txt, t('qrCfg')); }); break;
+    case 'node-qr': withNode(b, function (txt, n) { showQr(n.name || t('qr'), txt, linkUri(txt) ? t('qrCfgV2') : n.amnezia ? t('qrCfgAwg') : t('qrCfg')); }); break;
     case 'node-v2': withNode(b, function (txt, n, i) { var u = nodeUri(txt, n, i); if (u) openV2(u); else toast(t('cfgErr')); }); break;
     case 'v2-rec': { var r = recNode(); if (r.n) { toast(t('fetching')); getConfig(r.n, 'n' + r.i).then(function (txt) { if (r.n.amnezia) { var blob = new Blob([txt], { type: 'application/octet-stream' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = cfgFileName(r.n, r.i); document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); toast(t('dled')); return; } var u = nodeUri(txt, r.n, r.i); if (u) openV2(u); else toast(t('cfgErr')); }).catch(function () { toast(t('cfgErr')); }); } break; }
-    case 'copy-all': toast(t('fetching')); Promise.all(S.nodes.map(function (n, i) { return getConfig(n, 'n' + i).then(function (txt) { return n.amnezia ? txt : nodeUri(txt, n, i); }); }))
+    case 'copy-all': toast(t('fetching')); Promise.all(S.nodes.map(function (n, i) { return getConfig(n, 'n' + i).then(function (txt) { return n.amnezia ? null : nodeUri(txt, n, i); }); }))
       .then(function (list) { doCopy(list.filter(Boolean).join('\n'), t('v2boxTip')); }).catch(function () { toast(t('cfgErr')); }); break;
     case 'v2-sub-add': { var s = v2boxSubLink(); if (s) { var nm = (S.info && S.info.label) || CFG.brand; var u = 'v2box://install-sub?url=' + encodeURIComponent(s) + '&name=' + encodeURIComponent(nm); doCopy(s, t('v2boxTip')).then(function () { location.href = u; }); } break; }
     case 'v2-sub-copy': { var s2 = v2boxSubLink(); if (s2) doCopy(s2); break; }
