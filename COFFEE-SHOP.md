@@ -168,6 +168,9 @@ v5 rather than a version per feature.
   real buyer landed on the page's "open it from the bot" notice. The
   page now also reads the same signed init data from the `tgWebAppData`
   URL fragment Telegram appends when a web_app button opens it.
+- **fix(overview):** the Overview page's interfaces summary starts
+  folded, behind a show/hide toggle whose choice is kept in
+  localStorage — the 23-row list no longer fills the dashboard.
 
 ### The coffee-shop design port (shipped in 3.7.3)
 
