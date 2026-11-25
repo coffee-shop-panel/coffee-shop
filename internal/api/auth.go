@@ -89,11 +89,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 // attemptedUsername reads the name a sign-in is being tried under, for the
 // activity record, and puts the body back for the handler to read again.
 // A body that does not parse names nobody, which is recorded as such.
+// The read is bounded to the same megabyte decodeWith allows: this runs
+// before the handler, on an unauthenticated request, and an unbounded read
+// would let anyone make the panel hold an arbitrary body in memory.
 func attemptedUsername(r *http.Request) string {
 	if r.Body == nil {
 		return ""
 	}
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		return ""
 	}
@@ -303,7 +306,16 @@ func (s *Server) signedIn(r *http.Request) bool {
 }
 
 // requireAuth rejects requests without a valid bearer token.
-func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
+//
+// allowMachine is whether a machine token -- another panel managing this
+// one as its node -- may pass at all. It is true only on the routes
+// flagged Machine in the table: the node protocol, and the one settings
+// read a managing panel needs. Everywhere else a token is refused, so
+// one that leaked off a node server reaches nothing here but the protocol
+// it was issued for -- never the customers, the tunnels or the panel
+// itself, where there is no administrator behind it for the database to
+// narrow itself to.
+func (s *Server) requireAuth(allowMachine bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		admin, machine, reason, clearCookie := s.authenticate(r)
 		if admin == nil && !machine {
@@ -314,6 +326,10 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if machine {
+			if !allowMachine {
+				writeError(w, http.StatusForbidden, "this needs a signed-in administrator, not an API token")
+				return
+			}
 			next(w, r.WithContext(context.WithValue(r.Context(), ctxMachine, true)))
 			return
 		}

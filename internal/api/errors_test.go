@@ -105,7 +105,7 @@ func TestARequestWithNoTokenIsToldToSignIn(t *testing.T) {
 	s := &Server{}
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/api/clients", nil)
-	s.requireAuth(func(http.ResponseWriter, *http.Request) { t.Fatal("let through") })(rec, r)
+	s.requireAuth(false, func(http.ResponseWriter, *http.Request) { t.Fatal("let through") })(rec, r)
 	if rec.Code != http.StatusUnauthorized || body(t, rec)["error"] != "your session has ended; sign in again" {
 		t.Errorf("%d %s", rec.Code, rec.Body.String())
 	}
@@ -116,7 +116,7 @@ func TestAMachineTokenNobodyIssuedIsRefused(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/api/clients", nil)
 	r.Header.Set("Authorization", "Bearer wui_notreal")
-	s.requireAuth(func(http.ResponseWriter, *http.Request) { t.Fatal("let through") })(rec, r)
+	s.requireAuth(false, func(http.ResponseWriter, *http.Request) { t.Fatal("let through") })(rec, r)
 	if rec.Code != http.StatusUnauthorized || body(t, rec)["error"] != "that access token is not valid" {
 		t.Errorf("%d %s", rec.Code, rec.Body.String())
 	}
@@ -127,7 +127,7 @@ func TestAGarbledSessionTokenIsExpired(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/api/clients", nil)
 	r.Header.Set("Authorization", "Bearer not.a.jwt")
-	s.requireAuth(func(http.ResponseWriter, *http.Request) { t.Fatal("let through") })(rec, r)
+	s.requireAuth(false, func(http.ResponseWriter, *http.Request) { t.Fatal("let through") })(rec, r)
 	if rec.Code != http.StatusUnauthorized || body(t, rec)["error"] != "session expired, sign in again" {
 		t.Errorf("%d %s", rec.Code, rec.Body.String())
 	}

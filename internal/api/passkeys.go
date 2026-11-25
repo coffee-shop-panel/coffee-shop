@@ -44,6 +44,14 @@ import (
 // time anyone picks it up.
 const passkeyCeremonyTTL = 5 * time.Minute
 
+// maxPendingCeremonies bounds the ceremonies held for their verify step.
+// A ceremony is small, but one per unauthenticated request is not, and
+// the store is otherwise only ever pruned of the lapsed. Past the cap the
+// oldest goes, so a flood evicts its own earlier entries rather than
+// growing the map without limit. A panel has a handful of operators; a
+// thousand begun ceremonies at once is no honest operator.
+const maxPendingCeremonies = 1024
+
 // passkeyCeremony is one begun ceremony, held server-side until it is
 // finished or it lapses. The challenge is the key: the answer carries it
 // inside its signed client data, so nothing about the ceremony has to be
@@ -130,6 +138,15 @@ func (s *Server) beginCeremony(c *passkeyCeremony) {
 		if now.After(v.session.Expires) {
 			delete(s.pkPending, k)
 		}
+	}
+	for len(s.pkPending) >= maxPendingCeremonies {
+		oldest := ""
+		for k, v := range s.pkPending {
+			if oldest == "" || v.session.Expires.Before(s.pkPending[oldest].session.Expires) {
+				oldest = k
+			}
+		}
+		delete(s.pkPending, oldest)
 	}
 	s.pkPending[c.session.Challenge] = c
 }
@@ -456,6 +473,17 @@ func (s *Server) handlePasskeyDelete(w http.ResponseWriter, r *http.Request) {
 // the credential the device offers names its owner, which is the point
 // of a discoverable key -- and of the fingerprint prompt Ali asked for.
 func (s *Server) handlePasskeyLoginOptions(w http.ResponseWriter, r *http.Request) {
+	// Throttled as the verify step is: an address that has been guessing
+	// at sign-ins is not handed fresh ceremonies to guess with. Nothing
+	// is counted here -- beginning a ceremony is not a failure -- so this
+	// only ever refuses an address the verify step has already locked out.
+	now := time.Now()
+	ipKey := "ip:" + clientIP(r)
+	if wait := s.throttle.retryAfter(ipKey, now); wait > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+		writeError(w, http.StatusTooManyRequests, lockoutMessage(wait))
+		return
+	}
 	wa, ok := s.passkeyReady(w, r)
 	if !ok {
 		return

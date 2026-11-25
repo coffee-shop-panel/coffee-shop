@@ -38,9 +38,12 @@ type Route struct {
 
 	// Machine marks the node protocol: the routes another panel calls
 	// when it is using this one as a node. They are the one place a
-	// machine token passes the owner's gate (requireManager); on every
-	// other owner's route a token is refused, so one that leaked off a
-	// node server reaches nothing here but the protocol it was issued for.
+	// machine token passes the owner's gate (requireManager) and the
+	// signed-in gate (requireAuth); on every other route a token is
+	// refused, so one that leaked off a node server reaches nothing here
+	// but the protocol it was issued for. The single exception is the
+	// settings read, which a managing panel needs for the display
+	// preferences and which answers a token with those alone.
 	Machine bool `json:"machine,omitempty"`
 
 	// Body is an example request body, if it takes one.
@@ -858,9 +861,12 @@ func (s *Server) routes() []Route {
 			handler: s.handleSharingImport},
 
 		// ── Settings and backups ──
-		{Method: "GET", Path: "/api/settings", Group: "Settings", Auth: true,
+		{Method: "GET", Path: "/api/settings", Group: "Settings", Auth: true, Machine: true,
 			Summary: "Panel settings and the shipped defaults.",
-			Note:    "The bot token comes back as a placeholder and is never returned in full.",
+			Note: "The bot token comes back as a placeholder and is never returned in full. " +
+				"Machine: the one route outside the node protocol a managing panel reads, " +
+				"for the display preferences; it is answered with those alone for a token, " +
+				"never the secrets or where the panel listens.",
 			handler: s.handleGetSettings},
 		{Method: "PUT", Path: "/api/settings", Group: "Settings", Auth: true, Operator: true,
 			Summary: "Save panel settings.",
@@ -1165,7 +1171,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux, routes []Route) {
 		}
 		if r.Auth || r.Operator {
 			// Inside requireAuth, so the line can say who.
-			h = s.requireAuth(s.logAction(r.Method, h))
+			h = s.requireAuth(r.Machine, s.logAction(r.Method, h))
 		}
 		mux.HandleFunc(r.Method+" "+r.Path, h)
 	}

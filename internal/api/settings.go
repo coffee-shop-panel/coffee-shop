@@ -428,7 +428,7 @@ func (s *Server) handleSaveSettings(w http.ResponseWriter, r *http.Request) {
 // token works here, rather than from the absence of an alert months later.
 func (s *Server) handleTestNotification(w http.ResponseWriter, r *http.Request) {
 	if s.notifier == nil {
-		fail(w, s.log, fmt.Errorf("notifications are not available"))
+		writeError(w, http.StatusServiceUnavailable, "notifications are not available")
 		return
 	}
 
@@ -443,7 +443,7 @@ func (s *Server) handleTestNotification(w http.ResponseWriter, r *http.Request) 
 // handleTestBale is handleTestNotification for the Bale bot.
 func (s *Server) handleTestBale(w http.ResponseWriter, r *http.Request) {
 	if s.bale == nil {
-		fail(w, s.log, fmt.Errorf("the Bale bot is not available"))
+		writeError(w, http.StatusServiceUnavailable, "the Bale bot is not available")
 		return
 	}
 	if err := s.bale.Test(r.Context(), s.settings.Bale(r.Context())); err != nil {
@@ -460,7 +460,7 @@ func (s *Server) handleTestBale(w http.ResponseWriter, r *http.Request) {
 // would not tell them.
 func (s *Server) handleTestMail(w http.ResponseWriter, r *http.Request) {
 	if s.notifier == nil {
-		fail(w, s.log, fmt.Errorf("notifications are not available"))
+		writeError(w, http.StatusServiceUnavailable, "notifications are not available")
 		return
 	}
 
@@ -531,7 +531,7 @@ func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateBackup(w http.ResponseWriter, r *http.Request) {
 	if s.backups == nil {
-		fail(w, s.log, fmt.Errorf("backups are not available"))
+		writeError(w, http.StatusServiceUnavailable, "backups are not available")
 		return
 	}
 	a, err := s.backups.Create(r.Context())

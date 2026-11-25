@@ -151,6 +151,43 @@ func TestAMachineTokenIsStillRefusedTheOwnersOwn(t *testing.T) {
 	}
 }
 
+// A machine token reaches only the routes flagged for it. Everything
+// else behind requireAuth -- the customer list a reseller reaches, the
+// tunnels, the subscription links, the sales bot -- is refused, because
+// there is no administrator behind the token for the database to narrow
+// itself to, and what it hands back would be the whole panel.
+func TestAMachineTokenReachesOnlyMachineRoutes(t *testing.T) {
+	h, token := machineServer(t)
+	allowed, refused := 0, 0
+	for _, r := range newRouteServer().routes() {
+		if !r.Auth && !r.Operator {
+			continue
+		}
+		path := strings.NewReplacer("{id}", "1", "{name}", "x").Replace(r.Path)
+		body := ""
+		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
+			body = "{}"
+		}
+		rec := call(h, token, r.Method, path, body)
+		if r.Machine {
+			// Reaching the handler is the point: a sync with nothing in
+			// it is refused for what it holds, not for who called.
+			if rec.Code == http.StatusUnauthorized || rec.Code == http.StatusForbidden {
+				t.Errorf("%s %s with a machine token: %d, want the handler to answer", r.Method, r.Path, rec.Code)
+			}
+			allowed++
+			continue
+		}
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("%s %s with a machine token: %d, want 403", r.Method, r.Path, rec.Code)
+		}
+		refused++
+	}
+	if allowed == 0 || refused < 100 {
+		t.Fatalf("only %d machine routes and %d refused ones checked; the route table is not what this test expects", allowed, refused)
+	}
+}
+
 // Each gate holds on its own, not only behind the others: requireManager
 // refuses a machine token except on the routes flagged for it (the node
 // protocol), requireAdminManager and requireOperator refuse it outright.

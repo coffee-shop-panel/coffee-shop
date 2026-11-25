@@ -30,7 +30,14 @@ can still be merged in.
   Ed25519 key.
 - **fix(api):** a machine (node) token reaches only the node protocol
   (v3.2.5 audit) — the six `/api/node/*` routes, the probe, the node
-  list and the managed update — not every owner-gated route.
+  list and the managed update — not every owner-gated route. The
+  2026-11-26 audit closed the hole that remained: the operator routes
+  (customers, tunnels, subscription links, the shop) also let a
+  machine token through, with no administrator behind it for the
+  database to narrow itself to, so a leaked node token could run the
+  panel. Only the routes flagged `Machine` admit one now — the node
+  protocol, plus the one settings read a managing panel needs, which
+  answers a token with the display preferences alone. Staged for v5.
 - **feat(v3.3.0):** an owner-only activity log (every operator change
   and sign-in, persisted and browsable in the panel); the coffee
   subscription page shows each node's real reachability and a renew

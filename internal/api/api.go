@@ -309,7 +309,7 @@ func (s *Server) Routes() *http.ServeMux {
 	// documentation page reads. Registering from one place is what stops the
 	// two drifting apart.
 	s.register(mux)
-	mux.HandleFunc("GET /api/docs", s.requireAuth(s.handleAPIDocs))
+	mux.HandleFunc("GET /api/docs", s.requireAuth(false, s.handleAPIDocs))
 
 	return mux
 }

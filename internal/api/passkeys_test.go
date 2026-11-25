@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
@@ -187,6 +189,27 @@ func TestPasskeyLoginOptionsAreDiscoverable(t *testing.T) {
 	}
 	if assertion.PublicKey.UserVerification != "required" {
 		t.Errorf("user verification is %q, not required", assertion.PublicKey.UserVerification)
+	}
+}
+
+func TestBegunCeremoniesStayBounded(t *testing.T) {
+	s, _ := passkeyServer(t)
+	// Fill past the cap with ceremonies that have not lapsed, the oldest
+	// first, so the eviction order is unambiguous.
+	for i := 0; i < maxPendingCeremonies+10; i++ {
+		s.beginCeremony(&passkeyCeremony{session: &webauthn.SessionData{
+			Challenge: fmt.Sprintf("challenge-%d", i),
+			Expires:   time.Now().Add(passkeyCeremonyTTL + time.Duration(i)*time.Second),
+		}, login: true})
+	}
+	if n := len(s.pkPending); n > maxPendingCeremonies {
+		t.Errorf("%d ceremonies held, want at most %d", n, maxPendingCeremonies)
+	}
+	if s.takeCeremony(fmt.Sprintf("challenge-%d", maxPendingCeremonies+9)) == nil {
+		t.Error("the newest ceremony was evicted instead of the oldest")
+	}
+	if s.takeCeremony("challenge-0") != nil {
+		t.Error("the oldest ceremony survived past the cap")
 	}
 }
 

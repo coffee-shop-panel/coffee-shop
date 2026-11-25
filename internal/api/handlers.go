@@ -642,12 +642,19 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// ?host= picks the file written for one host; without it, the first.
+	// A host that is not one of the device's is refused rather than
+	// answered with another host's file.
 	profile := &all[0]
 	if h := r.URL.Query().Get("host"); h != "" {
+		profile = nil
 		for i := range all {
 			if fmt.Sprint(all[i].HostID) == h {
 				profile = &all[i]
 			}
+		}
+		if profile == nil {
+			writeError(w, http.StatusNotFound, "no configuration for that host")
+			return
 		}
 	}
 
@@ -1140,7 +1147,7 @@ func (s *Server) handleProbeNode(w http.ResponseWriter, r *http.Request) {
 	}
 	node, err := s.nodes.Get(r.Context(), id)
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		fail(w, s.log, err)
 		return
 	}
 	if s.prober == nil {
@@ -1222,7 +1229,7 @@ func (s *Server) handleRestartInterface(w http.ResponseWriter, r *http.Request) 
 
 	iface, err := s.ifaces.Get(r.Context(), id)
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		fail(w, s.log, err)
 		return
 	}
 
