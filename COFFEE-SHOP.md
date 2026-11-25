@@ -226,7 +226,18 @@ v5 rather than a version per feature.
   scoped to their owner in the store on every statement — a preset is
   a bookmark, not a grant, and the create behind the form still
   refuses a tunnel the operator may not use. The bulk form has its own
-  component and is untouched.
+  component and is untouched. And the operator has a monthly report
+  (`/report`, `GET /api/overview/report?month=YYYY-MM`): for the month
+  asked for, the customers they made and the allowance those sales
+  committed, what their customers carried — summed from the same
+  five-minute samples as the dashboard, folded into days and ranked by
+  heaviest customer — and the distinct customers their sales bot
+  renewed, counted from its fulfilled "renew" orders, which name the
+  customer each delivered. Renewals by hand are not in it: the
+  activity log's extend line names the request, never the customers
+  it touched, and the management bot extends below the API, so the
+  figure is labelled with the source it honestly has rather than
+  padded with a guess.
 
 ### The coffee-shop design port (shipped in 3.7.3)
 

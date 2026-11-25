@@ -793,6 +793,14 @@ func (s *Server) routes() []Route {
 			Note: "Counted over the caller's own customers alone, in the " +
 				"handler and the store -- never the panel's totals.",
 			handler: s.handleOverviewMine},
+		{Method: "GET", Path: "/api/overview/report", Group: "Server", Auth: true, Operator: true,
+			Summary: "The signed-in operator's monthly report: the customers " +
+				"they made in a month and the allowance those sales committed, " +
+				"the customers their sales bot renewed, and what their " +
+				"customers carried, by day and by heaviest customer.",
+			Note: "Counted over the caller's own customers alone, like the " +
+				"dashboard's. month is YYYY-MM; no month is this one.",
+			handler: s.handleOverviewReport},
 		{Method: "GET", Path: "/api/health", Group: "Server",
 			Summary: "Whether the panel is doing its job: 200 with {\"ok\":true}, or 503.",
 			Note: "For an uptime checker. Under the panel's own path, and a stranger is told only ok or not; " +
@@ -1067,6 +1075,9 @@ var (
 		// are the ones they were given, so what it hands a reseller is
 		// their own corner and nothing of the machine's.
 		"GET /api/overview/mine": true,
+		// The monthly report, counted in the service over the caller's
+		// own customers alone, like the dashboard it sits beside.
+		"GET /api/overview/report": true,
 		// The activity record, for the caller's own lines: the handler
 		// narrows it in the store by the caller's id, so a reseller reading
 		// it is reading what they did, never what anybody else did.

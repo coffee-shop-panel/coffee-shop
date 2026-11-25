@@ -34,6 +34,7 @@ import LoginView from './views/LoginView.vue'
 // every visit may start on.
 const OverviewView = () => import('./views/OverviewView.vue')
 const ResellerHomeView = () => import('./views/ResellerHomeView.vue')
+const ReportView = () => import('./views/ReportView.vue')
 const ClientsView = () => import('./views/ClientsView.vue')
 const ClientDetailView = () => import('./views/ClientDetailView.vue')
 const InterfacesView = () => import('./views/InterfacesView.vue')
@@ -76,6 +77,10 @@ const router = createRouter({
     // below sends them here after sign-in, where the owner goes to the
     // overview instead.
     { path: '/home', name: 'home', component: ResellerHomeView, meta: { sells: true, everyone: true } },
+    // The monthly report: one month of the operator's own business.
+    // The same gate as the dashboard it hangs off -- the endpoint counts
+    // over the caller's own customers alone.
+    { path: '/report', name: 'report', component: ReportView, meta: { sells: true, everyone: true } },
     { path: '/clients', name: 'clients', component: ClientsView, meta: { sells: true } },
     { path: '/clients/:id', name: 'client', component: ClientDetailView, props: true, meta: { sells: true } },
     { path: '/groups', name: 'groups', component: GroupsView, meta: { sells: true } },

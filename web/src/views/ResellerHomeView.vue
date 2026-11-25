@@ -134,6 +134,7 @@ function activityTone(a) {
         <p>{{ dateLine }} · {{ t('home.lede') }}</p>
       </div>
       <div class="actions">
+        <RouterLink to="/report" class="btn">{{ t('nav.report') }}</RouterLink>
         <RouterLink to="/clients" class="btn primary">{{ t('client.menu.addClients') }}</RouterLink>
       </div>
     </div>

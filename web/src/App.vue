@@ -71,6 +71,9 @@ const nav = [
   // overview below, and their menu is filtered free of this in
   // visibleNav, so the two homes never sit side by side for anyone.
   { to: '/home', key: 'nav.home', icon: 'DashboardOutlined', exact: true, sells: true, everyone: true, operators: true },
+  // The monthly report hangs off the operators' dashboard, so it is
+  // marked the same way: theirs, and never in the owner's menu.
+  { to: '/report', key: 'nav.report', icon: 'BarChartOutlined', sells: true, everyone: true, operators: true },
   { to: '/', key: 'nav.overview', icon: 'DashboardOutlined', exact: true, everyone: true },
   { to: '/interfaces', key: 'nav.interfaces', icon: 'ImportOutlined' },
   { to: '/clients', key: 'nav.clients', icon: 'TeamOutlined', sells: true, menu: 'clients' },

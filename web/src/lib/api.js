@@ -518,6 +518,13 @@ export const api = {
   // alone, so a reseller is never handed the panel's totals.
   overviewMine: (opts) => request('GET', '/api/overview/mine', undefined, opts),
 
+  // The operator's monthly report: a month of their own business --
+  // customers made and the allowance those sales committed, customers
+  // their sales bot renewed, and what all of theirs carried, by day.
+  // month is "YYYY-MM"; no month is this one.
+  overviewReport: (month, opts) =>
+    request('GET', `/api/overview/report${month ? `?month=${month}` : ''}`, undefined, opts),
+
   // The record of who did what, newest first: the whole of it for the
   // owner, and for any other operator only their own entries -- the
   // server narrows it by the caller, whatever the request carries.
