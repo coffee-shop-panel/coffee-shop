@@ -119,6 +119,12 @@ const nav = [
   { to: '/api-docs', key: 'nav.api', icon: 'ApiOutlined' },
 ]
 
+// The operator's own corner of the shell, drawn with the sign-out in the
+// rail's utility list rather than in the menu above it: the account page
+// is not a page of the panel's business, it is the person signed in to
+// it. Every role has it, so -- unlike the menu -- it is never filtered.
+const utilityNav = [{ to: '/account', key: 'nav.account', icon: 'UserOutlined' }]
+
 // The page's name, from the menu entry it belongs to -- the longest `to`
 // the current path starts with, so /clients/12 is Clients and
 // /settings/security is Security rather than Settings.
@@ -133,6 +139,7 @@ const pageTitle = computed(() => {
     }
   }
   visit(nav)
+  visit(utilityNav)
   return best ? t(best.key) : ''
 })
 // Every tab and every history entry said "W-UI", so ten open tabs were ten
@@ -401,6 +408,12 @@ function reload() {
       </ul>
 
       <ul class="amenu-inline sider-utility" role="menu">
+        <li v-for="item in utilityNav" :key="item.to" role="none">
+          <RouterLink :to="item.to" class="amenu-item" :class="{ selected: isActive(item) }" role="menuitem" :title="expanded ? '' : t(item.key)">
+            <AntIcon :name="item.icon" />
+            <span class="amenu-title">{{ t(item.key) }}</span>
+          </RouterLink>
+        </li>
         <li role="none">
           <button class="amenu-item" type="button" role="menuitem" :title="expanded ? '' : `${t('auth.signOut')} — ${store.admin?.username}`" @click="handleSignOut">
             <AntIcon name="LogoutOutlined" />
@@ -486,6 +499,12 @@ function reload() {
           </ul>
 
           <ul class="amenu-inline drawer-utility" role="menu">
+            <li v-for="item in utilityNav" :key="item.to" role="none">
+              <RouterLink :to="item.to" class="amenu-item" :class="{ selected: isActive(item) }" role="menuitem">
+                <AntIcon :name="item.icon" />
+                <span class="amenu-title">{{ t(item.key) }}</span>
+              </RouterLink>
+            </li>
             <li role="none">
               <button class="amenu-item" type="button" role="menuitem" @click="handleSignOut">
                 <AntIcon name="LogoutOutlined" />

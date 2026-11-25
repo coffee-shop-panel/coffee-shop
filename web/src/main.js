@@ -38,6 +38,7 @@ const ClientDetailView = () => import('./views/ClientDetailView.vue')
 const InterfacesView = () => import('./views/InterfacesView.vue')
 const GroupsView = () => import('./views/GroupsView.vue')
 const SettingsView = () => import('./views/SettingsView.vue')
+const AccountView = () => import('./views/AccountView.vue')
 const AdminsView = () => import('./views/AdminsView.vue')
 const SharingView = () => import('./views/SharingView.vue')
 const ApiView = () => import('./views/ApiView.vue')
@@ -87,6 +88,11 @@ const router = createRouter({
     { path: '/sharing', name: 'sharing', component: SharingView },
     { path: '/api-docs', name: 'api', component: ApiView },
     { path: '/settings', name: 'settings', component: SettingsView },
+    // The operator's own page -- their passkeys and second factor. Both
+    // flags, on purpose: sells lets a reseller in and everyone an
+    // administrator, so every signed-in operator reaches it, while the
+    // settings routes around it stay the owner's.
+    { path: '/account', name: 'account', component: AccountView, meta: { sells: true, everyone: true } },
     // Who runs and sells on this panel, each tier its own page: admins (the
     // owner's own second tier) and resellers. The same list, filtered to one
     // role, so each page is one job.

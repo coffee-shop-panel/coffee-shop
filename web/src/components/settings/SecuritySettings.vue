@@ -6,22 +6,20 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../../lib/api.js'
-import { passkeySupported, createPasskey } from '../../lib/passkey.js'
-import { makeQR } from '../../lib/qr.js'
 import { relative } from '../../lib/format.js'
 import { store, t, notify, signOut } from '../../lib/store.js'
 import AntIcon from '../AntIcon.vue'
 import Toggle from '../Toggle.vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
+import PasskeysSection from './PasskeysSection.vue'
+import TwoFactorSection from './TwoFactorSection.vue'
 
 const router = useRouter()
 const inner = ref('1')
 const showSecret = ref({})
 
 onMounted(() => {
-  loadMe()
   loadTokens()
-  loadPasskeys()
 })
 
 // ── security: credentials ────────────────────────────────────────────────────
@@ -50,100 +48,15 @@ async function updateUser() {
   }
 }
 
-// ── security: two-factor, in their modal ─────────────────────────────────────
-const twoFactor = ref(false)
-const tfa = ref(null) // { type: 'set'|'delete', token, uri, qr, code }
-async function loadMe() {
-  try {
-    const me = await api.get('/api/auth/me')
-    twoFactor.value = !!me.twoFactor
-  } catch {
-    /* the page is still usable without it */
-  }
-}
-async function toggleTwoFactor() {
-  if (twoFactor.value) {
-    tfa.value = { type: 'delete', code: '' }
-    return
-  }
-  try {
-    const res = await api.post('/api/auth/totp/start')
-    const qr = await makeQR(res.uri)
-    tfa.value = { type: 'set', token: res.secret, uri: res.uri, qr, code: '' }
-  } catch (e) {
-    notify(e.message, 'error')
-  }
-}
-async function confirmTfa() {
-  const m = tfa.value
-  try {
-    if (m.type === 'set') {
-      await api.post('/api/auth/totp/confirm', { secret: m.token, code: m.code })
-      twoFactor.value = true
-      notify(t('settings.twoFactorEnabled'), 'success')
-    } else {
-      await api.post('/api/auth/totp/disable', { code: m.code, password: m.password || '' })
-      twoFactor.value = false
-      notify(t('settings.twoFactorDisabled'), 'success')
-    }
-    tfa.value = null
-  } catch (e) {
-    notify(e.message, 'error')
-  }
-}
+// The second factor and the passkeys live in their own sections
+// (TwoFactorSection, PasskeysSection): the account page holds the same
+// two, so they are shared rather than kept here alone.
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text)
     notify(t('action.copied'), 'success')
   } catch {
     notify(t('share.copyFailed'), 'error')
-  }
-}
-
-// ── security: passkeys ───────────────────────────────────────────────────────
-// The fingerprint door's keys. Offered only where they can work -- a
-// browser with the API on an encrypted origin -- because the panel
-// refuses the ceremonies anywhere else; where they cannot, the section
-// says so instead of offering a button that would fail.
-const pkSupported = passkeySupported()
-const passkeys = ref([])
-const pkBusy = ref(false)
-const revokingPk = ref(null)
-
-async function loadPasskeys() {
-  if (!pkSupported) return
-  try {
-    passkeys.value = await api.passkeys()
-  } catch {
-    passkeys.value = []
-  }
-}
-async function addPasskey() {
-  pkBusy.value = true
-  try {
-    // Named by its kind and its day: told apart in the list without the
-    // operator having to invent a label at the fingerprint prompt.
-    const name = `${t('set.security.passkeyName')} · ${new Date().toLocaleDateString(store.locale)}`
-    const options = await api.passkeyRegisterOptions(name)
-    const answer = await createPasskey(options)
-    await api.passkeyRegisterVerify(answer)
-    notify(t('set.security.passkeyAdded'), 'success')
-    await loadPasskeys()
-  } catch (e) {
-    notify(e?.name === 'NotAllowedError' ? t('auth.passkeyCancelled') : e.message, 'error')
-  } finally {
-    pkBusy.value = false
-  }
-}
-async function doRevokePk() {
-  const pk = revokingPk.value
-  revokingPk.value = null
-  try {
-    await api.passkeyDelete(pk.id)
-    notify(t('set.security.passkeyRevoked', { n: pk.name }), 'success')
-    await loadPasskeys()
-  } catch (e) {
-    notify(e.message, 'error')
   }
 }
 
@@ -248,33 +161,8 @@ async function saveMtlsTrust() {
     </template>
 
     <template v-else-if="inner === '2'">
-      <div class="setting-list-item"><div class="arow">
-        <div class="acol"><div class="setting-list-meta"><div class="setting-list-title">{{ t('set.security.twoFactorEnable') }}</div><div class="setting-list-description">{{ t('set.security.twoFactorEnableDesc') }}</div></div></div>
-        <div class="acol"><Toggle :model-value="twoFactor" :label="t('set.security.twoFactorEnable')" @update:model-value="toggleTwoFactor" /></div>
-      </div></div>
-      <div class="setting-list-item"><div class="arow">
-        <div class="acol"><div class="setting-list-meta"><div class="setting-list-title">{{ t('set.security.passkey') }}</div><div class="setting-list-description">{{ t('set.security.passkeyDesc') }}</div></div></div>
-        <div class="acol"><button class="abtn primary" :disabled="pkBusy || !pkSupported" @click="addPasskey"><span v-if="pkBusy" class="spin sm"></span>{{ t('set.security.passkeyAdd') }}</button></div>
-      </div></div>
-      <div v-if="!pkSupported" class="setting-list-item"><div class="arow">
-        <div class="acol"><div class="setting-list-meta"><div class="setting-list-description">{{ t('set.security.passkeyUnavailable') }}</div></div></div>
-      </div></div>
-      <div v-else-if="passkeys.length" class="api-token-section">
-        <div v-for="pk in passkeys" :key="pk.id" class="api-token-row">
-          <div class="api-token-row-head">
-            <div class="api-token-name-wrap">
-              <span class="api-token-name">{{ pk.name }}</span>
-              <span class="api-token-created">{{ tokenDate(pk.createdAt) }} · {{ pk.lastUsedAt ? relative(pk.lastUsedAt, store.locale) : t('settings.tokenNeverUsed') }}</span>
-            </div>
-            <div class="api-token-actions">
-              <button class="abtn text sm danger-text" @click="revokingPk = pk">{{ t('action.revoke') }}</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div v-else class="setting-list-item"><div class="arow">
-        <div class="acol"><div class="setting-list-meta"><div class="setting-list-description">{{ t('set.security.passkeyEmpty') }}</div></div></div>
-      </div></div>
+      <TwoFactorSection />
+      <PasskeysSection />
       <!-- This panel as a node: which panel may drive it. -->
       <div class="setting-list-item"><div class="arow">
         <div class="acol"><div class="setting-list-meta"><div class="setting-list-title">{{ t('settings.mtlsTrust') }}</div><div class="setting-list-description">{{ t('settings.mtlsTrustHint') }}</div></div></div>
@@ -317,16 +205,6 @@ async function saveMtlsTrust() {
       @cancel="revoking = null"
     />
 
-    <ConfirmDialog
-      :open="!!revokingPk"
-      :title="t('set.security.passkeyRevokeTitle')"
-      :body="t('set.security.passkeyRevokeBody', { n: revokingPk?.name || '' })"
-      :confirm-label="t('action.revoke')"
-      :danger="true"
-      @confirm="doRevokePk"
-      @cancel="revokingPk = null"
-    />
-
     <!-- New API token: their Modal with one required Name. -->
     <div v-if="createOpen" class="amodal-backdrop" @click.self="createOpen = false">
       <div class="amodal" role="dialog" aria-modal="true">
@@ -357,35 +235,6 @@ async function saveMtlsTrust() {
       </div>
     </div>
 
-    <!-- Two-factor: their modal, steps and QR and code. -->
-    <div v-if="tfa" class="amodal-backdrop" @click.self="tfa = null">
-      <div class="amodal" role="dialog" aria-modal="true">
-        <div class="amodal-head"><h2 class="amodal-title">{{ tfa.type === 'set' ? t('set.twoFactorModalSetTitle') : t('set.twoFactorModalDeleteTitle') }}</h2><button type="button" class="amodal-close" :aria-label="t('common.close')" @click="tfa = null"><AntIcon name="CloseOutlined" /></button></div>
-        <div class="amodal-body">
-          <template v-if="tfa.type === 'set'">
-            <p>{{ t('set.twoFactorModalSteps') }}</p>
-            <hr class="adivider" />
-            <p>{{ t('set.twoFactorModalFirstStep') }}</p>
-            <div class="qr-wrap" role="button" tabindex="0" :aria-label="t('set.copy')" @click="copyText(tfa.token)" @keydown.enter="copyText(tfa.token)">
-              <img class="qr-code" :src="tfa.qr.dataUrl" width="180" height="180" alt="" />
-              <span class="qr-token ltr">{{ tfa.token }}</span>
-            </div>
-            <hr class="adivider" />
-            <p>{{ t('set.twoFactorModalSecondStep') }}</p>
-            <label class="ainput block"><input v-model="tfa.code" inputmode="numeric" maxlength="6" class="ltr" :aria-label="t('set.twoFactorCode')" @keydown.enter="confirmTfa" /></label>
-          </template>
-          <template v-else>
-            <p>{{ t('set.twoFactorModalDeleteDesc') }}</p>
-            <label class="ainput block"><input v-model="tfa.code" class="ltr" :placeholder="t('set.twoFactorCode')" :aria-label="t('set.twoFactorCode')" /></label>
-            <label class="ainput block" style="margin-top: 8px"><input v-model="tfa.password" type="password" autocomplete="current-password" :placeholder="t('set.password')" /></label>
-          </template>
-        </div>
-        <div class="amodal-foot">
-          <button class="abtn" @click="tfa = null">{{ t('set.cancel') }}</button>
-          <button class="abtn primary" :disabled="tfa.type === 'set' ? !/^\d{6}$/.test(tfa.code || '') : !(tfa.code || tfa.password)" @click="confirmTfa">{{ t('set.confirm') }}</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -404,9 +253,5 @@ async function saveMtlsTrust() {
 .api-token-value-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .api-token-value { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; padding: 4px 8px; background: var(--surface-3); border-radius: 4px; word-break: break-all; }
 .api-token-created-notice { margin: 0 0 12px; font-size: 13px; }
-.qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; cursor: pointer; }
-.qr-code { display: block; border-radius: 4px; background: #fff; }
-.qr-token { font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; word-break: break-all; text-align: center; }
-.adivider { margin: 24px 0; border: 0; border-top: 1px solid var(--line-soft); }
 .amodal-body p { margin: 0 0 1em; }
 </style>

@@ -182,6 +182,12 @@ v5 rather than a version per feature.
   through the same code as the password door (binding and epoch
   included), is throttled and recorded in the activity log the same
   way, and an operator the owner has switched off is refused.
+  Every operator — owner, administrator and reseller alike — now has
+  a My Account page (in the rail, beside the sign-out) holding the
+  same passkey section and the same two-factor enrolment, since both
+  are enrolled by the person who will use them and the settings page
+  that held them is the owner's alone; the sections are shared
+  components, so the two pages show one list.
 - **fix(overview):** the Overview page's recent-activity feed starts
   folded too, behind the same show/hide toggle, its choice kept in
   localStorage.
