@@ -94,6 +94,14 @@ pre{white-space:pre-wrap;font:inherit;margin:6px 0}
 "use strict";
 var tg = (window.Telegram && window.Telegram.WebApp) || null;
 var initData = tg ? (tg.initData || "") : "";
+if (!initData && location.hash){
+  // The bridge object above only exists when telegram-web-app.js is
+  // loaded, which this page deliberately does not do. Telegram also hands
+  // the same signed init data to the page in the URL fragment
+  // (tgWebAppData) whenever it opens from a web_app button — read it from
+  // there so the shop works on every client, with no external script.
+  try { initData = new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") || ""; } catch (e) {}
+}
 var op = parseInt(new URLSearchParams(location.search).get("op") || "0", 10);
 var S = null;            // the last state the shop sent
 var sel = null;          // the plan being bought: {plan, section}

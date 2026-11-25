@@ -162,6 +162,12 @@ v5 rather than a version per feature.
   and hand-downs are enforced; node traffic and counters are no
   longer dropped or over-counted; and deleting an operator keeps
   their resellers and customers.
+- **fix(shop):** the Mini App page read Telegram's init data only from
+  `window.Telegram.WebApp`, which exists solely when telegram-web-app.js
+  is loaded — a script the page deliberately does not load — so every
+  real buyer landed on the page's "open it from the bot" notice. The
+  page now also reads the same signed init data from the `tgWebAppData`
+  URL fragment Telegram appends when a web_app button opens it.
 
 ### The coffee-shop design port (in progress, unreleased)
 
