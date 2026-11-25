@@ -164,6 +164,30 @@ func TestACopyStartsEmpty(t *testing.T) {
 	}
 }
 
+// A copy of an L2TP tunnel is not refused for being the second one: the
+// one-per-server check counts tunnels of the same kind, and the tunnel
+// being copied is one of them. Creating a second directly is still
+// refused, as TestAnL2TPTunnelIsMadeWithWhatItsClientsExpect pins.
+func TestACopyOfAnL2TPTunnelIsNotRefusedForBeingSecond(t *testing.T) {
+	db, _ := seeded(t)
+	svc := NewInterfaces(db, ipam.NewPools(), quietLog())
+	src, err := createL2TP(t, svc, CreateInterfaceInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// On a port of its own: the standard 1701 is the original's, and a
+	// redirected port is what a second L2TP tunnel listens on.
+	copy, err := svc.Clone(context.Background(), src.ID, CloneInput{
+		Name: "l2tp1", ListenPort: 1702, Subnet: "10.78.0.0/24",
+	})
+	if err != nil {
+		t.Fatalf("Clone: %v", err)
+	}
+	if copy.ID == src.ID || copy.Name == src.Name {
+		t.Error("the copy is the original")
+	}
+}
+
 // A tunnel this panel does not own is one the central panel would overwrite on
 // its next sync, so a copy of it would be a tunnel nobody manages.
 func TestATunnelBelongingToAnotherPanelIsNotCopied(t *testing.T) {

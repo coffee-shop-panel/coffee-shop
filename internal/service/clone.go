@@ -64,6 +64,7 @@ func (s *Interfaces) Clone(ctx context.Context, id uint, in CloneInput) (*model.
 		ListenPort:   in.ListenPort,
 		Subnet:       in.Subnet,
 		EndpointHost: in.EndpointHost,
+		cloneOf:      src.ID,
 
 		// Everything about how the tunnel behaves, which is the whole reason
 		// for copying rather than creating.

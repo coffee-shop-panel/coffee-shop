@@ -41,6 +41,13 @@ type TemplateResult struct {
 	Skipped []string `json:"skipped"`
 }
 
+// nodeName is a tunnel matched by the server it runs on and its name: the
+// name alone is not unique across servers.
+type nodeName struct {
+	nodeID uint
+	name   string
+}
+
 // Template exports and applies the document.
 type Template struct {
 	db         *gorm.DB
@@ -173,19 +180,35 @@ func (t *Template) Apply(ctx context.Context, doc TemplateDoc, section string) (
 		if err != nil {
 			return res, err
 		}
-		byName := map[string]model.Interface{}
+		// Keyed by server and name: two servers may each carry a tunnel
+		// of the same name, and matching by name alone updated the wrong
+		// server's.
+		byNodeName := map[nodeName]model.Interface{}
 		for _, i := range existing {
-			byName[strings.ToLower(i.Name)] = i
+			byNodeName[nodeName{i.NodeID, strings.ToLower(i.Name)}] = i
 		}
 		for _, raw := range doc.Inbounds {
 			var head struct {
-				Name string `json:"name"`
+				Name   string `json:"name"`
+				NodeID uint   `json:"nodeId"`
 			}
 			if err := json.Unmarshal(raw, &head); err != nil || strings.TrimSpace(head.Name) == "" {
 				skip("inbound", fmt.Errorf("every inbound needs a name"))
 				continue
 			}
-			if cur, ok := byName[strings.ToLower(head.Name)]; ok {
+			nodeID := head.NodeID
+			if nodeID == 0 {
+				// A document without a server names this panel's own:
+				// nodeId 0 is what Create reads as "this server", and
+				// the stored rows carry the local node's real id.
+				local, err := t.interfaces.resolveNode(ctx, 0)
+				if err != nil {
+					skip("interface "+head.Name, err)
+					continue
+				}
+				nodeID = local.ID
+			}
+			if cur, ok := byNodeName[nodeName{nodeID, strings.ToLower(head.Name)}]; ok {
 				var in UpdateInterfaceInput
 				if err := json.Unmarshal(raw, &in); err != nil {
 					skip("interface "+head.Name, err)

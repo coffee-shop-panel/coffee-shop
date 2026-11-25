@@ -109,6 +109,12 @@ type CreateInterfaceInput struct {
 	// generated.
 	PSK string `json:"psk"`
 
+	// cloneOf is the tunnel a clone is copied from, set by Clone and never
+	// by a request: the one-per-server check for L2TP, PPTP, IKEv2 and
+	// OpenConnect counts tunnels of the same kind, and the source is one
+	// of them, so a clone of one would always count itself and fail.
+	cloneOf uint
+
 	// L2TPPlain also accepts L2TP without IPsec on an L2TP tunnel, for
 	// routers whose client has none.
 	L2TPPlain bool `json:"l2tpPlain"`
@@ -181,7 +187,7 @@ func (s *Interfaces) Create(ctx context.Context, in CreateInterfaceInput) (*mode
 		return nil, err
 	}
 	if in.Protocol.ByAgent() {
-		if err := s.checkPPPPlace(ctx, node, in.Protocol, 0); err != nil {
+		if err := s.checkPPPPlace(ctx, node, in.Protocol, in.cloneOf); err != nil {
 			return nil, err
 		}
 	}
@@ -532,8 +538,17 @@ func checkAddressing(in *CreateInterfaceInput) error {
 	if err := checkNetDevice(in.NATInterface); err != nil {
 		return err
 	}
-	if _, err := netip.ParsePrefix(in.Subnet); err != nil {
+	prefix, err := netip.ParsePrefix(in.Subnet)
+	if err != nil {
 		return invalidField("subnet", "subnet %q: %v", in.Subnet, err)
+	}
+	// The pool is what hands out addresses, and it refuses subnets it
+	// cannot serve -- IPv6, a /31 or /32, wider than a /10. Checked here,
+	// before the row exists: Create only learns of the refusal when it
+	// registers the pool afterwards, and by then the row is stored and
+	// its name blocks a retry.
+	if _, err := ipam.New(prefix); err != nil {
+		return invalidField("subnet", "%v", err)
 	}
 	if in.MTU == 0 {
 		in.MTU = 1420

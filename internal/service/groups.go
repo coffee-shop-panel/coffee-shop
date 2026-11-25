@@ -592,8 +592,9 @@ func (s *Clients) ApplyToGroup(ctx context.Context, op GroupOp) (int64, error) {
 		return n, nil
 
 	case GroupExtend:
-		if op.Days == 0 {
-			return 0, fmt.Errorf("%w: days must not be zero", ErrInvalid)
+		// An "extend" that shortens the plan is not an extension.
+		if op.Days <= 0 {
+			return 0, fmt.Errorf("%w: days must be above zero", ErrInvalid)
 		}
 		// The date arithmetic is done in Go, one row at a time, rather than in
 		// SQL: the interval syntax differs between SQLite and PostgreSQL, and a
@@ -666,7 +667,19 @@ func (s *Clients) ApplyToGroup(ctx context.Context, op GroupOp) (int64, error) {
 		if err := scope().Pluck("id", &ids).Error; err != nil {
 			return 0, fmt.Errorf("service: list group members: %w", err)
 		}
-		return s.Bulk(ctx, BulkDelete, ids)
+		// In batches of what Bulk accepts at once, as DeleteCustomers
+		// does: a group larger than that must still be deletable.
+		var n int64
+		for len(ids) > 0 {
+			m := min(len(ids), maxBulkIDs)
+			done, err := s.Bulk(ctx, BulkDelete, ids[:m])
+			if err != nil {
+				return n, err
+			}
+			n += done
+			ids = ids[m:]
+		}
+		return n, nil
 
 	default:
 		return 0, fmt.Errorf("%w: unknown action %q", ErrInvalid, op.Action)

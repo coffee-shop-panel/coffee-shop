@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/netip"
 	"sort"
 	"strings"
@@ -595,9 +596,10 @@ func (s *Clients) validateCreate(in *CreateInput) ([]string, error) {
 		}
 	}
 	// 0 is unlimited: the customer may be connected from as many places as
-	// they like. Anything above 50 is a typo.
+	// they like. Anything above 50 is a typo, and a negative one is not a
+	// quiet way to say unlimited -- Update refuses it, and so does Create.
 	if in.DeviceLimit < 0 {
-		in.DeviceLimit = 0
+		return nil, invalidField("deviceLimit", "device limit must be between 0 and 50")
 	}
 	if in.DeviceLimit > 50 {
 		return nil, invalidField("deviceLimit", "device limit must be between 0 and 50")
@@ -675,7 +677,24 @@ func (s *Clients) AddDevice(ctx context.Context, subID uint, name string) ([]*mo
 
 	name = strings.TrimSpace(name)
 	if name == "" {
-		name = fmt.Sprintf("device-%d", len(devices)+1)
+		// The first free number, not one past the count: a device removed
+		// from the middle leaves its number free, and len+1 can already
+		// be held by the device after it. Bounded by the file cap above,
+		// so a free number always exists.
+		for n := 1; ; n++ {
+			candidate := fmt.Sprintf("device-%d", n)
+			taken := false
+			for _, existing := range devices {
+				if strings.EqualFold(existing, candidate) {
+					taken = true
+					break
+				}
+			}
+			if !taken {
+				name = candidate
+				break
+			}
+		}
 	}
 	if err := checkText("name", name, maxDeviceName); err != nil {
 		return nil, err
@@ -1305,14 +1324,9 @@ func (s *Clients) Update(ctx context.Context, id uint, in UpdateInput) (*model.C
 	if in.RateBitsPerSec != nil {
 		fields["rate_bits_per_sec"] = *in.RateBitsPerSec
 	}
-	// The files follow the users: a plan raised from one to three gets two
-	// more files, one lowered from three to one loses the two newest. Done
-	// before the plan is saved, so a failure here leaves the plan as it was.
-	if seats != nil && *seats > 0 {
-		if err := s.fitSeats(ctx, client, *seats); err != nil {
-			return nil, err
-		}
-	}
+	// Validated before any seat is fitted: a plan the update refuses --
+	// an unknown renewal or status -- must not have already moved files
+	// around, which each seat change writes on its own.
 	if in.ResetCycle != nil {
 		// The same values Create accepts, and an empty one means none, as
 		// there. Anything else was stored verbatim before, where nothing
@@ -1337,6 +1351,14 @@ func (s *Clients) Update(ctx context.Context, id uint, in UpdateInput) (*model.C
 			return nil, invalidField("status", "unknown status %q", *in.Status)
 		}
 		fields["status"] = *in.Status
+	}
+	// The files follow the users: a plan raised from one to three gets two
+	// more files, one lowered from three to one loses the two newest. Done
+	// before the plan is saved, so a failure here leaves the plan as it was.
+	if seats != nil && *seats > 0 {
+		if err := s.fitSeats(ctx, client, *seats); err != nil {
+			return nil, err
+		}
 	}
 
 	// Raising the quota or pushing back the expiry on a client that was
@@ -1663,6 +1685,11 @@ const expiringWithin = 3 * 24 * time.Hour
 // BulkAction is an operation applied to a selected set of clients.
 type BulkAction string
 
+// maxBulkIDs caps one bulk selection. A reseller deletion goes through
+// DeleteCustomers, which works through this in batches, so the cap is a
+// guard on one request, not on how many customers an operator may hold.
+const maxBulkIDs = 1000
+
 const (
 	BulkEnable  BulkAction = "enable"
 	BulkDisable BulkAction = "disable"
@@ -1682,8 +1709,8 @@ func (s *Clients) Bulk(ctx context.Context, action BulkAction, ids []uint) (int6
 	if len(ids) == 0 {
 		return 0, fmt.Errorf("%w: no clients selected", ErrInvalid)
 	}
-	if len(ids) > 1000 {
-		return 0, fmt.Errorf("%w: %d clients selected, limit is 1000", ErrInvalid, len(ids))
+	if len(ids) > maxBulkIDs {
+		return 0, fmt.Errorf("%w: %d clients selected, limit is %d", ErrInvalid, len(ids), maxBulkIDs)
 	}
 
 	db := s.db.WithContext(ctx)
@@ -1767,6 +1794,23 @@ func (s *Clients) Adjust(ctx context.Context, in AdjustInput) (int64, error) {
 	if in.AddDays == nil && in.QuotaBytes == nil && in.ResetCycle == nil {
 		return 0, fmt.Errorf("%w: nothing to change", ErrInvalid)
 	}
+	// An "extend" that shortens the plan is not an extension, and a cycle
+	// nothing recognises would be stored verbatim where nothing ever
+	// matches it: both refused here, as Extend and Create refuse them.
+	if in.AddDays != nil && (math.IsNaN(*in.AddDays) || math.IsInf(*in.AddDays, 0) || *in.AddDays < 0) {
+		return 0, invalidField("addDays", "addDays is a number of zero or more")
+	}
+	var cycle model.ResetCycle
+	if in.ResetCycle != nil {
+		cycle = *in.ResetCycle
+		switch cycle {
+		case "":
+			cycle = model.ResetNone
+		case model.ResetNone, model.ResetDaily, model.ResetWeekly, model.ResetMonthly:
+		default:
+			return 0, invalidField("resetCycle", "unknown reset cycle %q", *in.ResetCycle)
+		}
+	}
 
 	db := s.db.WithContext(ctx)
 	now := time.Now().UTC()
@@ -1802,7 +1846,7 @@ func (s *Clients) Adjust(ctx context.Context, in AdjustInput) (int64, error) {
 				}
 			}
 			if in.ResetCycle != nil {
-				fields["reset_cycle"] = *in.ResetCycle
+				fields["reset_cycle"] = cycle
 			}
 
 			if err := tx.Model(&model.Client{}).
@@ -1883,7 +1927,19 @@ func (s *Clients) DeleteByStatus(ctx context.Context, status model.ClientStatus)
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	return s.Bulk(ctx, BulkDelete, ids)
+	// In batches of what Bulk accepts at once, as DeleteCustomers does:
+	// more customers in a state than that must still be deletable.
+	var n int64
+	for len(ids) > 0 {
+		m := min(len(ids), maxBulkIDs)
+		done, err := s.Bulk(ctx, BulkDelete, ids[:m])
+		if err != nil {
+			return n, err
+		}
+		n += done
+		ids = ids[m:]
+	}
+	return n, nil
 }
 
 // BatchInput creates several clients in one go, named by a method the
@@ -2408,9 +2464,20 @@ func (s *Clients) checkSubID(ctx context.Context, selfID uint, id string) (strin
 
 // DeleteCustomers removes customers the way Bulk's delete does, for the
 // operators' service deleting a reseller with everything they sold.
+//
+// In batches of what Bulk accepts at once: a reseller with more customers
+// than that must still be deletable with them, and Bulk's refusal past its
+// limit otherwise left the operator deleted with every customer handed
+// over to the owner instead.
 func (s *Clients) DeleteCustomers(ctx context.Context, ids []uint) error {
-	_, err := s.Bulk(ctx, BulkDelete, ids)
-	return err
+	for len(ids) > 0 {
+		n := min(len(ids), maxBulkIDs)
+		if _, err := s.Bulk(ctx, BulkDelete, ids[:n]); err != nil {
+			return err
+		}
+		ids = ids[n:]
+	}
+	return nil
 }
 
 // OptionalTime is a time that can be absent, null or set, for the fields an
