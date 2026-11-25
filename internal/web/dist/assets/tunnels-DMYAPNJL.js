@@ -1,1 +1,0 @@
-import{i as e,t as n}from"./index-6A95TePa.js";async function i(){const t=await e.get("/api/interfaces",{background:!0}).catch(()=>[]);return(Array.isArray(t)?t:t.items||[]).map(a=>({value:String(a.id),label:a.name,tags:[{text:n(`protocol.${a.protocol}`),kind:"proto"}]}))}function s(t){return t.map(r=>Number(r)).filter(r=>Number.isInteger(r)&&r>0)}export{s as a,i as t};
