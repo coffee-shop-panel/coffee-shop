@@ -57,6 +57,19 @@ async function loadActivity() {
   }
 }
 
+// The feed is reference, not this page's question, and its rows push the
+// rest of the dashboard down — so it folds the way the interfaces list
+// does: shut unless an operator opens it, and the choice is remembered.
+const ACTIVITY_OPEN_KEY = 'wui.overview.activityOpen'
+const activityOpen = ref(readActivityOpen())
+function readActivityOpen() {
+  try { return localStorage.getItem(ACTIVITY_OPEN_KEY) === '1' } catch { return false }
+}
+function toggleActivity() {
+  activityOpen.value = !activityOpen.value
+  try { localStorage.setItem(ACTIVITY_OPEN_KEY, activityOpen.value ? '1' : '0') } catch { /* private window */ }
+}
+
 onMounted(async () => {
   await load()
   loadActivity()
@@ -486,9 +499,14 @@ function activityTone(a) {
       <section v-if="activity && activity.length" class="card s4">
         <div class="ch">
           <h3>{{ t('overview.recentActivity') }}</h3>
-          <RouterLink to="/activity" class="btn xs spacer">{{ t('nav.activity') }}</RouterLink>
+          <span class="sub">{{ t('overview.activitySummary', { n: activity.length }) }}</span>
+          <button type="button" class="btn xs spacer activity-toggle" :aria-expanded="activityOpen" @click="toggleActivity">
+            <Icon name="chevronDown" :size="14" :class="{ turned: !activityOpen }" />
+            <span>{{ activityOpen ? t('overview.hideList') : t('overview.showList') }}</span>
+          </button>
+          <RouterLink to="/activity" class="btn xs">{{ t('nav.activity') }}</RouterLink>
         </div>
-        <div class="cb tight">
+        <div v-if="activityOpen" class="cb tight">
           <ul class="list feed">
             <li v-for="a in activity" :key="a.id">
               <span class="ico-tile" :class="activityTone(a)">
@@ -549,15 +567,19 @@ function activityTone(a) {
   flex-shrink: 0;
   margin-top: 2px;
 }
-/* The interfaces fold: the chevron rests pointing down while the list is
-   open and turns aside when it is shut, the way the API page's groups do. */
-.iface-toggle svg {
+/* The folds (interfaces, recent activity): the chevron rests pointing
+   down while the list is open and turns aside when it is shut, the way
+   the API page's groups do. */
+.iface-toggle svg,
+.activity-toggle svg {
   transition: transform 0.15s;
 }
-.iface-toggle svg.turned {
+.iface-toggle svg.turned,
+.activity-toggle svg.turned {
   transform: rotate(-90deg);
 }
-[dir='rtl'] .iface-toggle svg.turned {
+[dir='rtl'] .iface-toggle svg.turned,
+[dir='rtl'] .activity-toggle svg.turned {
   transform: rotate(90deg);
 }
 </style>

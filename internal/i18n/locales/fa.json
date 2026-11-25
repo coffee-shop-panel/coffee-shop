@@ -1591,6 +1591,7 @@
   "overview.showList": "نمایش",
   "overview.hideList": "پنهان کردن",
   "overview.recentActivity": "فعالیت‌های اخیر",
+  "overview.activitySummary": "{n} فعالیت اخیر",
   "overview.openPage": "باز کردن",
   "protocol.amneziawg": "AmneziaWG",
   "protocol.dokodemo-door": "Dokodemo-door",

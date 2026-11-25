@@ -1591,6 +1591,7 @@
   "overview.showList": "Show",
   "overview.hideList": "Hide",
   "overview.recentActivity": "Recent activity",
+  "overview.activitySummary": "{n} latest entries",
   "overview.openPage": "Open",
   "protocol.amneziawg": "AmneziaWG",
   "protocol.dokodemo-door": "Dokodemo-door",
