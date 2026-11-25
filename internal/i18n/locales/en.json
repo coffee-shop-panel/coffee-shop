@@ -1588,6 +1588,8 @@
   "overview.addTime": "Add time",
   "overview.resetRenew": "Reset / renew",
   "overview.ifaceSummary": "{n} interfaces · {active} / {total} customers active",
+  "overview.showList": "Show",
+  "overview.hideList": "Hide",
   "overview.recentActivity": "Recent activity",
   "overview.openPage": "Open",
   "protocol.amneziawg": "AmneziaWG",

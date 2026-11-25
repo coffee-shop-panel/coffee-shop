@@ -163,6 +163,20 @@ const nf = (n) => Number(n || 0).toLocaleString(store.locale)
 // operator wants at a glance and the thing the two controls below act on.
 const tunnelsUp = computed(() => ifaces.value.filter((i) => i.enabled && i.running).length)
 
+// The interface list is reference, not this page's question, and a fleet's
+// worth of rows buries everything below it — so the section starts folded
+// and opens only when an operator asks. The choice is remembered, the way
+// the Interfaces page remembers which of its tabs was left open.
+const IFACES_OPEN_KEY = 'wui.overview.ifacesOpen'
+const ifacesOpen = ref(readIfacesOpen())
+function readIfacesOpen() {
+  try { return localStorage.getItem(IFACES_OPEN_KEY) === '1' } catch { return false }
+}
+function toggleIfaces() {
+  ifacesOpen.value = !ifacesOpen.value
+  try { localStorage.setItem(IFACES_OPEN_KEY, ifacesOpen.value ? '1' : '0') } catch { /* private window */ }
+}
+
 const planeBusy = ref(false)
 const confirmStop = ref(false)
 
@@ -401,7 +415,14 @@ function activityTone(a) {
         <div class="ch">
           <h3>{{ t('nav.interfaces') }}</h3>
           <span class="sub">{{ t('overview.ifaceSummary', { n: ifaces.length, active: clients?.active ?? 0, total: clients?.clients ?? 0 }) }}</span>
-          <RouterLink to="/interfaces" class="btn sm spacer">{{ t('overview.openPage') }}</RouterLink>
+          <!-- What the folded section still says: how many of the tunnels
+               are actually up, so shutting the list costs no information. -->
+          <span v-if="ifaces.length" class="dtag" :class="tunnelsUp ? 'ok' : 'gray'"><span class="d"></span>{{ nf(tunnelsUp) }} / {{ nf(ifaces.length) }} {{ t('overview.running') }}</span>
+          <button v-if="ifaces.length" type="button" class="btn sm spacer iface-toggle" :aria-expanded="ifacesOpen" @click="toggleIfaces">
+            <Icon name="chevronDown" :size="14" :class="{ turned: !ifacesOpen }" />
+            <span>{{ ifacesOpen ? t('overview.hideList') : t('overview.showList') }}</span>
+          </button>
+          <RouterLink to="/interfaces" class="btn sm" :class="{ spacer: !ifaces.length }">{{ t('overview.openPage') }}</RouterLink>
         </div>
 
         <div v-if="!ifaces.length" class="dempty">
@@ -411,7 +432,7 @@ function activityTone(a) {
           </RouterLink>
         </div>
 
-        <div v-else class="tw">
+        <div v-else-if="ifacesOpen" class="tw">
           <table>
             <thead>
               <tr>
@@ -527,5 +548,16 @@ function activityTone(a) {
   color: var(--warn);
   flex-shrink: 0;
   margin-top: 2px;
+}
+/* The interfaces fold: the chevron rests pointing down while the list is
+   open and turns aside when it is shut, the way the API page's groups do. */
+.iface-toggle svg {
+  transition: transform 0.15s;
+}
+.iface-toggle svg.turned {
+  transform: rotate(-90deg);
+}
+[dir='rtl'] .iface-toggle svg.turned {
+  transform: rotate(90deg);
 }
 </style>

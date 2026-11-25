@@ -1588,6 +1588,8 @@
   "overview.addTime": "افزودن زمان",
   "overview.resetRenew": "ریست / تمدید",
   "overview.ifaceSummary": "{n} اینترفیس · {active} / {total} مشتری فعال",
+  "overview.showList": "نمایش",
+  "overview.hideList": "پنهان کردن",
   "overview.recentActivity": "فعالیت‌های اخیر",
   "overview.openPage": "باز کردن",
   "protocol.amneziawg": "AmneziaWG",
