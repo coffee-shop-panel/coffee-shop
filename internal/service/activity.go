@@ -78,3 +78,27 @@ func (a *Activity) List(limit int, beforeID uint) ([]model.ActivityEntry, error)
 	err := q.Find(&entries).Error
 	return entries, err
 }
+
+// ListForActor reads one operator's own entries, newest first: what they
+// did, and the sign-ins tried under their name. It is the only narrowing
+// of the record a non-owner ever gets, and it is applied here, in the
+// store, so no caller can widen it by asking differently.
+//
+// An entry is the operator's when it carries their id -- every recorded
+// action does -- or when it is one of the two sign-in doors' entries
+// under their name. Sign-ins are kept under the name that was tried and
+// no id (the login handlers record them before anyone is signed in), so
+// the name branch is fenced to those two actions: an unstamped entry of
+// any other kind, a machine token's work above all, is nobody's here.
+func (a *Activity) ListForActor(actorID uint, actorName string, limit int, beforeID uint) ([]model.ActivityEntry, error) {
+	q := a.db.Order("id DESC").Limit(limit).
+		Where("actor_id = ? OR (actor_id = 0 AND actor = ? AND action IN ?)",
+			actorID, actorName,
+			[]string{"POST /api/auth/login", "POST /api/passkeys/login/verify"})
+	if beforeID > 0 {
+		q = q.Where("id < ?", beforeID)
+	}
+	var entries []model.ActivityEntry
+	err := q.Find(&entries).Error
+	return entries, err
+}

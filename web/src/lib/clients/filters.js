@@ -7,7 +7,7 @@ import { emptyFilters } from '../../components/FilterDrawer.vue'
 // the overview's tiles (/clients?status=depleting), or a group, from the
 // groups page (/clients?group=trial). Each becomes that one filter, which
 // shows as a chip and is cleared like any other.
-export const STATUS_LINKS = ['active', 'depleting', 'exhausted', 'expired', 'disabled', 'online']
+export const STATUS_LINKS = ['active', 'depleting', 'expiring', 'exhausted', 'expired', 'disabled', 'online']
 
 export function filtersFromLink(query = {}) {
   const f = emptyFilters()

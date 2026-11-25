@@ -507,9 +507,18 @@ export const api = {
   overview: (opts) => request('GET', '/api/overview', undefined, opts),
   fullOverview: (opts) => request('GET', '/api/overview/full', undefined, opts),
 
-  // The owner's record of who did what, newest first. before is the id of
-  // the oldest entry already on screen: the log only grows, so an id is a
-  // steadier page marker than an offset, which would shift under new rows.
+  // The signed-in operator's own dashboard: their customers' figures,
+  // their ceiling, this month's traffic, their tunnels with whether each
+  // is up, and their latest activity -- counted over their own customers
+  // alone, so a reseller is never handed the panel's totals.
+  overviewMine: (opts) => request('GET', '/api/overview/mine', undefined, opts),
+
+  // The record of who did what, newest first: the whole of it for the
+  // owner, and for any other operator only their own entries -- the
+  // server narrows it by the caller, whatever the request carries.
+  // before is the id of the oldest entry already on screen: the log only
+  // grows, so an id is a steadier page marker than an offset, which
+  // would shift under new rows.
   activity: (before = 0, limit = 100) =>
     request('GET', `/api/activity?limit=${limit}` + (before ? `&before=${before}` : '')),
 

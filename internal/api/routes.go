@@ -628,11 +628,13 @@ func (s *Server) routes() []Route {
 			handler: s.handleRotateSubscription},
 
 		// ── Activity ──
-		{Method: "GET", Path: "/api/activity", Group: "Activity", Auth: true,
+		{Method: "GET", Path: "/api/activity", Group: "Activity", Auth: true, Operator: true,
 			Summary: "Who did what on this panel, newest first: every change an " +
 				"operator made, and every sign-in, with where it came from.",
-			Note: "The owner's alone: the log names every administrator and " +
-				"reseller, so unlike the customer list it is not narrowed by scope.",
+			Note: "The owner reads the whole record. Any other operator reads " +
+				"only their own entries, narrowed by their id in the store -- " +
+				"the log names every administrator and reseller, so it is " +
+				"never narrowed by anything the request carries.",
 			handler: s.handleActivity},
 
 		// ── Shop ──
@@ -767,6 +769,13 @@ func (s *Server) routes() []Route {
 			Summary: "Telemetry, panel state and inventory in one call.",
 			Note:    "One request so the page cannot show three readings from three moments.",
 			handler: s.handleFullOverview},
+		{Method: "GET", Path: "/api/overview/mine", Group: "Server", Auth: true, Operator: true,
+			Summary: "The signed-in operator's own dashboard: their customers' " +
+				"figures, their ceiling, this month's traffic, the tunnels they " +
+				"may sell with whether each is up, and their latest activity.",
+			Note: "Counted over the caller's own customers alone, in the " +
+				"handler and the store -- never the panel's totals.",
+			handler: s.handleOverviewMine},
 		{Method: "GET", Path: "/api/health", Group: "Server",
 			Summary: "Whether the panel is doing its job: 200 with {\"ok\":true}, or 503.",
 			Note: "For an uptime checker. Under the panel's own path, and a stranger is told only ok or not; " +
@@ -1036,6 +1045,15 @@ var (
 		// as the rows, so refusing it left a reseller with the one page they
 		// have showing nothing at all.
 		"GET /api/overview": true,
+		// The dashboard a reseller lands on. Every figure in it is counted
+		// over the caller's own customers in the service, and the tunnels
+		// are the ones they were given, so what it hands a reseller is
+		// their own corner and nothing of the machine's.
+		"GET /api/overview/mine": true,
+		// The activity record, for the caller's own lines: the handler
+		// narrows it in the store by the caller's id, so a reseller reading
+		// it is reading what they did, never what anybody else did.
+		"GET /api/activity": true,
 		// One customer's subscription link, and reissuing it.
 		"GET /api/clients/{id}/subscription":         true,
 		"POST /api/clients/{id}/subscription/rotate": true,

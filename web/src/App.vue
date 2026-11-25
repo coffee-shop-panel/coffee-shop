@@ -66,6 +66,11 @@ watch(langOpen, (open) => {
 // `sells` marks a page a reseller has. Everything unmarked is the owner's,
 // and `everyone` marks what an administrator gets on top.
 const nav = [
+  // The dashboard an operator who is not the owner lands on. Marked for
+  // the operators alone (operators: true): the owner's home is the
+  // overview below, and their menu is filtered free of this in
+  // visibleNav, so the two homes never sit side by side for anyone.
+  { to: '/home', key: 'nav.home', icon: 'DashboardOutlined', exact: true, sells: true, everyone: true, operators: true },
   { to: '/', key: 'nav.overview', icon: 'DashboardOutlined', exact: true, everyone: true },
   { to: '/interfaces', key: 'nav.interfaces', icon: 'ImportOutlined' },
   { to: '/clients', key: 'nav.clients', icon: 'TeamOutlined', sells: true, menu: 'clients' },
@@ -81,7 +86,10 @@ const nav = [
   { to: '/hosts', key: 'nav.hosts', icon: 'GlobalOutlined' },
   { to: '/shop', key: 'nav.shop', icon: 'SendOutlined', sells: true },
   { to: '/admin-bot', key: 'nav.adminBot', icon: 'TeamOutlined', sells: true },
-  { to: '/activity', key: 'nav.activity', icon: 'FileTextOutlined' },
+  // The record: the owner's whole, and every other operator's own lines
+  // alone, which the endpoint itself narrows -- so the entry is for
+  // everyone, the way the account page's is.
+  { to: '/activity', key: 'nav.activity', icon: 'FileTextOutlined', sells: true, everyone: true },
   { to: '/outbounds', key: 'nav.outbounds', icon: 'ExportOutlined' },
   { to: '/routing', key: 'nav.routing', icon: 'SwapOutlined' },
   {
@@ -151,7 +159,10 @@ watch(pageTitle, (name) => {
 // What this operator is shown, from what the server said they may reach.
 const visibleNav = computed(() => {
   const me = store.admin
-  if (!me || me.managesPanel) return nav
+  // The owner reaches everything but the operators' own home: their home
+  // is the overview, and a second dashboard in the menu would be a page
+  // about a corner of the panel that is not theirs to run.
+  if (!me || me.managesPanel) return nav.filter((item) => !item.operators)
   const grants = me.menuIds || []
   const keep = (item) => {
     // An admin: the overview always, plus the pages the owner granted. A page

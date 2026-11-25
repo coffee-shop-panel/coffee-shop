@@ -64,12 +64,15 @@ async function submit() {
   }
 }
 
-// goNext is where a sign-in of either kind lands.
+// goNext is where a sign-in of either kind lands: the page the sign-in
+// was interrupted on its way to, or home -- the owner's overview for
+// the owner, and every other operator's own dashboard for them.
 // Only a path on this panel: a link crafted with another site in it
 // would otherwise be followed straight after a correct password.
 function goNext() {
   const next = typeof route.query.next === 'string' ? route.query.next : ''
-  router.replace(/^\/(?![/\\])/.test(next) ? next : '/')
+  const home = store.admin?.managesPanel ? '/' : '/home'
+  router.replace(/^\/(?![/\\])/.test(next) ? next : home)
 }
 
 async function passkeySignIn() {

@@ -191,6 +191,23 @@ v5 rather than a version per feature.
 - **fix(overview):** the Overview page's recent-activity feed starts
   folded too, behind the same show/hide toggle, its choice kept in
   localStorage.
+- **feat(reseller):** an operator who is not the owner now lands on a
+  dashboard of their own (`/home`, `GET /api/overview/mine`): their
+  customers counted (total, active, expired, expiring within three
+  days), the users they hold against their ceiling — counted exactly
+  as the ceiling itself counts them — their customers' traffic since
+  the first of the month, summed from the five-minute samples the
+  reconciler writes (no coarser rollup exists, so nothing is
+  double-counted), the tunnels assigned to them with the same running
+  state the customer picker shows, their soonest expiries, and their
+  own latest activity. Every figure is narrowed by the caller's scope
+  in the store, never by a parameter. Sign-in, the guard's bounces and
+  the menu all send a non-owner there; the owner's Overview is
+  untouched. The activity record opens with it: `GET /api/activity`
+  still gives the owner the whole record, and gives any other operator
+  exactly their own lines — entries stamped with their account id,
+  plus their own sign-ins, which are recorded under their name alone —
+  whatever filter the request carries, because no parameter is read.
 
 ### The coffee-shop design port (shipped in 3.7.3)
 

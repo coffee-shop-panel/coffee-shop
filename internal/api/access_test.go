@@ -96,6 +96,12 @@ func TestWhatANonOwnerMayReach(t *testing.T) {
 		// The tiles over their own customer list, counted over their own
 		// customers alone.
 		"GET /api/overview",
+		// Their own dashboard: their figures, their tunnels, their latest
+		// activity -- each counted over their own customers alone.
+		"GET /api/overview/mine",
+		// The activity record, narrowed in the store to their own lines:
+		// what they did, never what anybody else did.
+		"GET /api/activity",
 		"GET /api/clients/{id}/subscription",
 		"POST /api/clients/{id}/subscription/rotate",
 	}

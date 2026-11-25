@@ -7,6 +7,7 @@ const t = (k) => k
 describe('the customer list’s filters', () => {
   it('open on what a link names, and nothing else', () => {
     expect(filtersFromLink({ status: 'depleting' }).buckets).toEqual(['depleting'])
+    expect(filtersFromLink({ status: 'expiring' }).buckets).toEqual(['expiring'])
     expect(filtersFromLink({ status: 'whatever' }).buckets).toEqual([])
     expect(filtersFromLink({ group: 'trial' }).groups).toEqual(['trial'])
   })

@@ -1,8 +1,9 @@
 <script setup>
 // Who did what on this panel, newest first: every change an operator or a
 // reseller made, and every one the panel refused, with the reason it gave.
-// The owner's page alone -- it names accounts and addresses that are nobody
-// else's business, and the route is unmarked, which is what makes it so.
+// The owner reads the whole record; any other operator reads only their
+// own lines -- the endpoint narrows it by the caller, because the record
+// names accounts and addresses that are nobody else's business.
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../lib/api.js'
 import { useDelayed } from '../lib/live.js'

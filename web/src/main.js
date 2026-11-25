@@ -33,6 +33,7 @@ import LoginView from './views/LoginView.vue'
 // ever opens two pages. The sign-in page stays in the bundle: it is the one
 // every visit may start on.
 const OverviewView = () => import('./views/OverviewView.vue')
+const ResellerHomeView = () => import('./views/ResellerHomeView.vue')
 const ClientsView = () => import('./views/ClientsView.vue')
 const ClientDetailView = () => import('./views/ClientDetailView.vue')
 const InterfacesView = () => import('./views/InterfacesView.vue')
@@ -69,12 +70,21 @@ const router = createRouter({
     // endpoint behind these pages checks again for itself -- a route table
     // is a convenience, never the thing that keeps anybody out.
     { path: '/', name: 'overview', component: OverviewView, meta: { everyone: true } },
+    // The dashboard an operator who is not the owner lands on: their own
+    // customers, tunnels and allowance. Both flags, like the account
+    // page's, so every operator but the owner is let in -- and the guard
+    // below sends them here after sign-in, where the owner goes to the
+    // overview instead.
+    { path: '/home', name: 'home', component: ResellerHomeView, meta: { sells: true, everyone: true } },
     { path: '/clients', name: 'clients', component: ClientsView, meta: { sells: true } },
     { path: '/clients/:id', name: 'client', component: ClientDetailView, props: true, meta: { sells: true } },
     { path: '/groups', name: 'groups', component: GroupsView, meta: { sells: true } },
     { path: '/interfaces', name: 'interfaces', component: InterfacesView },
     { path: '/nodes', name: 'nodes', component: NodesView },
-    { path: '/activity', name: 'activity', component: ActivityView },
+    // The record of who did what: the owner's whole, and any other
+    // operator's own lines alone -- the endpoint narrows it by the
+    // caller, so the page is safe to open to everyone it is about.
+    { path: '/activity', name: 'activity', component: ActivityView, meta: { sells: true, everyone: true } },
     { path: '/hosts', name: 'hosts', component: HostsView },
     // The sales bot is the operator's own shop, so a reseller has the page
     // too -- their bot, their plans, their orders, and nobody else's.
@@ -126,14 +136,16 @@ router.beforeEach((to) => {
 
   if (!store.ready) return true
   if (to.meta.public) {
-    return store.admin ? { name: 'overview' } : true
+    // Signed in already: home is the owner's overview, and every other
+    // operator's own dashboard.
+    return store.admin ? { name: store.admin.managesPanel ? 'overview' : 'home' } : true
   }
   if (!store.admin) return { name: 'login', query: { next: to.fullPath } }
   if (!allowed(to)) {
     // Sent to the page they do have rather than shown a refusal. A
     // reseller following an old bookmark into the routing table has not
     // done anything wrong; there is simply nothing there for them.
-    return { name: store.admin.managesPanel || store.admin.seesEveryone ? 'overview' : 'clients' }
+    return { name: store.admin.managesPanel ? 'overview' : 'home' }
   }
   return true
 })
