@@ -153,8 +153,8 @@ v5 rather than a version per feature.
   through the one API under the operator's own scope; the page's
   script is externalised like the coffee page's, so the listener's
   CSP is untouched.
-- **fix(audit):** nightly audit fixes, staged on this branch for the
-  next release — session tokens must satisfy binding and epoch
+- **fix(audit):** nightly audit fixes, shipped in 3.7.4 —
+  session tokens must satisfy binding and epoch
   (retires the legacy bypasses); backup downloads abort on a stall;
   the coffee page reports the real device limit and only devices in
   use, hands Xray links to V2Box as-is and downloads them as `.txt`;
@@ -169,7 +169,7 @@ v5 rather than a version per feature.
   page now also reads the same signed init data from the `tgWebAppData`
   URL fragment Telegram appends when a web_app button opens it.
 
-### The coffee-shop design port (in progress, unreleased)
+### The coffee-shop design port (shipped in 3.7.3)
 
 The panel is being re-skinned to the coffee-shop design mockups, wave by
 wave, on this branch. Waves 1–3 are in: the token layer and shell, then
