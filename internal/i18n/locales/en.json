@@ -377,6 +377,7 @@
   "client.nUsers": "{n} users",
   "client.name": "Name",
   "client.nameRequired": "Give the customer a name.",
+  "client.negativeNotAllowed": "Negative numbers are not allowed.",
   "client.neverExpires": "Leave blank to never expire",
   "client.noGroupsYet": "No groups yet — type a name and this customer starts one; it is offered here from then on.",
   "client.noLinks": "No shareable links — attach this client to an interface first.",

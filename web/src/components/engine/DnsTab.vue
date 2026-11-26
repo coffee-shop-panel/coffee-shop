@@ -14,7 +14,9 @@ const { form, inner, dnsListening } = useEngine()
 
 const presetsOpen = ref(false)
 function installPreset(data) {
-  form.value.dns.servers = [...form.value.dns.servers, ...presetServers(data)]
+  // Installing the same preset twice must not duplicate its rows.
+  const have = new Set(form.value.dns.servers.map((s) => s.address))
+  form.value.dns.servers = [...form.value.dns.servers, ...presetServers(data).filter((s) => !have.has(s.address))]
   presetsOpen.value = false
 }
 const serverModal = ref(null) // { index?, address, port, domains, skipFallback }

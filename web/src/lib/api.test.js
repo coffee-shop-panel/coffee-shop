@@ -125,6 +125,40 @@ describe('what a download does', () => {
       vi.useFakeTimers(false)
     }
   })
+
+  it('a receipt photo that stalls is abandoned instead of hanging the page', async () => {
+    vi.useFakeTimers()
+    try {
+      let signal
+      vi.stubGlobal('fetch', (_url, init) => {
+        signal = init.signal
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          body: {
+            getReader: () => ({
+              read: () =>
+                new Promise((_resolve, reject) => {
+                  signal.addEventListener('abort', () => {
+                    const err = new Error('aborted')
+                    err.name = 'AbortError'
+                    reject(err)
+                  })
+                }),
+            }),
+          },
+        })
+      })
+      const done = api.shopReceipt(7).catch((e) => e)
+      await vi.advanceTimersByTimeAsync(120_000)
+      const err = await done
+      expect(err).toBeInstanceOf(ApiError)
+      expect(err.kind).toBe('timeout')
+    } finally {
+      vi.useFakeTimers(false)
+    }
+  })
 })
 
 describe('what a call sends', () => {

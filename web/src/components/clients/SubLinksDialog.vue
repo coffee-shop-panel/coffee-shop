@@ -24,6 +24,10 @@ onMounted(async () => {
   try {
     const links = await api.subscriptionLinks(props.ids)
     subLinksText.value = props.ids.map((id, i) => links[i] || `${props.names[id] || `#${id}`}: —`).join('\n')
+  } catch (e) {
+    // Without this the dialog just shows an empty box, and an empty box
+    // reads the same as "these customers have no links".
+    notify(e.message, 'error')
   } finally {
     subLinksBusy.value = false
   }

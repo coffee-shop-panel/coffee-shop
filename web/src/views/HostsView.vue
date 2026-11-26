@@ -127,11 +127,19 @@ async function runConfirmed() {
   }
 }
 
-// Check now: each address behind the entry is tried the way a customer's
-// device would reach it, and the column shows the result. Nothing checks a
-// host on its own, so until this is pressed the column only says that
-// nothing has failed yet.
-const checking = ref(null)
+// A check crosses the network to every address behind the entry: it can
+// take seconds, and one group id cannot say which checks are running. A
+// second check started while the first is still going would have its
+// spinner cleared by the first one's finish.
+const checking = ref(new Set())
+function hold(groupId) {
+  checking.value = new Set(checking.value).add(groupId)
+}
+function release(groupId) {
+  const next = new Set(checking.value)
+  next.delete(groupId)
+  checking.value = next
+}
 async function check(g) {
   // Nothing behind the entry, nothing to try: reporting success here
   // would claim a host was reached that was never probed.
@@ -139,7 +147,7 @@ async function check(g) {
     notify(t('hosts.nothingToCheck'), 'error')
     return
   }
-  checking.value = g.groupId
+  hold(g.groupId)
   try {
     const fails = []
     let slowest = 0
@@ -158,7 +166,7 @@ async function check(g) {
   } catch (e) {
     notify(e.message, 'error')
   } finally {
-    checking.value = null
+    release(g.groupId)
   }
 }
 
@@ -272,7 +280,7 @@ function ifaceLabel(id) {
                 <div class="acts">
                   <button class="act" :title="t('hosts.moveUp')" :aria-label="t('hosts.moveUp')" :disabled="idx === 0" @click="move(g, 'up')"><AntIcon name="ArrowUpOutlined" /></button>
                   <button class="act" :title="t('hosts.moveDown')" :aria-label="t('hosts.moveDown')" :disabled="idx >= groups.length - 1" @click="move(g, 'down')"><AntIcon name="ArrowDownOutlined" /></button>
-                  <button class="act" :title="t('hosts.checkNow')" :aria-label="t('hosts.checkNow')" :disabled="checking === g.groupId" @click="check(g)"><AntIcon :name="checking === g.groupId ? 'LoadingOutlined' : 'ThunderboltOutlined'" /></button>
+                  <button class="act" :title="t('hosts.checkNow')" :aria-label="t('hosts.checkNow')" :disabled="checking.has(g.groupId)" @click="check(g)"><AntIcon :name="checking.has(g.groupId) ? 'LoadingOutlined' : 'ThunderboltOutlined'" /></button>
                   <button class="act" :title="t('action.edit')" :aria-label="t('action.edit')" @click="formFor = { group: g }"><AntIcon name="EditOutlined" /></button>
                   <button class="act danger" :title="t('action.delete')" :aria-label="t('action.delete')" @click="remove(g)"><AntIcon name="DeleteOutlined" /></button>
                 </div>

@@ -61,6 +61,11 @@ function choose(p) {
   if (k?.securities?.length && !k.securities.includes(x.security)) x.security = k.securities[0]
   if (p === 'vless' && k?.securities?.includes('reality')) x.security = 'reality'
   if (p === 'hysteria' || p === 'masque') x.security = 'tls'
+  // Reality is over TCP, gRPC and XHTTP alone: a network carried over from
+  // the previous protocol must not leave it set on WebSocket, where the
+  // security list has no matching option and the payload would carry
+  // realitySettings under a transport that cannot have them.
+  if (!securities.value.includes(x.security)) x.security = securities.value[0] || 'none'
   drawFor(p)
 }
 

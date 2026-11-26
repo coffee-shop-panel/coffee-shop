@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../lib/api.js'
 import { useLive, mergeRows, useDelayed } from '../lib/live.js'
@@ -133,7 +133,12 @@ async function loadAccount() {
     /* the strip stays as it was; the list is what matters */
   }
 }
+// Each load is one question; a newer question makes an older answer wrong,
+// so an older answer that lands last is dropped instead of replacing the
+// list with rows for the query the controls no longer show.
+let loadSeq = 0
 async function load(quiet = false) {
+  const mine = ++loadSeq
   if (!quiet) loading.value = true
   loadAccount()
   try {
@@ -141,6 +146,7 @@ async function load(quiet = false) {
       api.clients({ ...query(), page: currentPage.value, perPage: pageSize.value }, { background: quiet }),
       api.overview({ background: quiet }),
     ])
+    if (mine !== loadSeq) return
 
     stats.value = o
     if (quiet && page.value) {
@@ -160,9 +166,10 @@ async function load(quiet = false) {
       selected.value = new Set([...selected.value].filter((id) => visible.has(id)))
     }
   } catch (err) {
+    if (mine !== loadSeq) return
     if (!quiet) notify(err.message, 'error')
   } finally {
-    loading.value = false
+    if (mine === loadSeq) loading.value = false
   }
 }
 
@@ -216,6 +223,9 @@ onMounted(async () => {
 
 
 let searchTimer = null
+// A timer left running past the page's life fires its load on the next
+// page: a wasted request, and an error toast that belongs to nowhere.
+onBeforeUnmount(() => clearTimeout(searchTimer))
 watch(search, () => {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
@@ -443,7 +453,7 @@ async function submitForm(input) {
       </div>
       <button v-if="filterCount || search || statusFilter || groupFilter" class="btn ghost danger" @click="clearFilters">{{ t('client.menu.clearAllFilters') }}</button>
       <span v-if="page" class="faint small spacer">
-        {{ t('client.menu.showingCount', { shown: page.items.length, total: stats?.clients ?? page.total }) }}
+        {{ t('client.menu.showingCount', { shown: page.items.length, total: page.total }) }}
       </span>
     </div>
 

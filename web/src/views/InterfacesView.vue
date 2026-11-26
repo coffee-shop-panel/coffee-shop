@@ -63,8 +63,11 @@ function readKind() {
 watch(kind, (v) => {
   page.value = 1
   // A selection belongs to the tab it was made on: left over, a bulk
-  // delete would reach tunnels of the other kind.
+  // delete would reach tunnels of the other kind. The server filter
+  // belongs to its tab the same way: left over, the new tab can show an
+  // empty list with no chip row of its own to clear it from.
   selected.value = new Set()
+  serverFilter.value = ''
   try { localStorage.setItem(KIND_KEY, v) } catch { /* private window */ }
 })
 const isPanel = (i) => i.protocol === 'xray'

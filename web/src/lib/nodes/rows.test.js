@@ -28,6 +28,11 @@ describe('a node’s row', () => {
     expect(ago(new Date(NOW - 2 * 86400e3).toISOString(), NOW)).toMatch(/day/i)
   })
 
+  it('never says "NaN days ago" for a stamp that does not parse', () => {
+    expect(ago('not-a-date', NOW)).toBe(ago(null, NOW))
+    expect(ago('not-a-date', NOW)).not.toMatch(/NaN/)
+  })
+
   it('writes uptime in days and hours, or hours and minutes', () => {
     expect(uptime(0)).toBe('—')
     expect(uptime(90061)).toBe('1d 1h')

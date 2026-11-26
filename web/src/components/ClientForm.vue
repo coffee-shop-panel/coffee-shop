@@ -463,12 +463,15 @@ function validate() {
   const e = {}
   if (!form.value.name.trim()) e.name = t('client.nameRequired')
   if (!form.value.interfaceIds.length) e.servers = t('client.chooseAtLeastOne')
-  if (form.value.startOnFirstUse && !(planDays() > 0)) e.expiresIn = t('client.durationRequired')
+  if (Number(form.value.quota) < 0) e.quota = t('client.negativeNotAllowed')
+  if (Number(form.value.deviceLimit) < 0) e.deviceLimit = t('client.negativeNotAllowed')
+  if (Number(form.value.expiresIn) < 0) e.expiresIn = t('client.negativeNotAllowed')
+  else if (form.value.startOnFirstUse && !(planDays() > 0)) e.expiresIn = t('client.durationRequired')
   const sid = form.value.subId.trim()
   if (sid && !/^[A-Za-z0-9_-]{8,64}$/.test(sid)) e.subId = t('client.subIdInvalid')
   fieldError.value = e
   if (Object.keys(e).length) {
-    tab.value = e.name || e.servers || e.expiresIn ? 'basics' : 'credentials'
+    tab.value = e.name || e.servers || e.quota || e.deviceLimit || e.expiresIn ? 'basics' : 'credentials'
     return false
   }
   return true
@@ -581,15 +584,17 @@ async function submit() {
                 <div class="aform-item">
                   <label class="aform-label" for="cf-quota">{{ t('client.quota') }} <HelpTip :text="t('client.quotaHint')" /></label>
                   <div class="acompact">
-                    <label class="ainput number"><input id="cf-quota" v-model="form.quota" type="number" min="0" step="any" inputmode="decimal" class="ltr" :placeholder="t('client.unlimited')" /></label>
+                    <label class="ainput number" :class="{ invalid: fieldError.quota }"><input id="cf-quota" v-model="form.quota" type="number" min="0" step="any" inputmode="decimal" class="ltr" :placeholder="t('client.unlimited')" /></label>
                     <div class="aselect unit"><select v-model="form.quotaUnit" :aria-label="t('client.quotaUnit')"><option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option></select></div>
                   </div>
+                  <p v-if="fieldError.quota" class="field-error">{{ fieldError.quota }}</p>
                 </div>
               </div>
               <div class="acol6">
                 <div class="aform-item">
                   <label class="aform-label" for="cf-devices">{{ t('client.deviceLimit') }} <HelpTip :text="t('client.deviceLimitHint')" /></label>
-                  <label class="ainput number"><input id="cf-devices" v-model="form.deviceLimit" type="number" min="0" max="50" class="ltr" :placeholder="t('client.unlimited')" /></label>
+                  <label class="ainput number" :class="{ invalid: fieldError.deviceLimit }"><input id="cf-devices" v-model="form.deviceLimit" type="number" min="0" max="50" class="ltr" :placeholder="t('client.unlimited')" /></label>
+                  <p v-if="fieldError.deviceLimit" class="field-error">{{ fieldError.deviceLimit }}</p>
                 </div>
               </div>
             </div>

@@ -23,7 +23,11 @@ export function totals(nodes) {
 
 export function ago(iso, now = Date.now()) {
   if (!iso) return t('node.never')
-  const secs = Math.round((now - new Date(iso)) / 1000)
+  const seen = new Date(iso)
+  // A stamp that does not parse is not a date: without this every
+  // comparison below is false and the line reads "NaN days ago".
+  if (Number.isNaN(seen.getTime())) return t('node.never')
+  const secs = Math.round((now - seen) / 1000)
   if (secs < 60) return t('node.justNow')
   if (secs < 3600) return tn('node.minutesAgo', Math.round(secs / 60))
   if (secs < 86400) return tn('node.hoursAgo', Math.round(secs / 3600))

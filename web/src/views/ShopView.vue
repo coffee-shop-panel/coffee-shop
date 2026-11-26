@@ -449,17 +449,29 @@ async function copyLink() {
 // an object address over the fetched bytes. It is revoked when the modal
 // closes -- left alone, every viewing would keep its photo in memory.
 const receiptView = ref(null)
+// Which receipt was asked for last: opening a second receipt while the
+// first is still arriving must not let the first one's late answer put
+// the wrong order in the modal -- approving from it would approve that
+// order, not the one on screen.
+let receiptSeq = 0
 
 async function viewReceipt(order) {
+  const mine = ++receiptSeq
   try {
     const blob = await api.shopReceipt(order.id)
+    if (mine !== receiptSeq) return
+    if (receiptView.value) URL.revokeObjectURL(receiptView.value.url)
     receiptView.value = { order, url: URL.createObjectURL(blob) }
   } catch (e) {
+    if (mine !== receiptSeq) return
     notify(e.message, 'error')
   }
 }
 
 function closeReceipt() {
+  // A receipt still arriving after the modal closed has nothing to open
+  // into: its late answer is dropped with the next sequence number.
+  receiptSeq++
   if (receiptView.value) URL.revokeObjectURL(receiptView.value.url)
   receiptView.value = null
 }

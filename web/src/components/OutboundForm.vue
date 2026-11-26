@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { api } from '../lib/api.js'
 import { t, notify } from '../lib/store.js'
 import Icon from './Icon.vue'
@@ -365,6 +365,11 @@ async function regenerate() {
   }
 }
 let deriveTimer = null
+// The newest key wins: a slow derive for the key just replaced must not
+// land after the new one and pair the new private key with the old
+// public one.
+let deriveSeq = 0
+onBeforeUnmount(() => clearTimeout(deriveTimer))
 watch(
   () => form.value.privateKey,
   (pk) => {
@@ -374,11 +379,12 @@ watch(
       return
     }
     deriveTimer = setTimeout(async () => {
+      const mine = ++deriveSeq
       try {
         const r = await api.post('/api/wgkey', { privateKey: pk.trim() })
-        form.value.publicKey = r.publicKey
+        if (mine === deriveSeq) form.value.publicKey = r.publicKey
       } catch {
-        form.value.publicKey = ''
+        if (mine === deriveSeq) form.value.publicKey = ''
       }
     }, 250)
   },

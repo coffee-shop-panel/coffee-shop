@@ -63,20 +63,23 @@ const input = computed(() => {
 })
 
 // The amount in words, from what the panel understood: "3 days 12 hours",
-// "10.5 GB".
+// "10.5 GB". Counted in minutes, not rounded hours: half an hour is
+// "30 min", not "1 hours".
 const amountText = computed(() => {
   const a = Math.abs(Number(preview.value?.amount || 0))
   if (!a) return ''
   if (!isTime.value) return bytes(a, store.locale)
-  const hours = Math.round(a / 3600)
-  const months = Math.floor(hours / (30 * 24))
-  const days = Math.floor((hours % (30 * 24)) / 24)
-  const h = hours % 24
+  const mins = Math.round(a / 60)
+  const months = Math.floor(mins / (30 * 24 * 60))
+  const days = Math.floor((mins % (30 * 24 * 60)) / (24 * 60))
+  const h = Math.floor((mins % (24 * 60)) / 60)
+  const m = mins % 60
   const parts = []
   if (months) parts.push(`${nf(months)} ${t('unit.months')}`)
   if (days) parts.push(`${nf(days)} ${t('unit.days')}`)
   if (h) parts.push(`${nf(h)} ${t('unit.hours')}`)
-  return parts.join(' ') || `${nf(Math.round(a / 60))} min`
+  if (m) parts.push(`${nf(m)} min`)
+  return parts.join(' ') || `${nf(mins)} min`
 })
 const nf = (n) => Number(n || 0).toLocaleString(store.locale)
 

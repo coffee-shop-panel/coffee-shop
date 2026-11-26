@@ -28,16 +28,25 @@ const data = ref(null)
 const loading = ref(true)
 const loadError = ref(null)
 
+// Each load is one month's question; a newer month makes an older answer
+// wrong, so an older answer that lands last is dropped instead of showing
+// the wrong month's figures under the month just picked.
+let loadSeq = 0
 async function load() {
+  const mine = ++loadSeq
+  const forMonth = month.value
   loading.value = true
   try {
-    data.value = await api.overviewReport(month.value)
+    const d = await api.overviewReport(forMonth)
+    if (mine !== loadSeq) return
+    data.value = d
     loadError.value = null
   } catch (err) {
+    if (mine !== loadSeq) return
     loadError.value = err
     notify(err.message, 'error')
   } finally {
-    loading.value = false
+    if (mine === loadSeq) loading.value = false
   }
 }
 onMounted(load)

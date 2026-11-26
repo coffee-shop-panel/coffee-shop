@@ -164,9 +164,15 @@ onMounted(() => {
   api.interfaces({ background: true }).then((list) => (interfaces.value = list || [])).catch(() => {})
 })
 
+// Which device's config was asked for last: opening a second device
+// while the first is still arriving must not let the first one's late
+// QR put the wrong private key under the device name on screen.
+let profileSeq = 0
 async function showProfile(account) {
+  const mine = ++profileSeq
   try {
     const p = await api.profile(account.id)
+    if (mine !== profileSeq) return
     profile.value = { ...p, account }
     qr.value = ''
     // Opening another device is not asking to see its key.
@@ -175,10 +181,12 @@ async function showProfile(account) {
     // delivery path on mobile. OpenVPN clients cannot, so it is skipped there.
     if (client.value.protocol === 'wireguard') {
       const code = await makeQR(p.body)
+      if (mine !== profileSeq) return
       qr.value = code.dataUrl
       qrSize.value = code.size
     }
   } catch (err) {
+    if (mine !== profileSeq) return
     notify(err.message, 'error')
   }
 }

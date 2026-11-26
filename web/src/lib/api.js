@@ -316,20 +316,51 @@ export async function saveFile(path, fallbackName) {
 // fetchBlob is saveFile without the saving: the bytes come back to the
 // caller instead of going to disk, for the answers that are shown rather
 // than stored -- a receipt photo opened in the page, say. Same session,
-// same errors; an <img> pointed at the address would carry neither.
+// same errors; an <img> pointed at the address would carry neither. And
+// the same bound as a download: without one a response that stalls leaves
+// the seller staring at a receipt that never opens, with no error at all.
 async function fetchBlob(path) {
-  const res = await fetch(apiURL(path), {
-    headers: { Authorization: `Bearer ${getToken()}` },
-    credentials: 'same-origin',
-  })
+  const abort = new AbortController()
+  const overall = setTimeout(() => abort.abort(), downloadTimeout)
+  let stall = null
+  const armStall = () => {
+    clearTimeout(stall)
+    stall = setTimeout(() => abort.abort(), downloadStallTimeout)
+  }
+  const stopTimers = () => {
+    clearTimeout(overall)
+    clearTimeout(stall)
+  }
+
+  let res
+  try {
+    armStall()
+    res = await fetch(apiURL(path), {
+      headers: { Authorization: `Bearer ${getToken()}` },
+      credentials: 'same-origin',
+      signal: abort.signal,
+    })
+  } catch (err) {
+    stopTimers()
+    if (err?.name === 'AbortError') {
+      throw new ApiError('The download did not finish in time. Try again.', 0, 'timeout')
+    }
+    throw new ApiError(
+      'Could not reach the panel. Check that it is running and that your connection is up.',
+      0,
+      'network',
+    )
+  }
 
   if (res.status === 401) {
+    stopTimers()
     setToken(null)
     window.dispatchEvent(new CustomEvent('wui:unauthorized'))
     throw new ApiError('', 401, 'session')
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '')
+    stopTimers()
     let message = text
     try {
       message = JSON.parse(text)?.error || text
@@ -338,7 +369,32 @@ async function fetchBlob(path) {
     }
     throw new ApiError(message || `Request failed (${res.status})`, res.status)
   }
-  return res.blob()
+  // Read chunk by chunk, as saveFile does, so the stall timer can tell a
+  // photo that is still arriving from one that stopped.
+  let blob
+  try {
+    if (!res.body) {
+      blob = await res.blob()
+    } else {
+      const reader = res.body.getReader()
+      const chunks = []
+      for (;;) {
+        armStall()
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+      }
+      blob = new Blob(chunks)
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new ApiError('The download stalled and was stopped. Try again.', 0, 'timeout')
+    }
+    throw err
+  } finally {
+    stopTimers()
+  }
+  return blob
 }
 
 // saveText hands the browser a file made here, for the exports that are

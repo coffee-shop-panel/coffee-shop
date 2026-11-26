@@ -138,6 +138,10 @@ function validate() {
   if (!Number.isInteger(n) || n < 1 || n > 200) e.count = t('client.batchCountRange')
   if (form.value.method !== 'random' && !form.value.prefix.trim()) e.prefix = t('client.batchPrefixRequired')
   if (!form.value.interfaceIds.length) e.servers = t('client.selectServers')
+  if (Number(form.value.quota) < 0) e.quota = t('client.negativeNotAllowed')
+  if (Number(form.value.deviceLimit) < 0) e.deviceLimit = t('client.negativeNotAllowed')
+  if (Number(form.value.expiresIn) < 0) e.expiresIn = t('client.negativeNotAllowed')
+  else if (form.value.startOnFirstUse && !(planDays() > 0)) e.expiresIn = t('client.durationRequired')
   fieldError.value = e
   return !Object.keys(e).length
 }
@@ -242,15 +246,17 @@ async function submit() {
               <div class="aform-item">
                 <label class="aform-label" for="bf-quota">{{ t('client.quota') }} <HelpTip :text="t('client.quotaHint')" /></label>
                 <div class="acompact">
-                  <label class="ainput number"><input id="bf-quota" v-model="form.quota" type="number" min="0" step="any" inputmode="decimal" class="ltr" :placeholder="t('client.unlimited')" /></label>
+                  <label class="ainput number" :class="{ invalid: fieldError.quota }"><input id="bf-quota" v-model="form.quota" type="number" min="0" step="any" inputmode="decimal" class="ltr" :placeholder="t('client.unlimited')" /></label>
                   <div class="aselect unit"><select v-model="form.quotaUnit" :aria-label="t('client.quotaUnit')"><option value="MB">MB</option><option value="GB">GB</option><option value="TB">TB</option></select></div>
                 </div>
+                <p v-if="fieldError.quota" class="field-error">{{ fieldError.quota }}</p>
               </div>
             </div>
             <div class="acol6">
               <div class="aform-item">
                 <label class="aform-label" for="bf-devices">{{ t('client.deviceLimit') }} <HelpTip :text="t('client.deviceLimitHint')" /></label>
-                <label class="ainput number"><input id="bf-devices" v-model="form.deviceLimit" type="number" min="0" max="50" class="ltr" :placeholder="t('client.unlimited')" /></label>
+                <label class="ainput number" :class="{ invalid: fieldError.deviceLimit }"><input id="bf-devices" v-model="form.deviceLimit" type="number" min="0" max="50" class="ltr" :placeholder="t('client.unlimited')" /></label>
+                <p v-if="fieldError.deviceLimit" class="field-error">{{ fieldError.deviceLimit }}</p>
               </div>
             </div>
           </div>
@@ -260,9 +266,10 @@ async function submit() {
               <div class="aform-item">
                 <label class="aform-label" for="bf-expires">{{ form.startOnFirstUse ? t('client.expireDays') : t('client.expiresIn') }} <HelpTip :text="form.startOnFirstUse ? t('client.durationHint') : t('client.expiresHint')" /></label>
                 <div class="acompact">
-                  <label class="ainput number"><input id="bf-expires" v-model="form.expiresIn" type="number" min="0" step="any" inputmode="decimal" class="ltr" :placeholder="form.startOnFirstUse ? '30' : t('client.neverExpires')" /></label>
+                  <label class="ainput number" :class="{ invalid: fieldError.expiresIn }"><input id="bf-expires" v-model="form.expiresIn" type="number" min="0" step="any" inputmode="decimal" class="ltr" :placeholder="form.startOnFirstUse ? '30' : t('client.neverExpires')" /></label>
                   <div class="aselect unit"><select v-model="form.expiresUnit" :aria-label="t('client.expiresUnit')"><option value="hours">{{ t('unit.hours') }}</option><option value="days">{{ t('unit.days') }}</option><option value="months">{{ t('unit.months') }}</option></select></div>
                 </div>
+                <p v-if="fieldError.expiresIn" class="field-error">{{ fieldError.expiresIn }}</p>
               </div>
             </div>
             <div class="acol6">
