@@ -137,6 +137,70 @@ func TestTheLastClientOnA3xui2InboundIsSwitchedOffNotRemoved(t *testing.T) {
 	r.round() // and the next round leaves it be
 }
 
+// A client duplicated onto a second inbound — 3x-ui 3.1 and later lets one
+// client sit on several — is taken away: left there it would keep serving
+// with the same credentials while this panel counts and cuts off only the
+// one it knows.
+func TestAClientDuplicatedOntoASecondInboundIsTakenAway(t *testing.T) {
+	for _, g := range xuiGenerations {
+		t.Run(g.name, func(t *testing.T) {
+			f := newFakeXUI(t, g.version)
+			in := f.addInbound("vless-in", "vless", 31001, map[string]any{"decryption": "none"}, nil)
+			other := f.addInbound("vless-two", "vless", 31002, map[string]any{"decryption": "none"}, nil)
+			// The second inbound needs another client of its own: on a 2.x
+			// panel the last client is switched off rather than removed.
+			f.addOwnClient(other.ID, map[string]any{"id": "owner-id", "email": "owner-2", "enable": true, "subId": "ownersub"})
+
+			r := newRig(t, xuiNode(f, g.token, g.login))
+			r.round() // the inbound arrives as a tunnel first
+			c := r.customer("alice", "vless-in")
+			r.round()
+			acc := r.account(c.ID, "vless-in")
+			email := service.XUIEmail(r.tag(), &acc)
+			if f.client(in.ID, email) == nil {
+				t.Fatalf("no client %s on the first inbound", email)
+			}
+			// Duplicated there by hand, as a panel that allows one client
+			// on several inbounds does.
+			f.addOwnClient(other.ID, map[string]any{"id": acc.Secret, "email": email, "enable": true, "subId": email})
+			r.round()
+			// Before 3.1 the take-away is per inbound, and the copy goes.
+			// From 3.1 the client is one record shared by its inbounds:
+			// taking it away from one would take it away from its own
+			// too, so the copy is left there — and the own one must stand.
+			if strings.HasPrefix(g.version, "3.10") {
+				if f.client(other.ID, email) == nil {
+					t.Fatal("the copy on the second inbound went, and with it the client's own")
+				}
+			} else if f.client(other.ID, email) != nil {
+				t.Fatalf("the copy on the second inbound is still there: %v", f.emails(other.ID))
+			}
+			if f.client(in.ID, email) == nil {
+				t.Fatal("the copy on its own inbound was taken away with it")
+			}
+		})
+	}
+}
+
+// A top outbound whose settings cannot be read is said, not silently left
+// behind: the node's customers would otherwise leave directly from the
+// node, and the round would succeed.
+func TestABrokenTopOutboundFailsTheRound(t *testing.T) {
+	f := newFakeXUI(t, "3.10.2")
+	f.addInbound("vless-in", "vless", 31005, map[string]any{"decryption": "none"}, nil)
+	r := newRig(t, xuiNode(f, true, false))
+	r.round()
+	r.customer("dan", "vless-in")
+	hop := model.Outbound{Tag: "de-hop", Kind: model.OutboundVLESS, Enabled: true, Position: -1, Config: `{not json`}
+	if err := r.db.Create(&hop).Error; err != nil {
+		t.Fatal(err)
+	}
+	err := r.roundErr()
+	if err == nil || !strings.Contains(err.Error(), "outbound") {
+		t.Fatalf("round said %v", err)
+	}
+}
+
 // A 3x-ui 3.10 that is given a password it refuses is still reached by its
 // token: only what needs the sign-in is lost, not the node.
 func TestA3xuiRefusingTheSignInIsStillReachedByItsToken(t *testing.T) {

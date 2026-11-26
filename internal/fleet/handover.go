@@ -201,6 +201,37 @@ func (s *NodeSync) Claim(ctx context.Context, nodeID uint, c handover.Claim) err
 			return fault.Field("tunnels", "the handover leaves out %s; a tunnel goes with every customer on it", strings.Join(dedupe(missing), ", "))
 		}
 
+		// And what is named has to be there to hand over, and still this
+		// panel's own: a customer or a file that does not exist, or one
+		// another panel already manages, is not handed over by being named.
+		if len(c.Clients) > 0 {
+			ids := make([]uint, 0, len(c.Clients))
+			for _, p := range c.Clients {
+				ids = append(ids, p.LocalID)
+			}
+			var ownClients []model.Client
+			if err := tx.Where("id IN ? AND origin_id = 0", ids).Find(&ownClients).Error; err != nil {
+				return err
+			}
+			if len(ownClients) != len(ids) {
+				return fault.Field("tunnels", "a customer named is not one of this panel's own; it may have been handed over already")
+			}
+		}
+		if len(c.Accounts) > 0 {
+			ids := make([]uint, 0, len(c.Accounts))
+			for _, p := range c.Accounts {
+				ids = append(ids, p.LocalID)
+			}
+			var onTunnel int64
+			if err := tx.Model(&model.Account{}).Where("id IN ? AND interface_id IN ?", ids, tunnelIDs).
+				Count(&onTunnel).Error; err != nil {
+				return err
+			}
+			if int(onTunnel) != len(ids) {
+				return fault.Field("tunnels", "a file named is not on one of these tunnels; it may have been handed over already")
+			}
+		}
+
 		for _, p := range c.Tunnels {
 			if err := tx.Model(&model.Interface{}).Where("id = ?", p.LocalID).
 				Updates(map[string]any{"managed": true, "origin_id": p.OriginID}).Error; err != nil {

@@ -222,6 +222,10 @@ func (s *Syncer) xrayRound(ctx context.Context, node model.Node, p xrayPanel) er
 		}
 		if r.name != "" {
 			wanted[r.name] = true
+			// And the inbound it belongs on: a copy of the same client on
+			// another inbound is not wanted there, and the sweep below
+			// must take it away rather than skip it for its email.
+			wanted[remoteKey(f.iface.XUI.V.RemoteID, r.name)] = true
 		}
 		if r.err != nil {
 			failures = append(failures, r.err.Error())

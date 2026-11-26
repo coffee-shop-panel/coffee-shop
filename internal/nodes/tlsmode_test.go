@@ -309,3 +309,21 @@ func TestVerifyForTheAddressNotTheName(t *testing.T) {
 		}
 	}
 }
+
+// A name given for the handshake alone, on a hostname address: the
+// certificate is still checked against the node's address, not the name —
+// a certificate legitimately issued for the handshake name alone must not
+// satisfy it.
+func TestTheCertificateIsCheckedAgainstAHostnameToo(t *testing.T) {
+	n := model.Node{Address: "https://panel.example.com:2096", TLSMode: model.TLSVerify, TLSServerName: "www.example.com"}
+	cfg, err := tlsConfigFor(n, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ServerName != "www.example.com" {
+		t.Errorf("ServerName %q, want the handshake name", cfg.ServerName)
+	}
+	if cfg.VerifyConnection == nil {
+		t.Error("no check against the node's address: a certificate for the handshake name alone would be accepted")
+	}
+}

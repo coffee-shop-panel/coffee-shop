@@ -180,13 +180,16 @@ func (x *xuiAPI) learn(ctx context.Context) error {
 	}
 	if x.version == "" {
 		var probe json.RawMessage
-		switch {
-		case x.call(ctx, http.MethodGet, x.base+"clients/list", nil, &probe) == nil:
+		if err := x.call(ctx, http.MethodGet, x.base+"clients/list", nil, &probe); err == nil {
 			x.gen = xuiGenNew
-		case x.call(ctx, http.MethodGet, x.base+"server/status", nil, &probe) == nil:
+		} else if err := x.call(ctx, http.MethodGet, x.base+"server/status", nil, &probe); err == nil {
 			x.gen = xuiGenMid
-		default:
-			x.gen = xuiGenOld
+		} else {
+			// Neither probe answered: the panel is unreachable, or the
+			// token is wrong, and guessing "old" would say the token was
+			// refused for what was an outage, or send old routes at a new
+			// panel. Say so instead, and do not cache the guess.
+			return fmt.Errorf("the panel did not answer: %w", err)
 		}
 	}
 	xuiInfos.Store(xuiInfoKey(x.node), xuiInfo{version: x.version, gen: x.gen})

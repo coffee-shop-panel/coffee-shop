@@ -254,6 +254,13 @@ func (s *Syncer) xuiEgress(ctx context.Context, api *xuiAPI, node model.Node, ro
 		}
 		return fmt.Errorf("reading its xray settings: %w", err)
 	}
+	if egressErr != nil {
+		// The outbound at the top is broken: leaving directly would hide
+		// it, and a round that succeeds would never tell the operator.
+		// Only a genuine "nothing to put" — direct, off, or OpenVPN —
+		// carries no error and reaches the paths below.
+		return fmt.Errorf("reading the outbound for xray: %w", egressErr)
+	}
 	next := withEgress(cfg, egress, route)
 	if reflect.DeepEqual(normalJSON(next), normalJSON(cfg)) {
 		// Already what it should be — including when the top outbound is
@@ -280,6 +287,7 @@ func (s *Syncer) xuiEgress(ctx context.Context, api *xuiAPI, node model.Node, ro
 	// because of ours.
 	if rerr := api.saveXrayTemplate(ctx, cfg); rerr != nil {
 		s.log.Error("a 3x-ui node's xray stopped with this panel's outbound, and could not be put back", "node", node.Name, "error", rerr)
+		return fmt.Errorf("its xray did not run with the outbound %s (%s), and its settings could not be put back (%v)", tag, st.Xray.Error, rerr)
 	}
 	return fmt.Errorf("its xray did not run with the outbound %s (%s); its settings were put back as they were", tag, st.Xray.Error)
 }

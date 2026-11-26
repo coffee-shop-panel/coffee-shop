@@ -55,8 +55,12 @@ func CreateXrayInbound(ctx context.Context, node model.Node, in service.XrayInbo
 		// what runs is what was just made.
 		_ = api.restartXray(ctx)
 		if err := api.xrayRunsAfter(ctx); err != nil {
-			_ = api.do(ctx, http.MethodPost, fmt.Sprintf("inbounds/del/%d", id), nil, nil)
-			_ = api.restartXray(ctx)
+			if derr := api.do(ctx, http.MethodPost, fmt.Sprintf("inbounds/del/%d", id), nil, nil); derr != nil {
+				return out, fmt.Errorf("its xray did not run with this inbound, and it could not be taken out again (%v): %w", derr, err)
+			}
+			if rerr := api.restartXray(ctx); rerr != nil {
+				return out, fmt.Errorf("its xray did not run with this inbound, and it could not be restarted after taking it out (%v): %w", rerr, err)
+			}
 			return out, fmt.Errorf("its xray did not run with this inbound, so it was taken out again: %w", err)
 		}
 		out.RemoteID, out.Tag = id, tag
@@ -207,12 +211,20 @@ func (p *pgAPI) addInbound(ctx context.Context, in service.XrayInboundInput, nod
 		return fmt.Errorf("the Pasarguard panel refused the inbound: %w", err)
 	}
 	putBack := func(why error) error {
+		var rb []string
 		if standing {
-			_ = p.deleteUser(ctx, pgStandingName(in.Remark))
+			if err := p.deleteUser(ctx, pgStandingName(in.Remark)); err != nil {
+				rb = append(rb, fmt.Sprintf("taking its standing user away failed: %v", err))
+			}
 		}
 		var old map[string]any
 		_ = json.Unmarshal(before, &old)
-		_ = p.putCore(ctx, pgCore{ID: core.ID, Name: core.Name, Config: old}, true)
+		if err := p.putCore(ctx, pgCore{ID: core.ID, Name: core.Name, Config: old}, true); err != nil {
+			rb = append(rb, fmt.Sprintf("putting its core back failed: %v", err))
+		}
+		if len(rb) > 0 {
+			return fmt.Errorf("the core could not be put back as it was (%s): %w", strings.Join(rb, "; "), why)
+		}
 		return fmt.Errorf("the core was put back as it was: %w", why)
 	}
 	if standing {

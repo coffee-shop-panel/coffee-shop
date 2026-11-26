@@ -149,6 +149,10 @@ type Reconciler struct {
 	// kernel cannot shape would otherwise log the same line every couple of
 	// seconds for as long as it runs, which buries everything else.
 	lastShapeErr string
+	// allowanceWarned is whether the over-allowance warning below was
+	// already said: the condition lasts until an operator acts, and saying
+	// it every tick would bury everything else the same way.
+	allowanceWarned bool
 	// firewallWritten is the ports file last written for the firewall
 	// helper, so it is written only when the ports change.
 	firewallWritten []byte
@@ -160,6 +164,10 @@ type Reconciler struct {
 	lastHistory time.Time
 	// lastRenew is when plans that renew by the period were last looked at.
 	lastRenew time.Time
+	// relays is the hosts learned to be relays in front of this server,
+	// kept across ticks so a quiet one does not forget them. See
+	// recordEndpoints.
+	relays map[string]bool
 
 	// changes is told when a plan ends or starts here.
 	changes *service.Changes
@@ -188,6 +196,7 @@ func New(o Options) *Reconciler {
 	return &Reconciler{
 		nodeEvery: nodeEvery,
 		dataDir:   o.DataDir,
+		relays:    map[string]bool{},
 		conc:      newConcurrency(),
 		speed:     newSpeedTracker(interval, nodeEvery),
 		fileSpeed: newSpeedTracker(interval, nodeEvery),
@@ -457,7 +466,7 @@ func (r *Reconciler) collect(ctx context.Context) (uint64, error) {
 	// Written straight through rather than held for the traffic writer's
 	// next flush: this is an upsert of at most one row per connected account,
 	// and the sharing report reads it as it happens.
-	if err := recordEndpoints(ctx, r.db, seen, r.conc.clients(), now); err != nil {
+	if err := recordEndpoints(ctx, r.db, seen, r.conc.clients(), r.relays, now); err != nil {
 		r.log.Warn("could not record connection addresses", "error", err)
 	}
 	r.maybePrune(ctx, now)
@@ -1112,11 +1121,20 @@ func (r *Reconciler) overAllowance(ctx context.Context) bool {
 		return false // no row to read a limit from is no limit
 	}
 	if !node.OverAllowance {
+		r.mu.Lock()
+		r.allowanceWarned = false
+		r.mu.Unlock()
 		return false
 	}
-	r.log.Warn("this server has used its whole transfer allowance; customers are off it",
-		"used", node.UsedBytes, "allowance", node.DataLimitBytes,
-		"fix", "raise the allowance on the Servers page, or clear the counter")
+	r.mu.Lock()
+	warned := r.allowanceWarned
+	r.allowanceWarned = true
+	r.mu.Unlock()
+	if !warned {
+		r.log.Warn("this server has used its whole transfer allowance; customers are off it",
+			"used", node.UsedBytes, "allowance", node.DataLimitBytes,
+			"fix", "raise the allowance on the Servers page, or clear the counter")
+	}
 	return true
 }
 

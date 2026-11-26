@@ -482,11 +482,15 @@ var T = {
 var APPS = {
   android: [
     { n: 'WireGuard', d: { fa: 'کلاینت رسمی وایرگارد', en: 'The official WireGuard client' }, u: 'https://play.google.com/store/apps/details?id=com.wireguard.android' },
-    { n: 'AmneziaWG', neu: 1, d: { fa: 'وایرگارد مقاوم‌تر در برابر فیلترینگ', en: 'WireGuard hardened against filtering' }, u: 'https://play.google.com/store/apps/details?id=org.amnezia.awg' }
+    { n: 'AmneziaWG', neu: 1, d: { fa: 'وایرگارد مقاوم‌تر در برابر فیلترینگ', en: 'WireGuard hardened against filtering' }, u: 'https://play.google.com/store/apps/details?id=org.amnezia.awg' },
+    { n: 'Hiddify', neu: 1, d: { fa: 'وایرگارد و V2Ray در یک اپ', en: 'WireGuard and V2Ray in one app' }, u: 'https://play.google.com/store/apps/details?id=app.hiddify.com' },
+    { n: 'V2Box', neu: 1, v2: 1, d: { fa: 'کانفیگ‌ها با یک کلیک اضافه می‌شن', en: 'Imports configs in one tap' }, u: 'https://play.google.com/store/apps/details?id=dev.hexasoftware.v2box' },
+    { n: 'v2rayNG', d: { fa: 'کلاینت V2Ray برای اندروید', en: 'V2Ray client for Android' }, u: 'https://github.com/2dust/v2rayNG/releases' }
   ],
   ios: [
     { n: 'WireGuard', d: { fa: 'کلاینت رسمی وایرگارد', en: 'The official WireGuard client' }, u: 'https://apps.apple.com/app/wireguard/id1441195209' },
     { n: 'AmneziaWG', neu: 1, d: { fa: 'وایرگارد مقاوم‌تر در برابر فیلترینگ', en: 'WireGuard hardened against filtering' }, u: 'https://apps.apple.com/app/id6478942365' },
+    { n: 'Hiddify', neu: 1, d: { fa: 'وایرگارد و V2Ray در یک اپ', en: 'WireGuard and V2Ray in one app' }, u: 'https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532' },
     { n: 'V2Box', neu: 1, v2: 1, d: { fa: 'کانفیگ‌ها با یک کلیک اضافه می‌شن', en: 'Imports configs in one tap' }, u: 'https://apps.apple.com/app/id6446814690' }
   ],
   windows: [
@@ -895,7 +899,7 @@ function viewAccount() {
 }
 function viewConfigs() {
   var h = '<section class="card"><h2>' + esc(t('configs')) + '</h2><p class="sub">' + esc(t('configsSub')) + '</p>';
-  if (S.nodes.length) h += '<button class="btn light full" style="margin-bottom:14px" data-act="copy-all">' + ic('copy') + esc(t('copyAll')) + '</button>';
+  if (S.nodes.some(function (n) { return !n.amnezia; })) h += '<button class="btn light full" style="margin-bottom:14px" data-act="copy-all">' + ic('copy') + esc(t('copyAll')) + '</button>';
   h += '<div class="tile row"><div class="rt"><span class="sq">' + ic('link') + '</span><div class="rn"><b>' + esc(t('subLink')) + '</b></div></div>';
   h += '<div class="mini-row" style="grid-template-columns:repeat(2,1fr)"><button class="mini" data-act="copy-link">' + ic('copy') + esc(t('copy')) + '</button><button class="mini" data-act="qr-link">' + ic('qr') + esc(t('qr')) + '</button></div></div>';
   var vs = v2boxSubLink();
@@ -947,7 +951,7 @@ function openApps(p) {
     h += '<a class="btn dark" href="' + esc(a.u) + '" target="_blank" rel="noopener noreferrer">' + esc(t('get')) + '</a></div>';
     if (a.v2) {
       h += '<div class="mini-row" style="margin:-2px 0 12px;grid-template-columns:1fr">';
-      if (rec) h += '<button class="mini g" style="flex-direction:row;gap:8px" data-act="v2-rec">' + ic('zap') + esc(t('v2boxAdd')) + '</button>';
+      if (rec && !rec.amnezia) h += '<button class="mini g" style="flex-direction:row;gap:8px" data-act="v2-rec">' + ic('zap') + esc(t('v2boxAdd')) + '</button>';
       if (v2boxSubLink()) h += '<button class="mini g" style="flex-direction:row;gap:8px" data-act="v2-sub-add">' + ic('zap') + esc(t('v2boxSubAdd')) + '</button>';
       h += '</div>';
     }
@@ -972,12 +976,21 @@ function renderNav() {
   }).join('');
 }
 /* supportHref turns the operator's free-text support contact into a link:
-   a full URL stays as it is, an @handle becomes a Telegram link, a phone
-   number a tel: link, and a bare domain gains https://. Anything else is
+   a full URL stays as it is, an @handle becomes a Telegram link, a bare
+   email a mailto: link, a phone number a tel: link, a bare username a
+   Telegram link, and a bare domain gains https://. Anything else is
    not a link at all, and the caller falls back to plain text. */
 function supportHref(sc) {
   if (!sc) return '';
-  return /^(https?:|tel:|mailto:|tg:)/i.test(sc) ? sc : (/^@/.test(sc) ? 'https://t.me/' + sc.slice(1) : (/^\+?[\d\s-]{6,}$/.test(sc) ? 'tel:' + sc.replace(/\s+/g, '') : (/^[\w.-]+\.[a-z]{2,}/i.test(sc) ? 'https://' + sc : '')));
+  sc = String(sc).trim();
+  if (!sc) return '';
+  if (/^(https?:|tel:|mailto:|tg:)/i.test(sc)) return sc;
+  if (/^@/.test(sc)) return 'https://t.me/' + sc.slice(1);
+  if (/^[\w.+-]+@[\w-]+\.[a-z]{2,}$/i.test(sc)) return 'mailto:' + sc;
+  if (/^\+?[\d\s-]{6,}$/.test(sc)) return 'tel:' + sc.replace(/\s+/g, '');
+  if (/^[\w.-]+\.[a-z]{2,}/i.test(sc)) return 'https://' + sc;
+  if (/^[\w]{5,}$/.test(sc)) return 'https://t.me/' + sc;
+  return '';
 }
 function renderChrome() {
   document.documentElement.lang = S.lang;
@@ -1063,10 +1076,10 @@ function onClick(e) {
     case 'node-v2': withNode(b, function (txt, n, i) { var u = nodeUri(txt, n, i); if (u) openV2(u); else toast(t('cfgErr')); }); break;
     case 'v2-rec': { var r = recNode(); if (r.n) { toast(t('fetching')); getConfig(r.n, 'n' + r.i).then(function (txt) { if (r.n.amnezia) { var blob = new Blob([txt], { type: 'application/octet-stream' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = cfgFileName(r.n, r.i); document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); toast(t('dled')); return; } var u = nodeUri(txt, r.n, r.i); if (u) openV2(u); else toast(t('cfgErr')); }).catch(function () { toast(t('cfgErr')); }); } break; }
     case 'copy-all': toast(t('fetching')); Promise.all(S.nodes.map(function (n, i) { return getConfig(n, 'n' + i).then(function (txt) { return n.amnezia ? null : nodeUri(txt, n, i); }); }))
-      .then(function (list) { doCopy(list.filter(Boolean).join('\n'), t('v2boxTip')); }).catch(function () { toast(t('cfgErr')); }); break;
+      .then(function (list) { var s = list.filter(Boolean).join('\n'); if (s) doCopy(s, t('v2boxTip')); else toast(t('cfgErr')); }).catch(function () { toast(t('cfgErr')); }); break;
     case 'v2-sub-add': { var s = v2boxSubLink(); if (s) { var nm = (S.info && S.info.label) || CFG.brand; var u = 'v2box://install-sub?url=' + encodeURIComponent(s) + '&name=' + encodeURIComponent(nm); doCopy(s, t('v2boxTip')).then(function () { location.href = u; }); } break; }
     case 'v2-sub-copy': { var s2 = v2boxSubLink(); if (s2) doCopy(s2); break; }
-    case 'hid-add': { var hs = hiddifySubLink(); var hn = (S.info && S.info.label) || CFG.brand; var hu = 'hiddify://import/' + hs + '#' + encodeURIComponent(hn); doCopy(hs, t('hidTip')).then(function () { var pf = platform(); var store = pf === 'android' ? 'https://play.google.com/store/apps/details?id=app.hiddify.com' : pf === 'ios' ? 'https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532' : 'https://github.com/hiddify/hiddify-app/releases/latest'; var gone = false; var mark = function () { gone = true; }; document.addEventListener('visibilitychange', mark); window.addEventListener('pagehide', mark); window.addEventListener('blur', mark); location.href = hu; setTimeout(function () { document.removeEventListener('visibilitychange', mark); window.removeEventListener('pagehide', mark); window.removeEventListener('blur', mark); if (!gone && !document.hidden) location.href = store; }, 2000); }); break; }
+    case 'hid-add': { var hs = hiddifySubLink(); var hn = (S.info && S.info.label) || CFG.brand; var hu = 'hiddify://import/' + hs + '#' + encodeURIComponent(hn); fetch(hs).then(function (res) { if (!res.ok) { toast(t('cfgErr')); return; } doCopy(hs, t('hidTip')).then(function () { var pf = platform(); var store = pf === 'android' ? 'https://play.google.com/store/apps/details?id=app.hiddify.com' : pf === 'ios' ? 'https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532' : 'https://github.com/hiddify/hiddify-app/releases/latest'; var gone = false; var mark = function () { gone = true; }; document.addEventListener('visibilitychange', mark); window.addEventListener('pagehide', mark); window.addEventListener('blur', mark); location.href = hu; setTimeout(function () { document.removeEventListener('visibilitychange', mark); window.removeEventListener('pagehide', mark); window.removeEventListener('blur', mark); if (!gone && !document.hidden) location.href = store; }, 2000); }); }).catch(function () { toast(t('cfgErr')); }); break; }
     case 'hid-copy': doCopy(hiddifySubLink()); break;
   }
 }

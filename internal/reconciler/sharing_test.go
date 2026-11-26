@@ -62,7 +62,7 @@ func TestOneAddressIsNotSharing(t *testing.T) {
 	seedSharing(t, db, now)
 
 	r := &Reconciler{db: db, log: quietLog()}
-	if err := recordEndpoints(context.Background(), db, map[uint]string{1: "203.0.113.7:1"}, nil, now); err != nil {
+	if err := recordEndpoints(context.Background(), db, map[uint]string{1: "203.0.113.7:1"}, nil, nil, now); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 
@@ -84,7 +84,7 @@ func TestTwoAddressesAreNotYetSharing(t *testing.T) {
 	// A phone moving between wifi and mobile data reaches two addresses on its
 	// own. Reporting that would cry wolf on ordinary customers.
 	for _, addr := range []string{"203.0.113.7:1", "198.51.100.4:2"} {
-		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, now); err != nil {
+		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, nil, now); err != nil {
 			t.Fatalf("record: %v", err)
 		}
 	}
@@ -106,7 +106,7 @@ func TestThreeLiveAddressesAreReported(t *testing.T) {
 	ctx := context.Background()
 
 	for _, addr := range []string{"203.0.113.7:1", "198.51.100.4:2", "192.0.2.9:3"} {
-		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, now); err != nil {
+		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, nil, now); err != nil {
 			t.Fatalf("record: %v", err)
 		}
 	}
@@ -139,11 +139,11 @@ func TestAddressesOutsideTheWindowDoNotCount(t *testing.T) {
 	// three at once.
 	old := now.Add(-2 * sharingWindow)
 	for _, addr := range []string{"203.0.113.7:1", "198.51.100.4:2"} {
-		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, old); err != nil {
+		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, nil, old); err != nil {
 			t.Fatalf("record: %v", err)
 		}
 	}
-	if err := recordEndpoints(ctx, db, map[uint]string{1: "192.0.2.9:3"}, nil, now); err != nil {
+	if err := recordEndpoints(ctx, db, map[uint]string{1: "192.0.2.9:3"}, nil, nil, now); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 
@@ -164,10 +164,10 @@ func TestReconnectingKeepsTheOriginalFirstSeen(t *testing.T) {
 	ctx := context.Background()
 
 	first := now.Add(-time.Hour)
-	if err := recordEndpoints(ctx, db, map[uint]string{1: "203.0.113.7:1"}, nil, first); err != nil {
+	if err := recordEndpoints(ctx, db, map[uint]string{1: "203.0.113.7:1"}, nil, nil, first); err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	if err := recordEndpoints(ctx, db, map[uint]string{1: "203.0.113.7:2"}, nil, now); err != nil {
+	if err := recordEndpoints(ctx, db, map[uint]string{1: "203.0.113.7:2"}, nil, nil, now); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 
@@ -194,11 +194,11 @@ func TestPruneDropsOnlyLongDeadAddresses(t *testing.T) {
 	seedSharing(t, db, now)
 	ctx := context.Background()
 
-	if err := recordEndpoints(ctx, db, map[uint]string{1: "203.0.113.7:1"}, nil,
+	if err := recordEndpoints(ctx, db, map[uint]string{1: "203.0.113.7:1"}, nil, nil,
 		now.Add(-endpointRetention-time.Hour)); err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	if err := recordEndpoints(ctx, db, map[uint]string{2: "198.51.100.4:1"}, nil, now); err != nil {
+	if err := recordEndpoints(ctx, db, map[uint]string{2: "198.51.100.4:1"}, nil, nil, now); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 
@@ -222,7 +222,7 @@ func TestAnEmptyEndpointIsIgnored(t *testing.T) {
 
 	// A peer that has never handshaken reports no endpoint. Storing a blank
 	// would create a phantom address shared by every idle account.
-	if err := recordEndpoints(context.Background(), db, map[uint]string{1: ""}, nil, now); err != nil {
+	if err := recordEndpoints(context.Background(), db, map[uint]string{1: ""}, nil, nil, now); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 
@@ -362,6 +362,62 @@ func TestRelayPortsCountOnlyWhenTheyOverlap(t *testing.T) {
 	}
 	if sameHost([]span{{"1.2.3.4", m(0), m(1)}, {"5.6.7.8", m(0), m(1)}}) {
 		t.Fatal("different hosts are not a relay")
+	}
+}
+
+// A relay recognised on a busy tick stays one on a quiet tick: five
+// customers through it, then one alone, and the one alone is still
+// stored with its port, not collapsed onto the relay's bare address.
+func TestARelayStaysRecognisedOnAQuietTick(t *testing.T) {
+	db := newTestDB(t)
+	now := time.Now().UTC()
+	ctx := context.Background()
+
+	seen := map[uint]string{}
+	clientOf := map[uint]uint{}
+	var firstAcc uint
+	for i := uint(1); i <= 5; i++ {
+		cl := model.Client{Name: fmt.Sprintf("Customer%d", i), Status: model.StatusActive, DeviceLimit: 1}
+		if err := db.Create(&cl).Error; err != nil {
+			t.Fatal(err)
+		}
+		acc := model.Account{
+			ClientID: cl.ID, InterfaceID: 1, NodeID: 1,
+			DeviceName: "Phone", IP: fmt.Sprintf("10.66.0.%d", i), Enabled: true,
+		}
+		if err := db.Create(&acc).Error; err != nil {
+			t.Fatal(err)
+		}
+		if i == 1 {
+			firstAcc = acc.ID
+		}
+		seen[acc.ID] = "198.51.100.9:" + fmt.Sprint(1000+i)
+		clientOf[acc.ID] = cl.ID
+	}
+
+	relays := map[string]bool{}
+	if err := recordEndpoints(ctx, db, seen, clientOf, relays, now); err != nil {
+		t.Fatalf("record busy: %v", err)
+	}
+	if !relays["198.51.100.9"] {
+		t.Fatal("five customers from one address is a relay")
+	}
+	// A quiet tick: only one of them is live.
+	if err := recordEndpoints(ctx, db, map[uint]string{firstAcc: "198.51.100.9:2001"}, clientOf, relays, now); err != nil {
+		t.Fatalf("record quiet: %v", err)
+	}
+
+	var rows []model.AccountEndpoint
+	if err := db.Where("account_id = ?", firstAcc).Find(&rows).Error; err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("account has %d addresses, want 2 (one per flow)", len(rows))
+	}
+	for _, row := range rows {
+		if row.Addr == "198.51.100.9" {
+			t.Errorf("quiet tick collapsed the relay flow onto its bare address: %+v", rows)
+		}
 	}
 }
 

@@ -35,13 +35,13 @@ func TestASharedDeviceIsKeptInTheRecord(t *testing.T) {
 	r := &Reconciler{db: db, log: quietLog()}
 
 	for _, addr := range []string{"203.0.113.7:1", "198.51.100.4:2", "192.0.2.9:3"} {
-		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, now); err != nil {
+		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, nil, now); err != nil {
 			t.Fatal(err)
 		}
 	}
 	r.maybeRecordSharing(ctx, now)
 	// A minute on, a fourth address: the same record, one more address.
-	if err := recordEndpoints(ctx, db, map[uint]string{1: "192.0.2.77:4"}, nil, now.Add(time.Minute)); err != nil {
+	if err := recordEndpoints(ctx, db, map[uint]string{1: "192.0.2.77:4"}, nil, nil, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	r.maybeRecordSharing(ctx, now.Add(time.Minute))
@@ -258,7 +258,7 @@ func TestTheSharingNoticeGoesOnceWhenItBegins(t *testing.T) {
 	seedSharing(t, db, now)
 	r := &Reconciler{db: db, log: quietLog(), notifier: n}
 	for _, addr := range []string{"203.0.113.7:1", "198.51.100.4:2", "192.0.2.9:3"} {
-		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, now); err != nil {
+		if err := recordEndpoints(ctx, db, map[uint]string{1: addr}, nil, nil, now); err != nil {
 			t.Fatal(err)
 		}
 	}

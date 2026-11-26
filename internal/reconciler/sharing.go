@@ -63,16 +63,26 @@ type SharingReport struct {
 //
 // The address is reduced to its host: a customer's source port changes on every
 // reconnect, so keeping it would turn one sharer into a hundred.
-func recordEndpoints(ctx context.Context, db *gorm.DB, seen map[uint]string, clientOf map[uint]uint, now time.Time) error {
+//
+// relays, when given, is the hosts learned to be relays on earlier ticks: a
+// relay recognised once stays one, so a quiet tick that sees fewer of its
+// customers does not store their flows as one bare address and undo the
+// recognition. Learned hosts are added to it.
+func recordEndpoints(ctx context.Context, db *gorm.DB, seen map[uint]string, clientOf map[uint]uint, relays map[string]bool, now time.Time) error {
 	if len(seen) == 0 {
 		return nil
 	}
 
-	relays := relayHosts(seen, clientOf)
+	relayed := relayHosts(seen, clientOf)
+	for host := range relayed {
+		if relays != nil {
+			relays[host] = true
+		}
+	}
 	rows := make([]model.AccountEndpoint, 0, len(seen))
 	for accountID, endpoint := range seen {
 		host := hostOf(endpoint)
-		if relays[host] {
+		if relayed[host] || relays[host] {
 			// Behind a relay every customer arrives from the relay's own
 			// address, and only the port tells their flows apart.
 			host = strings.TrimSpace(endpoint)

@@ -50,6 +50,10 @@ type fakeXUI struct {
 	xray     map[string]any // the xray config it runs
 	// xrayFails says xray will not run with a config, as a real one may not.
 	xrayFails func(cfg map[string]any) bool
+	// xrayUpdateFailsFrom says xray settings saves fail from that update
+	// on: the first goes in, the put-back after it does not.
+	xrayUpdateFailsFrom int
+	xrayUpdates         int
 	// inboundFails says xray will not run with these inbounds.
 	inboundFails func(ins []*fakeXUIInbound) bool
 	restarts     int
@@ -454,6 +458,11 @@ func (f *fakeXUI) serveXray(w http.ResponseWriter, body []byte, update, asString
 		var cfg map[string]any
 		if err := json.Unmarshal([]byte(form.Get("xraySetting")), &cfg); err != nil {
 			fail200(w, "bad xray config")
+			return
+		}
+		f.xrayUpdates++
+		if f.xrayUpdateFailsFrom > 0 && f.xrayUpdates >= f.xrayUpdateFailsFrom {
+			fail200(w, "xray would not take the config")
 			return
 		}
 		f.xray = cfg

@@ -1,7 +1,9 @@
 package nodes
 
 import (
+	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/abolfazl/w-ui/internal/database/model"
@@ -60,5 +62,15 @@ func TestXUIDiffers(t *testing.T) {
 	}
 	if !xuiDiffers(xuiInboundClient{Email: "wui-1", ID: "u", Enable: false, LimitIP: 1}, want) {
 		t.Fatal("a disabled client reads as unchanged")
+	}
+}
+
+// A panel that answers nothing is said to answer nothing: not "old", and
+// not "the token was refused" for what was an outage.
+func TestAnUnreachablePanelIsNotAnOldOne(t *testing.T) {
+	n := model.Node{Kind: model.KindXUI, Address: "http://127.0.0.1:1", Token: "wui_test"}
+	_, err := newXUIAPI(context.Background(), n)
+	if err == nil || !strings.Contains(err.Error(), "did not answer") {
+		t.Fatalf("newXUIAPI said %v", err)
 	}
 }

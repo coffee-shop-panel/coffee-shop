@@ -162,6 +162,9 @@ func (p *xuiPanel) own(ctx context.Context, f xrayFile) xrayResult {
 			res.err = fmt.Errorf("moving %s: %v", email, err)
 			return res
 		}
+		// The snapshot still holds the copy where it was: taken out of
+		// it, so the sweep below does not try to take it out again.
+		delete(p.remote, remoteKey(rc.inbound, email))
 		res.changed = true
 	case xuiDiffers(rc.cfg, desired):
 		if err := p.api.updateClient(ctx, in.RemoteID, xuiKey(in.Kind, rc.cfg), desired); err != nil {
@@ -208,10 +211,24 @@ func (p *xuiPanel) adopt(ctx context.Context, f xrayFile, marks map[uint]adopted
 func (p *xuiPanel) sweep(ctx context.Context, wanted map[string]bool) (bool, []string) {
 	changed := false
 	var failures []string
+sweep:
 	for _, rc := range p.remote {
 		email := rc.cfg.Email
-		if wanted[email] || !service.XUIOwns(p.tag, email) {
+		// Wanted on its own inbound, not merely somewhere: a copy of the
+		// same client on another inbound is a stray, and goes.
+		if wanted[remoteKey(rc.inbound, email)] || !service.XUIOwns(p.tag, email) {
 			continue
+		}
+		// From 3.1 a client is one record shared by its inbounds: taking
+		// it away from one takes it away from all of them, its own
+		// included. A copy that is wanted on another inbound is left
+		// there; before 3.1 the take-away is per inbound, and precise.
+		if p.api.gen == xuiGenNew {
+			for _, other := range p.remote {
+				if other.cfg.Email == email && wanted[remoteKey(other.inbound, email)] {
+					continue sweep
+				}
+			}
 		}
 		if !rc.cfg.Enable && lastOf(p.remote, rc.inbound, email) {
 			continue // the one left on its inbound there, already off

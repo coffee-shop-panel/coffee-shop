@@ -87,7 +87,7 @@ func EnsureIdentity(db *gorm.DB) (*Identity, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, haveKey, err := database.GetSetting(db, KeyMTLSCAKey)
+	caKey, haveKey, err := database.GetSetting(db, KeyMTLSCAKey)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +102,27 @@ func EnsureIdentity(db *gorm.DB) (*Identity, error) {
 
 	if haveCert && haveKey && haveClient && haveClientKey {
 		return &Identity{CACertPEM: caCert, ClientCertPEM: clientCert, ClientKeyPEM: clientKey}, nil
+	}
+
+	if haveCert && haveKey {
+		// A partial set from before the four were stored in one
+		// transaction: the authority operators already pasted into every
+		// node is still there, and only the client certificate is
+		// missing. Mint just that, signed by the stored authority,
+		// rather than a new one. An authority that no longer reads is
+		// the one case that still mints fresh, as before.
+		if cert, key, err := mintClientCert(caCert, caKey); err == nil {
+			err = db.Transaction(func(tx *gorm.DB) error {
+				if err := database.PutSetting(tx, KeyMTLSClientCert, cert); err != nil {
+					return err
+				}
+				return database.PutSetting(tx, KeyMTLSClientKey, key)
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &Identity{CACertPEM: caCert, ClientCertPEM: cert, ClientKeyPEM: key}, nil
+		}
 	}
 
 	id, err := mintIdentity()
@@ -129,6 +150,50 @@ func EnsureIdentity(db *gorm.DB) (*Identity, error) {
 		return nil, err
 	}
 	return &id.Identity, nil
+}
+
+// mintClientCert issues a client certificate from a stored authority: the
+// half of the identity a partial set is missing, without touching the
+// authority operators already pasted into every node.
+func mintClientCert(caCertPEM, caKeyPEM string) (string, string, error) {
+	block, _ := pem.Decode([]byte(caCertPEM))
+	if block == nil {
+		return "", "", fmt.Errorf("nodes: the stored authority is not a certificate")
+	}
+	caCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return "", "", fmt.Errorf("nodes: read authority: %w", err)
+	}
+	block, _ = pem.Decode([]byte(caKeyPEM))
+	if block == nil {
+		return "", "", fmt.Errorf("nodes: the stored authority key is not a key")
+	}
+	caKey, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return "", "", fmt.Errorf("nodes: read authority key: %w", err)
+	}
+	now := time.Now()
+	clientKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", "", fmt.Errorf("nodes: generate client key: %w", err)
+	}
+	clientTmpl := &x509.Certificate{
+		SerialNumber: serial(),
+		Subject:      pkix.Name{CommonName: "W-UI managing panel"},
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.Add(caLifetime),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	clientDER, err := x509.CreateCertificate(rand.Reader, clientTmpl, caCert, &clientKey.PublicKey, caKey)
+	if err != nil {
+		return "", "", fmt.Errorf("nodes: sign client certificate: %w", err)
+	}
+	clientKeyPEM, err := encodeKey(clientKey)
+	if err != nil {
+		return "", "", err
+	}
+	return encodeCert(clientDER), clientKeyPEM, nil
 }
 
 type mintedIdentity struct {

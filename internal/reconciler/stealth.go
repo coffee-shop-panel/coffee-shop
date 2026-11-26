@@ -120,6 +120,11 @@ func (r *Reconciler) keepStealth(d *desired) {
 			}
 		}
 		if rg == nil || rg.gw == nil {
+			if before == nil {
+				// A gateway that could not start keeps its last failure,
+				// so the retry is still said once, not on every pass.
+				before = rg
+			}
 			rg = r.startGateway(iface, key, before)
 			g.running[iface.ID] = rg
 		}

@@ -99,9 +99,12 @@ func tlsConfigFor(node model.Node, id *Identity) (*tls.Config, error) {
 		// address -- Let's Encrypt issues them for IPs -- and a name given
 		// only to get past a network that resets TLS naming nothing: the
 		// name goes in the handshake, and the certificate is still checked
-		// against the address the operator typed.
+		// against the address the operator typed. For a hostname address
+		// as much as an IP one: checked against the handshake name, a
+		// certificate legitimately issued for that name would be accepted
+		// from anyone presenting it, and the token with it.
 		if !cfg.InsecureSkipVerify {
-			if host := addressHost(node.Address); host != "" && net.ParseIP(host) != nil {
+			if host := addressHost(node.Address); host != "" {
 				cfg.InsecureSkipVerify = true
 				cfg.VerifyConnection = verifyFor(host, nil)
 			}

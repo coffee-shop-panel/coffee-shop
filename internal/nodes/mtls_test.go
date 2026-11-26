@@ -99,6 +99,54 @@ func TestTheClientCertificateIsSignedByTheAuthority(t *testing.T) {
 	}
 }
 
+// A partial set from before the four were stored in one transaction —
+// the authority present, the client certificate missing — keeps its
+// authority: minting a new one would invalidate what operators already
+// pasted into every node.
+func TestAPartialIdentityKeepsItsAuthority(t *testing.T) {
+	db := mtlsDB(t)
+
+	full, err := EnsureIdentity(db)
+	if err != nil {
+		t.Fatalf("EnsureIdentity: %v", err)
+	}
+	// Back to the halfway state: the authority stays, the client half goes.
+	for _, k := range []string{KeyMTLSClientCert, KeyMTLSClientKey} {
+		if err := db.Where("key = ?", k).Delete(&model.Setting{}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	kept, err := EnsureIdentity(db)
+	if err != nil {
+		t.Fatalf("EnsureIdentity: %v", err)
+	}
+	if kept.CACertPEM != full.CACertPEM {
+		t.Error("the authority changed; every node's trust would break")
+	}
+	if kept.ClientCertPEM == "" || kept.ClientKeyPEM == "" {
+		t.Fatal("no client certificate was minted for the stored authority")
+	}
+	pool, err := TrustPool(kept.CACertPEM)
+	if err != nil {
+		t.Fatalf("TrustPool: %v", err)
+	}
+	cert, err := tls.X509KeyPair([]byte(kept.ClientCertPEM), []byte(kept.ClientKeyPEM))
+	if err != nil {
+		t.Fatalf("the client certificate and key do not go together: %v", err)
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := leaf.Verify(x509.VerifyOptions{
+		Roots:     pool,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}); err != nil {
+		t.Errorf("the new client certificate is not signed by the kept authority: %v", err)
+	}
+}
+
 // ── what a node actually sees ───────────────────────────────────────────────
 
 // The point of the whole arrangement: a caller with a perfectly good token and

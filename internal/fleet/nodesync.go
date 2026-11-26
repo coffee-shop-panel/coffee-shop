@@ -183,6 +183,12 @@ func (s *NodeSync) Apply(ctx context.Context, nodeID uint, state NodeState) erro
 }
 
 func (s *NodeSync) upsertInterface(tx *gorm.DB, nodeID uint, in NodeInterface) (*model.Interface, error) {
+	// A tunnel of a protocol no driver serves would be stored and then
+	// fail every tick, while the panel that sent it hears success.
+	if !in.Protocol.Valid() {
+		return nil, fault.Field("interface.protocol", "a tunnel is wireguard, openvpn, l2tp, pptp, ikev2 or openconnect")
+	}
+
 	var iface model.Interface
 	err := tx.Where("node_id = ? AND managed = ? AND origin_id = ?", nodeID, true, in.OriginID).
 		Limit(1).Find(&iface).Error
@@ -218,6 +224,9 @@ func (s *NodeSync) upsertInterface(tx *gorm.DB, nodeID uint, in NodeInterface) (
 	iface.Stealth = model.JSONField[model.StealthParams]{}
 	if in.Stealth != nil {
 		iface.Stealth = model.JSON(*in.Stealth)
+	}
+	if in.Protocol == model.ProtocolOpenVPN && (in.OpenVPN == nil || in.OpenVPN.CACert == "") {
+		return nil, fault.Field("interface.openvpn", "an OpenVPN tunnel arrived without its certificate")
 	}
 	if in.OpenVPN != nil {
 		iface.OpenVPN = model.JSON(*in.OpenVPN)

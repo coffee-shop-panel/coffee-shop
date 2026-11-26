@@ -125,6 +125,36 @@ func xuiCredential(kind string, c xuiInboundClient) string {
 	return c.Password
 }
 
+// addCopy folds one copy of a client into its candidate: a client on two
+// inbounds is one customer, and every copy counts — its traffic, its quota,
+// its expiry, its limits — the largest of each winning, or the import takes
+// one copy's numbers for all of them.
+func addCopy(cand *service.ImportCandidate, c xuiInboundClient, st xuiClientStat) {
+	cand.UsedBytes += st.Up + st.Down
+	cand.Enabled = cand.Enabled || c.Enable
+	if c.TotalGB > 0 && uint64(c.TotalGB) > cand.QuotaBytes {
+		cand.QuotaBytes = uint64(c.TotalGB)
+	}
+	switch {
+	case c.ExpiryTime > 0:
+		at := time.UnixMilli(c.ExpiryTime).UTC()
+		if cand.ExpiresAt == nil || at.After(*cand.ExpiresAt) {
+			cand.ExpiresAt = &at
+		}
+	case c.ExpiryTime < 0:
+		// That many milliseconds from the first connection.
+		if d := int(math.Ceil(float64(-c.ExpiryTime) / float64(24*time.Hour/time.Millisecond))); d > cand.DurationDays {
+			cand.DurationDays = d
+		}
+	}
+	if c.LimitIP > cand.DeviceLimit {
+		cand.DeviceLimit = c.LimitIP
+	}
+	if id := xuiTelegramID(c.TgID); id != 0 && cand.TelegramID == 0 {
+		cand.TelegramID = id
+	}
+}
+
 // xuiCandidates are a 3x-ui node's own clients as customers to bring in: the
 // clients that share a subscription id are one customer, as that panel's
 // subscription makes them one, with a file on each inbound they are on.
@@ -170,6 +200,10 @@ func xuiCandidates(ctx context.Context, node model.Node, tunnels []model.Interfa
 						Remote: c.Email, Secret: xuiAdoptedSecret(r.Protocol, c), Up: st.Up, Down: st.Down, On: c.Enable,
 					}})
 				}
+				// The second copy counts too: its traffic, its quota, its
+				// expiry — or the import takes the first copy's numbers
+				// for all of them.
+				addCopy(&out[i], c, stats[c.Email])
 				continue
 			}
 			key := c.SubID
@@ -193,29 +227,7 @@ func xuiCandidates(ctx context.Context, node model.Node, tunnels []model.Interfa
 			seenEmail[c.Email] = i
 			cand := &out[i]
 			st := stats[c.Email]
-			cand.UsedBytes += st.Up + st.Down
-			cand.Enabled = cand.Enabled || c.Enable
-			if c.TotalGB > 0 && uint64(c.TotalGB) > cand.QuotaBytes {
-				cand.QuotaBytes = uint64(c.TotalGB)
-			}
-			switch {
-			case c.ExpiryTime > 0:
-				at := time.UnixMilli(c.ExpiryTime).UTC()
-				if cand.ExpiresAt == nil || at.After(*cand.ExpiresAt) {
-					cand.ExpiresAt = &at
-				}
-			case c.ExpiryTime < 0:
-				// That many milliseconds from the first connection.
-				if d := int(math.Ceil(float64(-c.ExpiryTime) / float64(24*time.Hour/time.Millisecond))); d > cand.DurationDays {
-					cand.DurationDays = d
-				}
-			}
-			if c.LimitIP > cand.DeviceLimit {
-				cand.DeviceLimit = c.LimitIP
-			}
-			if id := xuiTelegramID(c.TgID); id != 0 && cand.TelegramID == 0 {
-				cand.TelegramID = id
-			}
+			addCopy(cand, c, st)
 			cand.Inbounds = append(cand.Inbounds, r.Remark)
 			if !ok || !t.XUI.V.Customers {
 				if cand.Reason == "" {

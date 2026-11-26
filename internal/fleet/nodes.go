@@ -349,6 +349,13 @@ func (s *Nodes) validate(in *NodeInput, needToken bool) error {
 	default:
 		return fault.Field("address", "the address must start with http:// or https://")
 	}
+	// A path, a query, a fragment or credentials in the address would ride
+	// along into every call the syncer builds from it — the panel would
+	// answer 404 to all of them, and credentials would land in the log
+	// line below. The address is a panel's address, and nothing else.
+	if (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+		return fault.Field("address", "the address is a panel's address, with no path, query or sign-in on it")
+	}
 	// Said once, here. A token travelling over plain HTTP to another machine is
 	// readable by everything between them, and this is the panel's own key to a
 	// whole other server.

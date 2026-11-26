@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/abolfazl/w-ui/internal/database/model"
 	"github.com/abolfazl/w-ui/internal/service"
@@ -102,5 +103,31 @@ func TestTheUntaggedOutboundIsTakenAway(t *testing.T) {
 	}
 	if rules, _ := got["routing"].(map[string]any)["rules"].([]any); len(rules) != 0 {
 		t.Fatalf("rules %v", rules)
+	}
+}
+
+// A node whose xray will not run with this panel's outbound, and whose
+// settings then will not go back either, is said: before, the round
+// reported the settings put back as they were while they were not.
+func TestAXrayThatWillNotRunAndWillNotGoBackIsSaid(t *testing.T) {
+	defer func(d time.Duration) { xuiSettle = d }(xuiSettle)
+	xuiSettle = time.Millisecond
+	f := newFakeXUI(t, "3.10.2")
+	f.addInbound("vless-in", "vless", 31005, map[string]any{"decryption": "none"}, nil)
+	f.xrayFails = func(map[string]any) bool { return true }
+	f.xrayUpdateFailsFrom = 2 // the save goes in; the put-back does not
+	r := newRig(t, xuiNode(f, true, false))
+	hop := model.Outbound{Tag: "de-hop", Kind: model.OutboundVLESS, Enabled: true, Position: -1,
+		Config: `{"protocol":"vless","settings":{"vnext":[{"address":"de.example","port":443,"users":[{"id":"x"}]}]}}`}
+	if err := r.db.Create(&hop).Error; err != nil {
+		t.Fatal(err)
+	}
+	api, err := newXUIAPI(r.ctx, r.node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = r.s.xuiEgress(r.ctx, api, r.node, egressRoute(r.tag(), nil))
+	if err == nil || !strings.Contains(err.Error(), "could not be put back") {
+		t.Fatalf("xuiEgress said %v", err)
 	}
 }
