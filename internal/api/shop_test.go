@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/glebarez/sqlite"
@@ -566,5 +568,79 @@ func TestShopCallbackUnknownAndFailed(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "پرداخت تأیید نشد") {
 		t.Errorf("the failure page does not say so: %s", rec.Body)
+	}
+}
+
+// A callback the gateway (or a refreshed browser) sends twice must not
+// deliver twice: the second visit finds the order already settled and is
+// answered from that, without asking the gateway again -- asking again
+// would mark the order paid a second time and settle it again, crediting
+// a top-up's money twice.
+func TestShopCallbackRevisitDoesNotDeliverTwice(t *testing.T) {
+	f := newShopFixture(t, true)
+	ctx := context.Background()
+	if err := f.store.SaveConfig(ctx, &shop.Config{
+		OperatorID: f.seller.ID, Enabled: true, Token: "123456:SECRET-TOKEN",
+		ZarinpalMerchant: "merchant-1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// The gateway, scripted to answer that this authority was already
+	// verified -- code 101, which a re-check reads as paid.
+	var verifyCalls atomic.Int32
+	z := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		verifyCalls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":{"code":101,"message":"Verified","ref_id":555001},"errors":[]}`)
+	}))
+	t.Cleanup(z.Close)
+	oldBase := shopbot.ZarinpalBase
+	shopbot.ZarinpalBase = z.URL
+	t.Cleanup(func() { shopbot.ZarinpalBase = oldBase })
+
+	order := &shop.Order{
+		OperatorID: f.seller.ID, BuyerTGID: 4242, BuyerName: "Buyer",
+		PlanName: "شارژ کیف پول", PriceToman: 50000,
+		Kind: shop.KindTopup, Method: shop.MethodZarinpal, Status: shop.StatusPaid,
+		Authority: "A1",
+	}
+	if err := f.store.CreateOrder(ctx, order); err != nil {
+		t.Fatal(err)
+	}
+	// The first delivery, as the first callback would have made it.
+	if _, err := f.store.Fulfill(ctx, order.ID); err != nil {
+		t.Fatalf("first delivery: %v", err)
+	}
+	balance := func() int64 {
+		wallet, err := f.store.WalletFor(ctx, f.seller.ID, 4242)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return wallet.BalanceToman
+	}
+	if got := balance(); got != 50000 {
+		t.Fatalf("after the first delivery the wallet holds %d, want 50000", got)
+	}
+
+	// The callback again: the gateway retrying it, or the buyer refreshing.
+	req := httptest.NewRequest(http.MethodGet,
+		"/shop/callback/"+order.PublicToken+"?Status=OK&Authority=A1", nil)
+	req.SetPathValue("token", order.PublicToken)
+	rec := shopDo(f.srv, f.srv.handleShopCallback, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "پرداخت موفق بود") {
+		t.Fatalf("revisited callback: %d %s", rec.Code, rec.Body)
+	}
+	if got := balance(); got != 50000 {
+		t.Errorf("the wallet holds %d after the second callback, want 50000: the top-up was credited twice", got)
+	}
+	if verifyCalls.Load() != 0 {
+		t.Errorf("the gateway was asked %d times about an order already settled, want 0", verifyCalls.Load())
+	}
+	done, err := f.store.OrderByID(ctx, order.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done.Status != shop.StatusFulfilled {
+		t.Errorf("the order is %q after the second callback, want fulfilled", done.Status)
 	}
 }

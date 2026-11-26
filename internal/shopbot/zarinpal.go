@@ -197,10 +197,27 @@ func (m *Manager) VerifyZarinpal(ctx context.Context, o *shop.Order) (bool, erro
 	if err != nil || !paid {
 		return paid, err
 	}
-	o.RefID = refID
-	o.Status = "paid"
-	if err := m.shop.UpdateOrder(ctx, o); err != nil {
+	// The gateway round-trip takes time, and the web callback can settle
+	// this order while it is in flight. Read it fresh before writing,
+	// and never write over a settlement: an order already paid or
+	// fulfilled is confirmed as it stands, and the caller's Fulfill is
+	// idempotent for it. Writing the stale copy back would regress a
+	// fulfilled order to paid and clobber its ClientID and UnitsDone,
+	// and the delivery that follows would settle it a second time.
+	fresh, err := m.shop.OrderByID(ctx, o.ID)
+	if err != nil {
 		return false, err
 	}
+	if fresh.Status == shop.StatusPaid || fresh.Status == shop.StatusFulfilled {
+		return true, nil
+	}
+	fresh.RefID = refID
+	fresh.Status = shop.StatusPaid
+	if err := m.shop.UpdateOrder(ctx, fresh); err != nil {
+		return false, err
+	}
+	// Keep the caller's copy in step: it is the order the caller delivers.
+	o.RefID = refID
+	o.Status = shop.StatusPaid
 	return true, nil
 }

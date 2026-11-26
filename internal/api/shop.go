@@ -780,6 +780,24 @@ func (s *Server) handleShopCallback(w http.ResponseWriter, r *http.Request) {
 	// verified by; it arrives on the callback because the order was
 	// written before the buyer was sent away, and a gateway that names
 	// a different one is not confirming this order.
+	//
+	// Not when the order is already settled. The money was confirmed
+	// and the customer delivered (or the delivery is owed on a paid
+	// order), and asking the gateway again would mark a delivered
+	// order paid a second time -- Zarinpal answers an authority it
+	// already verified with 101, which VerifyZarinpal reads as paid --
+	// and Fulfill would settle it again: a top-up credited twice, a
+	// referrer paid twice. A buyer refreshing the page they landed
+	// on, or the gateway retrying the callback, must not mint money.
+	if order.Status == shop.StatusFulfilled || order.Status == shop.StatusPaid {
+		if _, err := s.shop.Fulfill(ctx, order.ID); err != nil {
+			s.log.Error("zarinpal delivery", "order", order.ID, "error", err)
+			writeShopPage(w, shopPagePaidUndelivered)
+			return
+		}
+		writeShopPage(w, shopPageOK)
+		return
+	}
 	if auth := r.URL.Query().Get("Authority"); auth != "" {
 		order.Authority = auth
 	}

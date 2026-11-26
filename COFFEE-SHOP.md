@@ -38,6 +38,15 @@ can still be merged in.
   panel. Only the routes flagged `Machine` admit one now — the node
   protocol, plus the one settings read a managing panel needs, which
   answers a token with the display preferences alone. Staged for v5.
+- **fix(shop):** a Zarinpal callback — or the bot's «پرداخت کردم» button —
+  arriving again for an order already paid or delivered no longer
+  settles it a second time: no second wallet credit, no second
+  cashback. The bot's verification also reads the order fresh before
+  writing, so the web callback settling it mid-flight cannot be
+  overwritten. A reseller's traffic promise now counts against what
+  the admin already promised the other resellers, and node TLS is
+  checked against the hostname the operator typed, not only IP
+  addresses. Staged for v5.
 - **feat(v3.3.0):** an owner-only activity log (every operator change
   and sign-in, persisted and browsable in the panel); the coffee
   subscription page shows each node's real reachability and a renew
