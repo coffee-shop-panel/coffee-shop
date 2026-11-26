@@ -82,6 +82,115 @@ func TestACappedAdminCannotHandDownUnlimitedTraffic(t *testing.T) {
 	}
 }
 
+// An admin's allowance is a pool, not a per-reseller ceiling: traffic
+// promised to one reseller is gone for the next, or the same allowance
+// could be sold twice over and every reseller past the first left with a
+// quota the admin can never honour.
+func TestAnAdminCannotHandDownTheSameTrafficTwice(t *testing.T) {
+	s := authzDB(t)
+	ali := mkAdmin(t, s, "ali", 100*gb, []uint{1, 2})
+	asAli := WithCaller(context.Background(), ali)
+
+	// The whole allowance to one reseller leaves nothing for the next.
+	whole := 100 * gb
+	if _, err := s.Create(asAli, AdminInput{Username: "res1", Password: "correct-horse",
+		Role: model.RoleReseller, QuotaBytes: &whole, InterfaceIDs: []uint{1}}); err != nil {
+		t.Fatalf("first reseller: %v", err)
+	}
+	one := gb
+	if _, err := s.Create(asAli, AdminInput{Username: "res2", Password: "correct-horse",
+		Role: model.RoleReseller, QuotaBytes: &one, InterfaceIDs: []uint{1}}); !errors.Is(err, fault.ErrInvalid) {
+		t.Errorf("a second reseller was promised traffic already promised: %v", err)
+	}
+
+	// Split across two, the second up to exactly what is left.
+	beh := mkAdmin(t, s, "beh", 100*gb, []uint{1, 2})
+	asBeh := WithCaller(context.Background(), beh)
+	sixty := 60 * gb
+	if _, err := s.Create(asBeh, AdminInput{Username: "beh1", Password: "correct-horse",
+		Role: model.RoleReseller, QuotaBytes: &sixty, InterfaceIDs: []uint{1}}); err != nil {
+		t.Fatalf("first reseller under beh: %v", err)
+	}
+	fortyOne := 41 * gb
+	if _, err := s.Create(asBeh, AdminInput{Username: "beh2", Password: "correct-horse",
+		Role: model.RoleReseller, QuotaBytes: &fortyOne, InterfaceIDs: []uint{1}}); !errors.Is(err, fault.ErrInvalid) {
+		t.Errorf("a reseller was promised more than the allowance less the first: %v", err)
+	}
+	forty := 40 * gb
+	if _, err := s.Create(asBeh, AdminInput{Username: "beh2", Password: "correct-horse",
+		Role: model.RoleReseller, QuotaBytes: &forty, InterfaceIDs: []uint{1}}); err != nil {
+		t.Errorf("a reseller within what was left was refused: %v", err)
+	}
+
+	// Raising a reseller who has spent some of their quota spends only
+	// the new headroom, not the whole quota again.
+	cid := mkAdmin(t, s, "cid", 100*gb, []uint{1, 2})
+	r1, err := s.Create(WithCaller(context.Background(), cid), AdminInput{Username: "cid1",
+		Password: "correct-horse", Role: model.RoleReseller, QuotaBytes: &sixty, InterfaceIDs: []uint{1}})
+	if err != nil {
+		t.Fatalf("first reseller under cid: %v", err)
+	}
+	// Half of it spent -- charged to the reseller and to the admin above
+	// them, as the traffic flush does.
+	if err := s.db.Model(&model.Admin{}).Where("id IN ?", []uint{cid.ID, r1.ID}).
+		Update("used_bytes", 50*gb).Error; err != nil {
+		t.Fatal(err)
+	}
+	cid, err = s.Get(context.Background(), cid.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asCid := WithCaller(context.Background(), cid)
+	// 60 -> 80 leaves 30 of headroom against 50 still unspent: allowed.
+	eighty := 80 * gb
+	if _, err := s.Update(asCid, r1.ID, AdminInput{QuotaBytes: &eighty}); err != nil {
+		t.Errorf("raising a reseller within the headroom was refused: %v", err)
+	}
+	// 80 -> 100 leaves 50, exactly the allowance left: allowed.
+	hundred := 100 * gb
+	if _, err := s.Update(asCid, r1.ID, AdminInput{QuotaBytes: &hundred}); err != nil {
+		t.Errorf("raising a reseller to exactly the allowance left was refused: %v", err)
+	}
+	// Past it: refused.
+	over := 101 * gb
+	if _, err := s.Update(asCid, r1.ID, AdminInput{QuotaBytes: &over}); !errors.Is(err, fault.ErrInvalid) {
+		t.Errorf("raising a reseller past the allowance left was allowed: %v", err)
+	}
+}
+
+// Demoting an admin to reseller leaves them a reseller, and a reseller's
+// customers have to be filed under something: the label is made here, as
+// on creation, rather than leaving the reseller with none -- which would
+// file their new customers under no label at all.
+func TestDemotingAnAdminToResellerFilesTheirCustomers(t *testing.T) {
+	s := authzDB(t)
+	a := mkAdmin(t, s, "dem", 0, nil)
+	if a.GroupName != "" {
+		t.Fatalf("an admin has a label %q", a.GroupName)
+	}
+	got, err := s.Update(context.Background(), a.ID, AdminInput{Role: model.RoleReseller})
+	if err != nil {
+		t.Fatalf("demote: %v", err)
+	}
+	if got.GroupName != "reseller:dem" {
+		t.Fatalf("demoted reseller's label is %q, want the default", got.GroupName)
+	}
+	var g model.Group
+	if err := s.db.Where("owner_id = 0 AND name = ?", "reseller:dem").First(&g).Error; err != nil {
+		t.Fatalf("the default label was not created: %v", err)
+	}
+
+	// A name given with the demotion is used instead.
+	b := mkAdmin(t, s, "dem2", 0, nil)
+	got, err = s.Update(context.Background(), b.ID, AdminInput{Role: model.RoleReseller, GroupName: strptr("vip-corner")})
+	if err != nil {
+		t.Fatalf("demote with a name: %v", err)
+	}
+	if got.GroupName != "vip-corner" {
+		t.Fatalf("demoted reseller's label is %q, want vip-corner", got.GroupName)
+	}
+}
+
 // An admin creates resellers only, under themselves, within their own
 // ceiling, and never reaches anyone else's operators.
 func TestAnAdminManagesOnlyTheirOwnResellers(t *testing.T) {

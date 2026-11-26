@@ -510,6 +510,7 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 	// The label moves only for a reseller, and only when it changes. It is a
 	// reseller mechanism: an admin's tree is traced by admin_id, not a label.
 	newGroup := ""
+	makeDefaultGroup := false
 	if role == model.RoleReseller && admin.Role == model.RoleReseller && in.GroupName != nil {
 		want := strings.TrimSpace(*in.GroupName)
 		if want == "" {
@@ -521,6 +522,21 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 			}
 			newGroup = want
 		}
+	} else if role == model.RoleReseller && admin.GroupName == "" {
+		// A reseller with no label -- an admin demoted to reseller, whose
+		// tree was traced by admin_id rather than a label. Their customers
+		// still have to be filed under something, and the label is what
+		// files them, so one is made here: the name given, or the default
+		// as on creation.
+		if in.GroupName != nil {
+			if want := strings.TrimSpace(*in.GroupName); want != "" {
+				if err := s.checkOwnerGroup(ctx, admin.ID, want); err != nil {
+					return nil, err
+				}
+				newGroup = want
+			}
+		}
+		makeDefaultGroup = newGroup == ""
 	}
 
 	if err := s.checkInterfaces(ctx, admin.ID, role, in.InterfaceIDs); err != nil {
@@ -545,6 +561,13 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 		menusUpdate = clean
 	}
 
+	// The name the default label is built from, after any rename in this
+	// same update.
+	username := admin.Username
+	if u, ok := fields["username"].(string); ok {
+		username = u
+	}
+
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if newGroup != "" {
 			canonical, err := ensureOwnerGroup(tx, newGroup, admin.Username)
@@ -558,6 +581,13 @@ func (s *Admins) Update(ctx context.Context, id uint, in AdminInput) (*model.Adm
 				}
 			}
 			fields["group_name"] = newGroup
+		}
+		if makeDefaultGroup {
+			name, err := s.makeOwnerGroup(tx, &model.Admin{Username: username})
+			if err != nil {
+				return err
+			}
+			fields["group_name"] = name
 		}
 		if len(fields) > 0 {
 			if err := tx.Model(&model.Admin{}).Where("id = ?", admin.ID).Updates(fields).Error; err != nil {

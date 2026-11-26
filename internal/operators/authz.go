@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"gorm.io/gorm"
 
@@ -95,11 +96,30 @@ func (s *Admins) checkHandDown(ctx context.Context, interfaceIDs []uint, quota *
 	// no limit of their own hands down without one. Zero is no limit, not
 	// nothing: without the check below a capped admin could hand a reseller
 	// unlimited traffic, since zero is never more than what is left.
+	//
+	// What is left is the allowance less what is already spent and what is
+	// already promised: a reseller's quota is a promise of traffic, and
+	// without subtracting the unspent part of every sibling's promise the
+	// same traffic could be handed down twice over -- each new reseller
+	// measured against an allowance that never shrinks.
 	if quota != nil && caller.QuotaBytes > 0 {
 		if *quota <= 0 {
 			return fault.Field("quotaBytes", "a reseller under you needs a traffic limit: yours is limited")
 		}
-		if *quota > caller.RemainingBytes() {
+		held, spent, err := s.treeQuota(ctx, caller, resellerID)
+		if err != nil {
+			return err
+		}
+		// The quota is measured as the headroom it leaves the reseller:
+		// what they have already spent is spent, and the unspent part of
+		// the quota they hold now is theirs already, not a new charge on
+		// the admin's pool.
+		var fresh uint64
+		if *quota > spent {
+			fresh = *quota - spent
+		}
+		left := caller.RemainingBytes()
+		if fresh > left || held > left-fresh {
 			return fault.Field("quotaBytes", "that is more traffic than you have left to hand down")
 		}
 	}
@@ -124,6 +144,41 @@ func (s *Admins) checkHandDown(ctx context.Context, interfaceIDs []uint, quota *
 		}
 	}
 	return nil
+}
+
+// treeQuota is the traffic already promised to the resellers under an
+// admin and not yet used: each one's quota less what they have spent,
+// floored at nothing. The reseller being handed a quota is left out of
+// the sum, and what they have spent returned beside it: their promise is
+// what the new quota replaces, so the new quota is measured against the
+// pool less the siblings' promises and their own spent traffic, not
+// against a pool that still charges them for a promise they no longer
+// hold.
+func (s *Admins) treeQuota(ctx context.Context, caller *model.Admin, except uint) (held, spent uint64, err error) {
+	var rows []struct {
+		ID         uint
+		QuotaBytes uint64
+		UsedBytes  uint64
+	}
+	if err := s.db.WithContext(ctx).Model(&model.Admin{}).
+		Where("parent_admin_id = ? AND role = ?", caller.ID, model.RoleReseller).
+		Select("id, quota_bytes, used_bytes").Find(&rows).Error; err != nil {
+		return 0, 0, fmt.Errorf("service: count the traffic promised in your tree: %w", err)
+	}
+	for _, r := range rows {
+		if r.ID == except {
+			spent = r.UsedBytes
+			continue
+		}
+		if r.QuotaBytes > r.UsedBytes {
+			if d := r.QuotaBytes - r.UsedBytes; held > math.MaxUint64-d {
+				held = math.MaxUint64
+			} else {
+				held += d
+			}
+		}
+	}
+	return held, spent, nil
 }
 
 // treeUsers is how many users the customers in an admin's tree account
