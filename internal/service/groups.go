@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -592,9 +593,11 @@ func (s *Clients) ApplyToGroup(ctx context.Context, op GroupOp) (int64, error) {
 		return n, nil
 
 	case GroupExtend:
-		// An "extend" that shortens the plan is not an extension.
-		if op.Days <= 0 {
-			return 0, fmt.Errorf("%w: days must be above zero", ErrInvalid)
+		// An "extend" that shortens the plan is not an extension. Days
+		// past the cap would overflow the duration they are turned into
+		// and land as a negative one, moving every plan backwards instead.
+		if op.Days <= 0 || op.Days > maxExtendDays {
+			return 0, fmt.Errorf("%w: days must be between 1 and %d", ErrInvalid, maxExtendDays)
 		}
 		// The date arithmetic is done in Go, one row at a time, rather than in
 		// SQL: the interval syntax differs between SQLite and PostgreSQL, and a
@@ -686,6 +689,11 @@ func (s *Clients) ApplyToGroup(ctx context.Context, op GroupOp) (int64, error) {
 	}
 }
 
+// maxGroupNote is the group's note column, in characters, as the client
+// note's cap is: past it the database refuses the row rather than the form
+// refusing the note.
+const maxGroupNote = 256
+
 // CreateGroup makes an empty group.
 //
 // An empty group is the point: an operator sets one up before the customers
@@ -699,6 +707,10 @@ func (s *Clients) CreateGroup(ctx context.Context, name, note string) (*model.Gr
 	}
 	if len(name) > 64 {
 		return nil, invalidField("name", "that name is too long")
+	}
+	note = strings.TrimSpace(note)
+	if utf8.RuneCountInString(note) > maxGroupNote {
+		return nil, invalidField("note", "at most %d characters", maxGroupNote)
 	}
 
 	if err := guardHidden(ctx, name); err != nil {
@@ -719,7 +731,7 @@ func (s *Clients) CreateGroup(ctx context.Context, name, note string) (*model.Gr
 		return nil, invalidField("name", "a group called %q already exists", name)
 	}
 
-	g := model.Group{OwnerID: OwnerOf(ctx), Name: name, Note: strings.TrimSpace(note)}
+	g := model.Group{OwnerID: OwnerOf(ctx), Name: name, Note: note}
 	if err := s.db.WithContext(ctx).Create(&g).Error; err != nil {
 		return nil, fmt.Errorf("service: create group: %w", err)
 	}

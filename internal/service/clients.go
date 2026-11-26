@@ -1797,8 +1797,10 @@ func (s *Clients) Adjust(ctx context.Context, in AdjustInput) (int64, error) {
 	// An "extend" that shortens the plan is not an extension, and a cycle
 	// nothing recognises would be stored verbatim where nothing ever
 	// matches it: both refused here, as Extend and Create refuse them.
-	if in.AddDays != nil && (math.IsNaN(*in.AddDays) || math.IsInf(*in.AddDays, 0) || *in.AddDays < 0) {
-		return 0, invalidField("addDays", "addDays is a number of zero or more")
+	// Days past the cap would overflow the duration they are turned into
+	// and land as a negative one, moving every plan backwards instead.
+	if in.AddDays != nil && (math.IsNaN(*in.AddDays) || math.IsInf(*in.AddDays, 0) || *in.AddDays < 0 || *in.AddDays > maxExtendDays) {
+		return 0, invalidField("addDays", "addDays is a number from zero to %d", maxExtendDays)
 	}
 	var cycle model.ResetCycle
 	if in.ResetCycle != nil {
@@ -1825,11 +1827,15 @@ func (s *Clients) Adjust(ctx context.Context, in AdjustInput) (int64, error) {
 		for _, m := range members {
 			fields := map[string]any{}
 
-			if in.AddDays != nil {
+			if in.AddDays != nil && m.ExpiresAt != nil {
 				// Measured from each client's own expiry, so time already paid
-				// for is not lost. Anyone expired starts from today.
+				// for is not lost. Anyone expired starts from today. A
+				// customer with no end date keeps having none, as Extend
+				// leaves them: giving them a date here would end a plan
+				// that never ends, or start the clock on one waiting for
+				// its first connection.
 				base := now
-				if m.ExpiresAt != nil && m.ExpiresAt.After(now) {
+				if m.ExpiresAt.After(now) {
 					base = *m.ExpiresAt
 				}
 				next := base.Add(time.Duration(*in.AddDays * 24 * float64(time.Hour)))
@@ -1849,6 +1855,11 @@ func (s *Clients) Adjust(ctx context.Context, in AdjustInput) (int64, error) {
 				fields["reset_cycle"] = cycle
 			}
 
+			if len(fields) == 0 {
+				// Nothing to change for this one: days asked of a plan
+				// with no end date, and nothing else asked at all.
+				continue
+			}
 			if err := tx.Model(&model.Client{}).
 				Where("id = ?", m.ID).Updates(fields).Error; err != nil {
 				return err

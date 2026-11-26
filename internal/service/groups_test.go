@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -131,5 +132,45 @@ func TestExtendingAGroupMovesEachMembersOwnDate(t *testing.T) {
 	}
 	if g := get(waiting); g.ExpiresAt != nil {
 		t.Errorf("a plan waiting for its first connection was given an end date: %v", g.ExpiresAt)
+	}
+}
+
+// Days past the cap overflow the duration they are turned into and land
+// as a negative one, moving every plan backwards instead of extending it.
+func TestGroupExtendRefusesDaysPastTheCap(t *testing.T) {
+	db := testDB(t)
+	svc := NewClients(db, ipam.NewPools(), quietLog())
+	ctx := context.Background()
+	now := time.Now().UTC()
+	inAWeek := now.AddDate(0, 0, 7)
+	running := model.Client{Name: "running", Status: model.StatusActive, ExpiresAt: &inAWeek}
+	if err := db.Create(&running).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.AssignGroup(ctx, "batch", []uint{running.ID}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApplyToGroup(ctx, GroupOp{Action: GroupExtend, Group: "batch", Days: 200000}); err == nil {
+		t.Fatal("200000 days was accepted")
+	}
+	var got model.Client
+	if err := db.First(&got, running.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !got.ExpiresAt.Equal(inAWeek) {
+		t.Errorf("the plan moved to %v after a refused extend", got.ExpiresAt)
+	}
+}
+
+// A group's note is a column of 256 characters: past it the database
+// refuses the row rather than the form refusing the note.
+func TestCreateGroupRefusesANotePastTheColumn(t *testing.T) {
+	svc := NewClients(testDB(t), ipam.NewPools(), quietLog())
+	ctx := context.Background()
+	if _, err := svc.CreateGroup(ctx, "long-note", strings.Repeat("n", 257)); err == nil {
+		t.Fatal("a 257-character note was accepted")
+	}
+	if _, err := svc.CreateGroup(ctx, "ok-note", strings.Repeat("n", 256)); err != nil {
+		t.Fatalf("a 256-character note was refused: %v", err)
 	}
 }

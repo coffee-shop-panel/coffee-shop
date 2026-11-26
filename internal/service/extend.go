@@ -61,6 +61,12 @@ const (
 	maxExtendData = 1 << 50                                           // a pebibyte
 )
 
+// maxExtendDays is maxExtendTime in days. A duration built from days
+// overflows time.Duration past about 106751 of them, so every place that
+// turns days into a duration refuses more than this first, rather than
+// wrapping to a negative duration and moving a plan backwards.
+const maxExtendDays = 100 * 12 * daysPerMonth
+
 // maxExtendIDs bounds one request, as the matching selection does.
 const maxExtendIDs = maxMatchingIDs
 

@@ -356,3 +356,46 @@ func TestMatchingIDsIsEveryPage(t *testing.T) {
 		t.Errorf("a reseller's select all = %v, %v; want their one customer", ids, err)
 	}
 }
+
+// Days past the cap overflow the duration they are turned into and land
+// as a negative one, moving every plan backwards instead of extending it.
+func TestAdjustRefusesDaysPastTheCap(t *testing.T) {
+	db, clients, _ := extendDB(t)
+	running := customer(t, db, model.Client{Name: "running", ExpiresAt: fromNow(10 * day)})
+	huge := 200000.0
+	if _, err := clients.Adjust(context.Background(), AdjustInput{IDs: []uint{running.ID}, AddDays: &huge}); err == nil {
+		t.Fatal("200000 days was accepted")
+	}
+	if got := reload(t, db, running.ID); !near(*got.ExpiresAt, *running.ExpiresAt) {
+		t.Errorf("the plan moved to %v after a refused adjust", got.ExpiresAt)
+	}
+}
+
+// Adding days to a plan with no end date must not give it one, as Extend
+// leaves such plans alone: a plan that never ends, or one waiting for its
+// first connection, keeps having no date -- and is not counted as changed.
+func TestAdjustLeavesPlansWithoutAnEndDateAlone(t *testing.T) {
+	db, clients, _ := extendDB(t)
+	running := customer(t, db, model.Client{Name: "running", ExpiresAt: fromNow(10 * day)})
+	unlimited := customer(t, db, model.Client{Name: "unlimited"})
+	waiting := customer(t, db, model.Client{Name: "waiting", StartOnFirstUse: true, DurationDays: 30})
+	days := 10.0
+	n, err := clients.Adjust(context.Background(), AdjustInput{
+		IDs: []uint{running.ID, unlimited.ID, waiting.ID}, AddDays: &days,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("adjusted %d, want 1: only the plan with an end date", n)
+	}
+	if got := reload(t, db, running.ID); !near(*got.ExpiresAt, running.ExpiresAt.Add(10*day)) {
+		t.Errorf("the running plan ends %v, want ten days after %s", got.ExpiresAt, running.ExpiresAt)
+	}
+	if got := reload(t, db, unlimited.ID); got.ExpiresAt != nil {
+		t.Errorf("a plan that never ends was given an end date: %v", got.ExpiresAt)
+	}
+	if got := reload(t, db, waiting.ID); got.ExpiresAt != nil || !got.StartOnFirstUse {
+		t.Errorf("a waiting plan was given an end date %v or started: %+v", got.ExpiresAt, got)
+	}
+}
