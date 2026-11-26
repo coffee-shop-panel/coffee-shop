@@ -1233,6 +1233,28 @@ func (s *Server) handleRestartInterface(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Only a tunnel on this machine. One on another node has its kernel
+	// somewhere else: opening a driver here would build a device nobody
+	// dials, and report a restart that never reached the server that
+	// runs it. Create and clone keep the same line, by not opening one
+	// at all.
+	if iface.NodeID != s.localNodeID {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":        false,
+			"interface": iface.Name,
+			"error":     "that tunnel runs on another server",
+		})
+		return
+	}
+	if s.pool == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":        false,
+			"interface": iface.Name,
+			"error":     "restart is not available on this panel",
+		})
+		return
+	}
+
 	// Through the pool, so the reopened driver is the one the reconciler will
 	// use. Building a driver here and keeping it to ourselves is what the old
 	// version did, and it left the interface looking restarted while nothing

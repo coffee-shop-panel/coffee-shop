@@ -33,6 +33,13 @@ func TestMessagesReadAsSentences(t *testing.T) {
 		// A colon inside the message is not a prefix and must survive.
 		{errors.New("could not reach it: Get \"http://127.0.0.1:9/api/system\""),
 			"Could not reach it: Get \"http://127.0.0.1:9/api/system\""},
+		// A message that opens outside ASCII keeps its first letter: a
+		// node named in Persian, or one whose name opens with an emoji,
+		// used to come back with a replacement character in its place.
+		{errors.New("ترکیه already has an openvpn tunnel; a server carries one, because the clients use fixed ports"),
+			"ترکیه already has an openvpn tunnel; a server carries one, because the clients use fixed ports"},
+		{errors.New("🥇 ترکیه is down: the probe got no answer"),
+			"🥇 ترکیه is down: the probe got no answer"},
 	}
 
 	for _, c := range cases {

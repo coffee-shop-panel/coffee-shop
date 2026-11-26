@@ -59,4 +59,10 @@ func TestTheSubscriptionIsSentCompressedToWhoTakesIt(t *testing.T) {
 	if rec := ask("*/*", "gzip;q=0"); rec.Header().Get("Content-Encoding") != "" {
 		t.Fatal("compressed for a caller that refuses gzip")
 	}
+	// A refusal written with a decimal quality is still a refusal.
+	for _, enc := range []string{"gzip;q=0.0", "gzip; q=0.00", "deflate, gzip;q=0.0"} {
+		if rec := ask("*/*", enc); rec.Header().Get("Content-Encoding") != "" {
+			t.Fatalf("compressed for a caller that refuses gzip with %q", enc)
+		}
+	}
 }

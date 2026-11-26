@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -35,9 +36,16 @@ func subGzip(w http.ResponseWriter, r *http.Request) (http.ResponseWriter, func(
 func acceptsGzip(r *http.Request) bool {
 	for _, part := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
 		name, q, _ := strings.Cut(strings.TrimSpace(part), ";")
-		if strings.EqualFold(strings.TrimSpace(name), "gzip") && strings.ReplaceAll(q, " ", "") != "q=0" {
-			return true
+		if !strings.EqualFold(strings.TrimSpace(name), "gzip") {
+			continue
 		}
+		// A quality of zero is a refusal, however it is written: q=0,
+		// q=0.0, q=0.00. Anything else, or no quality at all, is an
+		// acceptance; a quality that does not parse is not a refusal.
+		if qv, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(q), "q=")), 64); err == nil && qv == 0 {
+			continue
+		}
+		return true
 	}
 	return false
 }

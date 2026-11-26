@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/abolfazl/w-ui/internal/routing"
 	"github.com/abolfazl/w-ui/internal/service"
@@ -140,7 +142,11 @@ func humanMessage(err error) string {
 	if msg == "" {
 		return err.Error()
 	}
-	return strings.ToUpper(msg[:1]) + msg[1:]
+	// By rune, not by byte: a message that opens with a letter outside
+	// ASCII -- a node named in Persian, an emoji -- lost its first byte
+	// to ToUpper and came back with a replacement character in its place.
+	r, size := utf8.DecodeRuneInString(msg)
+	return string(unicode.ToUpper(r)) + msg[size:]
 }
 
 // isPackageWord reports whether a prefix looks like a package or layer name
